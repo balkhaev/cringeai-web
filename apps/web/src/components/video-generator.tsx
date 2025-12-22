@@ -3,7 +3,7 @@
 import { Clock, Loader2, Settings2, Sparkles, Wand2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { RemixEditor } from "@/components/remix-editor";
+import { type ElementSelection, RemixEditor } from "@/components/remix-editor";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,13 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  buildDiffPrompt,
-  canGenerate,
-  extractKlingImageInputs,
-  type ImageReference,
-  type RemixModifications,
-} from "@/lib/remix-prompt";
+import { buildElementPrompt, canGenerate } from "@/lib/remix-prompt";
 import type {
   KlingGenerationOptions,
   TemplateAnalysis,
@@ -50,10 +44,10 @@ export function VideoGenerator({
   onGenerate,
   isGenerating = false,
 }: VideoGeneratorProps) {
-  // Remix modifications with image references
-  const [remixModifications, setRemixModifications] =
-    useState<RemixModifications>({});
-  const [imageRefs, setImageRefs] = useState<ImageReference[]>([]);
+  // Element selections for context-aware remix
+  const [elementSelections, setElementSelections] = useState<
+    ElementSelection[]
+  >([]);
 
   // Generation options - initialized from analysis
   const [duration, setDuration] = useState<number>(() => {
@@ -74,17 +68,22 @@ export function VideoGenerator({
   });
   const [keepAudio, setKeepAudio] = useState(false);
 
-  // Generated prompt
-  const generatedPrompt = useMemo(
-    () => buildDiffPrompt(analysis, remixModifications, imageRefs),
-    [analysis, remixModifications, imageRefs]
+  // Generated prompt from element selections
+  const { prompt: generatedPrompt, elementRefs } = useMemo(
+    () => buildElementPrompt(analysis.elements || [], elementSelections),
+    [analysis.elements, elementSelections]
   );
 
-  // Handle remix editor changes
-  const handleRemixChange = useCallback(
-    (mods: RemixModifications, refs: ImageReference[]) => {
-      setRemixModifications(mods);
-      setImageRefs(refs);
+  // Check if can generate
+  const canGenerateNow = useMemo(
+    () => canGenerate(elementSelections),
+    [elementSelections]
+  );
+
+  // Handle element selection changes
+  const handleSelectionsChange = useCallback(
+    (selections: ElementSelection[]) => {
+      setElementSelections(selections);
     },
     []
   );
@@ -96,38 +95,32 @@ export function VideoGenerator({
       return;
     }
 
-    if (!canGenerate(remixModifications, imageRefs)) {
-      toast.error("Загрузите референсное изображение или укажите изменения");
+    if (!canGenerateNow) {
+      toast.error("Выберите элементы для замены");
       return;
     }
 
-    // Build options with image references
+    // Build options
     const options: KlingGenerationOptions = {
       duration,
       aspectRatio,
       keepAudio,
     };
 
-    // Add image references
-    if (imageRefs.length > 0) {
-      const { imageUrls, elements } = extractKlingImageInputs(imageRefs);
-      if (imageUrls.length > 0) {
-        options.imageUrls = imageUrls;
-      }
-      if (elements.length > 0) {
-        options.elements = elements;
-      }
+    // Add element references for custom images
+    if (elementRefs.length > 0) {
+      options.elements = elementRefs;
     }
 
     await onGenerate(generatedPrompt, options);
   }, [
     sourceVideoUrl,
-    remixModifications,
+    canGenerateNow,
     generatedPrompt,
+    elementRefs,
     duration,
     aspectRatio,
     keepAudio,
-    imageRefs,
     onGenerate,
   ]);
 
@@ -139,7 +132,7 @@ export function VideoGenerator({
           Генерация видео
         </CardTitle>
         <CardDescription>
-          Укажите что изменить для создания ремикса
+          Выберите элементы для замены в ремиксе
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -148,18 +141,22 @@ export function VideoGenerator({
           analysis={analysis}
           disabled={isGenerating}
           key={analysis.id}
-          onModificationsChange={handleRemixChange}
+          onSelectionsChange={handleSelectionsChange}
         />
 
         {/* Prompt preview */}
-        <div className="space-y-2">
-          <Label className="font-medium text-sm">Сгенерированный промпт</Label>
-          <div className="rounded-lg border bg-surface-1 p-3">
-            <p className="font-mono text-sm text-violet-200">
-              {generatedPrompt || "Укажите изменения выше"}
-            </p>
+        {canGenerateNow && (
+          <div className="space-y-2">
+            <Label className="font-medium text-sm">
+              Сгенерированный промпт
+            </Label>
+            <div className="rounded-lg border bg-surface-1 p-3">
+              <p className="font-mono text-sm text-violet-200">
+                {generatedPrompt}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Generation Options */}
         <div className="flex flex-wrap items-center gap-4">
@@ -216,11 +213,7 @@ export function VideoGenerator({
         {/* Generate Button */}
         <Button
           className="w-full bg-violet-600 hover:bg-violet-700"
-          disabled={
-            isGenerating ||
-            !sourceVideoUrl ||
-            !canGenerate(remixModifications, imageRefs)
-          }
+          disabled={isGenerating || !sourceVideoUrl || !canGenerateNow}
           onClick={handleGenerate}
         >
           {isGenerating ? (

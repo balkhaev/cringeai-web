@@ -249,7 +249,7 @@ export function AnalysisComparison({
                 ) : null}
 
                 {/* Collapsible sections */}
-                {analysis.scenes?.length > 0 ? (
+                {analysis.scenes && analysis.scenes.length > 0 ? (
                   <Collapsible
                     onOpenChange={() => toggleSection(`${type}-scenes`)}
                     open={expandedSections.includes(`${type}-scenes`)}
@@ -287,7 +287,7 @@ export function AnalysisComparison({
                   </Collapsible>
                 ) : null}
 
-                {analysis.characters?.length > 0 ? (
+                {analysis.characters && analysis.characters.length > 0 ? (
                   <Collapsible
                     onOpenChange={() => toggleSection(`${type}-characters`)}
                     open={expandedSections.includes(`${type}-characters`)}
@@ -329,9 +329,9 @@ export function AnalysisComparison({
                 ) : null}
 
                 {/* Tags */}
-                {analysis.tags?.length > 0 ? (
+                {analysis.tags && analysis.tags.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
-                    {analysis.tags.map((tag) => (
+                    {analysis.tags.map((tag: string) => (
                       <Badge key={tag} variant="secondary">
                         {tag}
                       </Badge>
@@ -354,7 +354,7 @@ function AnalysisField({
 }: {
   icon: React.ElementType;
   label: string;
-  value: string;
+  value: string | undefined;
 }) {
   if (!value) {
     return null;

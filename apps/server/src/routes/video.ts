@@ -50,32 +50,9 @@ function saveAnalysis(
       sourceType,
       sourceId,
       fileName,
-      // Quick mode fields
-      subject: analysis.subject,
-      action: analysis.action,
-      environment: analysis.environment,
-      cameraStyle: analysis.cameraStyle,
-      mood: analysis.mood,
-      colorPalette: analysis.colorPalette,
-      style: analysis.style,
       duration: analysis.duration,
       aspectRatio: analysis.aspectRatio,
-      // Pro mode fields (JSON)
-      scenes: analysis.scenes,
-      characters: analysis.characters,
-      objects: analysis.objects,
-      cameraMovements: analysis.cameraMovements,
-      lighting: analysis.lighting,
-      transitions: analysis.transitions,
-      audio: analysis.audio,
-      textOverlays: analysis.textOverlays,
-      // Legacy fields
-      pacing: analysis.pacing,
-      cameraWork: analysis.cameraWork,
-      // Prompts
-      klingPrompt: analysis.klingPrompt,
-      veo3Prompt: analysis.veo3Prompt,
-      tags: analysis.tags,
+      elements: analysis.elements,
     },
   });
 }

@@ -10,82 +10,63 @@ export type TemplateReel = {
   source: string;
 };
 
-// Scene in the video
-export type VideoScene = {
-  timestamp: string;
-  description: string;
-  action: string;
+// Remix option for element transformation
+export type RemixOption = {
+  id: string; // "opt-1", "opt-2", etc.
+  label: string; // "Cyberpunk Robot"
+  icon: string; // emoji
+  prompt: string; // "Transform the [element] into..."
 };
 
-// Character in the video
-export type VideoCharacter = {
-  id: string;
-  age: string;
-  gender: string;
-  appearance: string;
-  clothing: string;
-  actions: string;
-};
-
-// Object in the video
-export type VideoObject = {
-  name: string;
-  role: string;
-  position: string;
-  description: string;
-};
-
-// Camera movement
-export type CameraMovement = {
-  type: string;
-  direction: string;
-  speed: string;
-  startTime: string;
-  endTime: string;
-};
-
-// Audio description
-export type VideoAudio = {
-  music: string;
-  speech: string;
-  effects: string;
-  mood: string;
+// Detectable element in video for context-aware remix
+export type DetectableElement = {
+  id: string; // "char-1", "obj-1", "bg-1"
+  type: "character" | "object" | "background";
+  label: string; // "Young Woman", "Coffee Cup", "Kitchen"
+  description: string; // Detailed description
+  remixOptions: RemixOption[]; // 4 transformation options
 };
 
 export type AnalysisType = "standard" | "frames";
 
+// Analysis type - focused on elements for remix
+// Legacy fields are kept for backward compatibility with old analyses
 export type TemplateAnalysis = {
   id: string;
   analysisType: AnalysisType;
   createdAt?: string;
-  // Quick mode fields
-  subject: string;
-  action: string;
-  environment: string;
-  cameraStyle: string;
-  mood: string;
-  colorPalette: string;
-  style: string;
   duration: number | null;
   aspectRatio: string;
-  // Pro mode fields
-  scenes: VideoScene[];
-  characters: VideoCharacter[];
-  objects: VideoObject[];
-  cameraMovements: CameraMovement[];
-  lighting: string;
-  transitions: { type: string; timestamp: string }[];
-  audio: VideoAudio;
-  textOverlays: {
-    text: string;
-    timestamp: string;
-    position: string;
-    style: string;
+  // Main data - Smart Remix Elements
+  elements?: DetectableElement[];
+  // Legacy fields (optional, for backward compatibility)
+  subject?: string;
+  action?: string;
+  environment?: string;
+  cameraStyle?: string;
+  mood?: string;
+  colorPalette?: string;
+  style?: string;
+  lighting?: string;
+  klingPrompt?: string;
+  veo3Prompt?: string;
+  tags?: string[];
+  scenes?: { timestamp: string; description: string; action: string }[];
+  characters?: {
+    id: string;
+    age: string;
+    gender: string;
+    appearance: string;
+    clothing: string;
+    actions: string;
   }[];
-  // Prompts
-  klingPrompt: string;
-  veo3Prompt: string;
-  tags: string[];
+  cameraMovements?: {
+    type: string;
+    direction: string;
+    speed: string;
+    startTime: string;
+    endTime: string;
+  }[];
 };
 
 export type Template = {

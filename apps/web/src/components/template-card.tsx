@@ -48,7 +48,11 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
 
   const handleCopy = useCallback(async () => {
     const prompt =
-      template.analysis.klingPrompt || template.analysis.veo3Prompt;
+      template.analysis.klingPrompt || template.analysis.veo3Prompt || "";
+    if (!prompt) {
+      toast.error("Промпт не найден");
+      return;
+    }
     await navigator.clipboard.writeText(prompt);
     setCopied(true);
     toast.success("Промпт скопирован");
@@ -119,11 +123,13 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
 
       <CardHeader className="p-3 pb-2">
         <CardTitle className="line-clamp-2 text-sm">
-          {template.title || template.analysis.subject}
+          {template.title || template.analysis.subject || "Шаблон"}
         </CardTitle>
-        <CardDescription className="line-clamp-1 text-xs">
-          {template.analysis.action}
-        </CardDescription>
+        {template.analysis.action && (
+          <CardDescription className="line-clamp-1 text-xs">
+            {template.analysis.action}
+          </CardDescription>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3 p-3 pt-0">

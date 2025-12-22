@@ -191,6 +191,57 @@ export const TextOverlaySchema = z
   })
   .openapi("TextOverlay");
 
+export const RemixOptionSchema = z
+  .object({
+    id: z.string().openapi({ description: "Variant ID", example: "variant-1" }),
+    label: z
+      .string()
+      .openapi({ description: "Display label", example: "Cyberpunk Robot" }),
+    icon: z.string().openapi({ description: "Emoji icon", example: "🤖" }),
+    prompt: z.string().openapi({
+      description: "Transformation prompt",
+      example: "Transform the subject into...",
+    }),
+  })
+  .openapi("RemixOption");
+
+export const DetectableElementSchema = z
+  .object({
+    id: z.string().openapi({ description: "Element ID", example: "char-1" }),
+    type: z
+      .enum(["character", "object", "background"])
+      .openapi({ description: "Element type" }),
+    label: z
+      .string()
+      .openapi({ description: "Element label", example: "Ginger Cat" }),
+    description: z.string().openapi({
+      description: "Description",
+      example: "A fluffy ginger cat...",
+    }),
+    remixOptions: z.array(RemixOptionSchema),
+  })
+  .openapi("DetectableElement");
+
+export const RemixSuggestionSchema = z
+  .object({
+    id: z.string().openapi({
+      description: "Unique suggestion ID",
+      example: "cyberpunk-glitch",
+    }),
+    category: z
+      .enum(["Character", "Background", "Style", "Action"])
+      .openapi({ description: "Category of suggestion", example: "Style" }),
+    name: z
+      .string()
+      .openapi({ description: "Display name", example: "Cyberpunk Glitch" }),
+    icon: z.string().openapi({ description: "Emoji icon", example: "👾" }),
+    prompt: z.string().openapi({
+      description: "Prompt fragment",
+      example: "Add digital glitch effects and neon colors",
+    }),
+  })
+  .openapi("RemixSuggestion");
+
 export const AnalysisSchema = z
   .object({
     id: z.string().openapi({
@@ -246,8 +297,41 @@ export const AnalysisSchema = z
     tags: z
       .array(z.string())
       .openapi({ example: ["vlog", "coffee", "morning"] }),
+    suggestions: z.array(RemixSuggestionSchema).optional(), // Deprecated
+    elements: z.array(DetectableElementSchema).optional(),
   })
   .openapi("VideoAnalysis");
+
+export const ReelPreviewSchema = z
+  .object({
+    id: z.string().openapi({ description: "Reel ID" }),
+    url: z.string().openapi({ description: "Reel URL" }),
+    thumbnailUrl: z
+      .string()
+      .nullable()
+      .openapi({ description: "Reel thumbnail URL" }),
+    likeCount: z
+      .number()
+      .nullable()
+      .openapi({ description: "Number of likes" }),
+    author: z.string().nullable().openapi({ description: "Author name" }),
+    source: z.string().openapi({ description: "Source platform/type" }),
+  })
+  .openapi("ReelPreview");
+
+export const AnalysisPreviewSchema = z
+  .object({
+    id: z.string().openapi({ description: "Analysis ID" }),
+    subject: z.string().openapi({ description: "Main subject" }),
+    action: z.string().openapi({ description: "Main action" }),
+    style: z.string().openapi({ description: "Visual style" }),
+    klingPrompt: z
+      .string()
+      .default("")
+      .openapi({ description: "Kling prompt" }),
+    veo3Prompt: z.string().default("").openapi({ description: "Veo3 prompt" }),
+  })
+  .openapi("AnalysisPreview");
 
 export const TemplateSchema = z
   .object({
@@ -255,7 +339,7 @@ export const TemplateSchema = z
       description: "Template UUID or Reel ID",
       example: "C8ABC123",
     }),
-    title: z.string().optional().openapi({
+    title: z.string().nullable().openapi({
       description: "Human friendly title",
       example: "Aesthetic Morning Routine",
     }),
@@ -279,5 +363,7 @@ export const TemplateSchema = z
       description: "ISO last update date",
       example: "2023-08-01T12:30:00Z",
     }),
+    reel: ReelPreviewSchema.optional(),
+    analysis: AnalysisPreviewSchema.optional(),
   })
   .openapi("Template");

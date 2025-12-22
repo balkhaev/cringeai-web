@@ -62,209 +62,148 @@ export type TextOverlay = {
   style: string; // "bold title", "subtitle", "caption"
 };
 
-// Extended video analysis for Kling OmniVideo
-export type VideoAnalysis = {
-  // Quick mode fields (5-10 main parameters)
-  subject: string;
-  action: string;
-  environment: string;
-  cameraStyle: string;
-  mood: string;
-  colorPalette: string;
-  style: string;
-  duration: number | null;
-  aspectRatio: string;
-
-  // Pro mode fields (detailed analysis)
-  scenes: VideoScene[];
-  characters: VideoCharacter[];
-  objects: VideoObject[];
-  cameraMovements: CameraMovement[];
-  lighting: string;
-  transitions: VideoTransition[];
-  audio: VideoAudio;
-  textOverlays: TextOverlay[];
-
-  // Legacy fields
-  pacing: string;
-  cameraWork: string;
-
-  // Prompts
-  klingPrompt: string;
-  veo3Prompt: string;
-  tags: string[];
+// Creative remix option for a specific element
+export type RemixOption = {
+  id: string; // "variant-1"
+  label: string; // "Cyberpunk Robot"
+  icon: string; // "🤖"
+  prompt: string; // "Transform the [subject] into a futuristic cyberpunk robot with neon details"
 };
 
-const ANALYSIS_PROMPT = `You are an expert video analyst for AI video generation. Analyze this video in extreme detail to enable recreation using Kling AI OmniVideo (video-to-video generation).
+// Detectable element in the video
+export type DetectableElement = {
+  id: string; // "element-1", "char-1"
+  type: "character" | "object" | "background";
+  label: string; // "Ginger Cat", "Coffee Cup", "Kitchen"
+  description: string; // "A fluffy ginger cat sitting..."
+  remixOptions: RemixOption[]; // Specific replacements for THIS element
+};
 
-IMPORTANT: Be extremely specific and concrete. Avoid vague terms. Describe exactly what you see.
+// Video analysis - simplified to focus on elements
+export type VideoAnalysis = {
+  duration: number | null;
+  aspectRatio: string;
+  elements: DetectableElement[];
+};
 
-Respond in JSON format with the following structure:
+const ANALYSIS_PROMPT = `You are an expert at identifying key visual elements in videos for AI video remix generation.
+
+Your task: Identify the KEY ELEMENTS in this video that can be transformed/replaced while keeping the same motion and composition.
+
+Respond in JSON format:
 
 {
-  "subject": "Main subject of the video. Detailed description including: who/what is the focus, age/type, appearance, distinctive features. Example: 'A woman in her late 20s with long dark wavy hair, wearing a cream linen dress and gold jewelry, holding a ceramic coffee cup'",
-  
-  "action": "Primary action happening. Start with active verb. Example: 'Walks slowly through a sunlit kitchen, pauses to look out the window, takes a sip of coffee while gazing outside'",
-  
-  "environment": "Detailed setting. Include: location type, time of day, weather, atmosphere, key elements. Example: 'Modern minimalist kitchen with white marble counters, morning sunlight streaming through large windows, potted herbs on windowsill, steam rising from coffee'",
-  
-  "cameraStyle": "Overall camera style summary. Example: 'Smooth cinematic tracking shots with shallow depth of field, eye-level perspective, intimate framing'",
-  
-  "mood": "Emotional atmosphere. Example: 'Peaceful and contemplative, quiet morning solitude, warm and cozy'",
-  
-  "colorPalette": "Dominant colors and grading. Example: 'Warm tones: cream, gold, soft brown. Lifted shadows, warm highlights, subtle film grain'",
-  
-  "style": "Visual style category. One of: cinematic, documentary, commercial, music video, social media, vlog, tutorial, artistic. Add specifics.",
-  
-  "duration": "Estimated duration in seconds (number only)",
-  
-  "aspectRatio": "Video aspect ratio: '16:9', '9:16', '1:1', '4:3', or '21:9'",
-  
-  "scenes": [
+  "duration": 5,
+  "aspectRatio": "9:16",
+
+  "elements": [
     {
-      "timestamp": "0:00-0:03",
-      "description": "Scene setting and context",
-      "action": "What happens in this scene segment"
-    }
-  ],
-  
-  "characters": [
+      "id": "char-1",
+      "type": "character",
+      "label": "Young Woman",
+      "description": "A woman in her late 20s with long dark wavy hair, wearing a cream linen dress, holding a coffee cup",
+      "remixOptions": [
+        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Transform the young woman into a cyberpunk android with glowing blue circuitry patterns on metallic silver skin, neon LED eyes, and chrome mechanical joints"},
+        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Transform the young woman into an ethereal elf princess with pointed ears, flowing silver hair, glowing golden eyes, and delicate elvish robes"},
+        {"id": "opt-3", "label": "Anime Character", "icon": "🎌", "prompt": "Transform the young woman into an anime style character with large expressive eyes, vibrant pink hair, and exaggerated cute expressions"},
+        {"id": "opt-4", "label": "Victorian Lady", "icon": "👗", "prompt": "Transform the young woman into a Victorian era aristocrat with elaborate updo hairstyle, pearl jewelry, and ornate period dress with lace details"}
+      ]
+    },
     {
-      "id": "person1",
-      "age": "mid-20s",
-      "gender": "female",
-      "appearance": "Tall, slim build, dark wavy hair past shoulders, fair skin",
-      "clothing": "Cream linen midi dress, thin gold chain necklace, bare feet",
-      "actions": "Moves gracefully through kitchen, holds coffee cup, gazes out window"
-    }
-  ],
-  
-  "objects": [
+      "id": "obj-1",
+      "type": "object",
+      "label": "Coffee Cup",
+      "description": "Large ceramic mug with matte gray finish, steam rising",
+      "remixOptions": [
+        {"id": "opt-1", "label": "Magic Potion", "icon": "🧪", "prompt": "Transform the coffee cup into a bubbling magic potion in a crystal vial with swirling purple mist and glowing runes"},
+        {"id": "opt-2", "label": "Alien Device", "icon": "👽", "prompt": "Transform the coffee cup into a sleek alien technology device with holographic display and floating energy orbs"},
+        {"id": "opt-3", "label": "Golden Chalice", "icon": "🏆", "prompt": "Transform the coffee cup into an ornate golden chalice encrusted with rubies and emeralds, medieval royal style"},
+        {"id": "opt-4", "label": "Living Plant", "icon": "🌱", "prompt": "Transform the coffee cup into a living plant creature with vine tendrils, flower eyes, and leaves forming a cup shape"}
+      ]
+    },
     {
-      "name": "coffee cup",
-      "role": "interactive prop",
-      "position": "held in subject's hands",
-      "description": "Large ceramic mug, light gray with matte finish, steam rising"
+      "id": "bg-1",
+      "type": "background",
+      "label": "Kitchen",
+      "description": "Modern minimalist kitchen with white marble counters, morning sunlight through large windows",
+      "remixOptions": [
+        {"id": "opt-1", "label": "Spaceship Interior", "icon": "🚀", "prompt": "Transform the kitchen into a futuristic spaceship command center with holographic displays, chrome surfaces, and stars visible through viewport windows"},
+        {"id": "opt-2", "label": "Medieval Castle", "icon": "🏰", "prompt": "Transform the kitchen into a medieval castle great hall with stone walls, torch lighting, tapestries, and a massive fireplace"},
+        {"id": "opt-3", "label": "Underwater Palace", "icon": "🐠", "prompt": "Transform the kitchen into an underwater palace with coral walls, bioluminescent lighting, floating bubbles, and fish swimming past windows"},
+        {"id": "opt-4", "label": "Enchanted Forest", "icon": "🌲", "prompt": "Transform the kitchen into a magical forest clearing with giant mushrooms, glowing fireflies, mystical fog, and ancient trees"}
+      ]
     }
-  ],
-  
-  "cameraMovements": [
-    {
-      "type": "dolly",
-      "direction": "forward",
-      "speed": "slow",
-      "startTime": "0:00",
-      "endTime": "0:04"
-    }
-  ],
-  
-  "lighting": "Detailed lighting description. Include: source direction, quality (hard/soft), color temperature, shadows, practical lights. Example: 'Natural morning light from large windows on the right, creating soft shadows and warm golden highlights. Backlit subject creating rim light on hair.'",
-  
-  "transitions": [
-    {
-      "type": "cut",
-      "timestamp": "0:03"
-    }
-  ],
-  
-  "audio": {
-    "music": "Soft ambient piano, slow tempo, major key",
-    "speech": "No dialogue, ambient sounds only",
-    "effects": "Coffee cup clink, distant birds, soft footsteps",
-    "mood": "Peaceful, calm, morning atmosphere"
-  },
-  
-  "textOverlays": [
-    {
-      "text": "Text if visible",
-      "timestamp": "0:00",
-      "position": "bottom center",
-      "style": "white sans-serif caption"
-    }
-  ],
-  
-  "pacing": "Overall rhythm and tempo of the video",
-  
-  "cameraWork": "Legacy: detailed camera description for compatibility",
-  
-  "klingPrompt": "Write a prompt for Kling AI video-to-video. Format: 'Based on @Video1, [describe what to keep and what to change]. Keep the [specific elements to preserve]. Change [elements to modify].' Be specific about motion, timing, and style.",
-  
-  "veo3Prompt": "Write a single dense paragraph that could recreate this video from scratch. Structure: [Camera movement], [Subject description] [performs action] in [environment]. [Lighting]. [Style and color grading].",
-  
-  "tags": ["5-20 semantic topic tags. Lowercase, no #, unique. Examples: lifestyle, morning-routine, coffee, minimalist, aesthetic"]
+  ]
 }
 
 CRITICAL RULES:
-- Extract EVERY detail visible in the video
-- Be specific about timing, positions, movements
-- Describe colors, textures, materials precisely
-- Note ALL people, objects, and their interactions
-- Identify camera movements from frame changes
-- If something is unclear, describe what you actually see
-- NO vague terms like "dynamic", "interesting", "beautiful"
-- NO abstract concepts - only what is literally visible`;
 
-const FRAMES_ANALYSIS_PROMPT = `You are an expert video analyst for AI video generation. You are given a sequence of frames extracted from a video (every 2 seconds). Analyze ALL frames together to understand the complete video and extract precise details needed for Kling AI OmniVideo recreation.
+1. **ALWAYS return EXACTLY 3 elements**:
+   - "char-1" (type: "character"): Main person/animal/moving subject
+   - "obj-1" (type: "object"): Most prominent interactive object
+   - "bg-1" (type: "background"): The environment/setting
 
-IMPORTANT: 
-- Consider ALL frames as a continuous sequence
-- Infer motion and camera movement from changes between frames
-- Be extremely specific and concrete
+2. **ALWAYS return EXACTLY 4 remixOptions per element**:
+   - Each with unique id: "opt-1", "opt-2", "opt-3", "opt-4"
+   - Diverse styles: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi, Horror, Cartoon, Steampunk
+   - TRANSFORMATIVE changes, not subtle modifications
 
-Respond in JSON format with the following structure:
+3. **Label**: 2-3 words, creative name
+4. **Icon**: Single emoji representing the transformation
+5. **Prompt**: Detailed transformation description with specific visual details (materials, colors, textures, lighting effects)
+
+6. **Quality requirements**:
+   - Be SPECIFIC: "glowing neon blue circuitry on chrome skin" not just "futuristic"
+   - Each option must be visually DISTINCT from others
+   - Transformations must be compatible with the original motion/composition`;
+
+const FRAMES_ANALYSIS_PROMPT = `You are an expert at identifying key visual elements in video frames for AI video remix generation.
+
+You are given a sequence of frames from a video. Identify the KEY ELEMENTS that can be transformed/replaced while keeping the same motion and composition.
+
+Respond in JSON format:
 
 {
-  "subject": "Main subject of the video. Detailed description including: who/what is the focus, age/type, appearance, distinctive features",
-  
-  "action": "Primary action happening across all frames. Start with active verb. Describe the progression from first to last frame",
-  
-  "environment": "Detailed setting. Include: location type, time of day, weather, atmosphere, key elements",
-  
-  "cameraStyle": "Overall camera style inferred from frame changes. Describe movement patterns, framing, perspective",
-  
-  "mood": "Emotional atmosphere of the video",
-  
-  "colorPalette": "Dominant colors and color grading visible in frames",
-  
-  "style": "Visual style category: cinematic, documentary, commercial, music video, social media, vlog, tutorial, artistic",
-  
-  "duration": "Estimated total duration in seconds based on frame count (number only, null if unknown)",
-  
-  "aspectRatio": "Video aspect ratio: '16:9', '9:16', '1:1', '4:3', or '21:9'",
-  
-  "scenes": [{"timestamp": "0:00-0:03", "description": "Scene setting", "action": "What happens"}],
-  
-  "characters": [{"id": "person1", "age": "estimate", "gender": "if visible", "appearance": "physical details", "clothing": "what they wear", "actions": "what they do"}],
-  
-  "objects": [{"name": "object name", "role": "purpose in video", "position": "where in frame", "description": "visual details"}],
-  
-  "cameraMovements": [{"type": "movement type", "direction": "direction", "speed": "slow/medium/fast", "startTime": "0:00", "endTime": "0:03"}],
-  
-  "lighting": "Lighting conditions visible in frames",
-  
-  "transitions": [{"type": "cut/fade/dissolve", "timestamp": "when"}],
-  
-  "audio": {"music": "inferred from visual cues or none", "speech": "if lips moving or text indicates", "effects": "likely sounds", "mood": "audio atmosphere guess"},
-  
-  "textOverlays": [{"text": "visible text", "timestamp": "when", "position": "where", "style": "appearance"}],
-  
-  "pacing": "Rhythm inferred from frame changes",
-  
-  "cameraWork": "Detailed camera behavior inferred from frame-to-frame changes",
-  
-  "klingPrompt": "Write a prompt for Kling AI video-to-video. Format: 'Based on @Video1, [describe what to keep and what to change]. Keep the [specific elements]. Change [elements to modify].'",
-  
-  "veo3Prompt": "Single dense paragraph to recreate this video from scratch",
-  
-  "tags": ["5-20 semantic tags, lowercase, no #"]
+  "duration": 5,
+  "aspectRatio": "9:16",
+
+  "elements": [
+    {
+      "id": "char-1",
+      "type": "character",
+      "label": "Main Subject",
+      "description": "Detailed description of the main person/animal/subject visible across frames",
+      "remixOptions": [
+        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Transform into cyberpunk android with glowing circuitry..."},
+        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Transform into ethereal elf with pointed ears..."},
+        {"id": "opt-3", "label": "Anime Character", "icon": "🎌", "prompt": "Transform into anime style with large eyes..."},
+        {"id": "opt-4", "label": "Victorian Style", "icon": "👗", "prompt": "Transform into Victorian era aesthetic..."}
+      ]
+    },
+    {
+      "id": "obj-1",
+      "type": "object",
+      "label": "Key Object",
+      "description": "Most prominent object visible in frames",
+      "remixOptions": [...]
+    },
+    {
+      "id": "bg-1",
+      "type": "background",
+      "label": "Environment",
+      "description": "The setting/background visible across frames",
+      "remixOptions": [...]
+    }
+  ]
 }
 
 CRITICAL RULES:
-- Analyze ALL frames together as a sequence
-- Infer timing from frame positions
-- Describe what changes between frames (that's the motion)
-- Be specific about all visible elements
-- NO vague terms like "dynamic", "interesting", "beautiful"`;
+
+1. **ALWAYS return EXACTLY 3 elements**: char-1, obj-1, bg-1
+2. **ALWAYS return EXACTLY 4 remixOptions per element** with ids: opt-1, opt-2, opt-3, opt-4
+3. **Analyze ALL frames together** to understand the complete scene
+4. **Be SPECIFIC** in transformation prompts: include materials, colors, textures, lighting effects
+5. **Diverse styles**: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi, Horror, Cartoon, Steampunk`;
 
 const JSON_REGEX = /\{[\s\S]*\}/;
 
@@ -356,64 +295,21 @@ export type GeminiProgressCallback = (
 ) => void | Promise<void>;
 
 type GeminiRawAnalysis = {
-  subject: string;
-  action: string;
-  environment: string;
-  cameraStyle?: string;
-  cameraWork?: string;
-  mood?: string;
-  colorPalette: string;
-  style: string;
   duration?: number | string | null;
   aspectRatio?: string;
-  scenes?: VideoScene[];
-  characters?: VideoCharacter[];
-  objects?: VideoObject[];
-  cameraMovements?: CameraMovement[];
-  lighting: string;
-  transitions?: VideoTransition[];
-  audio?: Partial<VideoAudio>;
-  textOverlays?: TextOverlay[];
-  pacing?: string;
-  klingPrompt?: string;
-  veo3Prompt?: string;
-  tags?: string[];
+  elements?: DetectableElement[];
 };
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Data transformation function naturally has many field mappings
-function parseRawAnalysis(raw: GeminiRawAnalysis): Omit<VideoAnalysis, "tags"> {
+function parseRawAnalysis(raw: GeminiRawAnalysis): VideoAnalysis {
   const duration =
     typeof raw.duration === "string"
       ? Number.parseInt(raw.duration, 10) || null
       : (raw.duration ?? null);
 
   return {
-    subject: raw.subject || "",
-    action: raw.action || "",
-    environment: raw.environment || "",
-    cameraStyle: raw.cameraStyle || raw.cameraWork || "",
-    mood: raw.mood || "",
-    colorPalette: raw.colorPalette || "",
-    style: raw.style || "",
     duration,
     aspectRatio: raw.aspectRatio || "9:16",
-    scenes: raw.scenes || [],
-    characters: raw.characters || [],
-    objects: raw.objects || [],
-    cameraMovements: raw.cameraMovements || [],
-    lighting: raw.lighting || "",
-    transitions: raw.transitions || [],
-    audio: {
-      music: raw.audio?.music || "",
-      speech: raw.audio?.speech || "",
-      effects: raw.audio?.effects || "",
-      mood: raw.audio?.mood || "",
-    },
-    textOverlays: raw.textOverlays || [],
-    pacing: raw.pacing || "",
-    cameraWork: raw.cameraWork || raw.cameraStyle || "",
-    klingPrompt: raw.klingPrompt || "",
-    veo3Prompt: raw.veo3Prompt || "",
+    elements: raw.elements || [],
   };
 }
 
@@ -513,15 +409,11 @@ export class GeminiService {
     }
 
     const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
-    const { normalizeTags } = await import("../lib/tag-trends");
     const parsed = parseRawAnalysis(raw);
 
     await onProgress?.("analyzing", 90, "Анализ завершён");
 
-    return {
-      ...parsed,
-      tags: normalizeTags(raw.tags ?? []),
-    };
+    return parsed;
   }
 
   async processVideo(
@@ -589,15 +481,11 @@ export class GeminiService {
     }
 
     const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
-    const { normalizeTags } = await import("../lib/tag-trends");
     const parsed = parseRawAnalysis(raw);
 
     await onProgress?.("analyzing", 90, "Анализ кадров завершён");
 
-    return {
-      ...parsed,
-      tags: normalizeTags(raw.tags ?? []),
-    };
+    return parsed;
   }
 
   /**

@@ -403,44 +403,21 @@ class ReelPipeline {
         reelId,
         stage: "analyze",
         message: "Analysis received",
-        metadata: { promptLength: analysis.klingPrompt.length },
+        metadata: { elementsCount: analysis.elements.length },
       });
 
       await onProgress("analyze", 95, "Сохранение результатов анализа...");
 
-      // Сохраняем в БД
+      // Сохраняем в БД - только необходимые поля
       const savedAnalysis = await prisma.videoAnalysis.create({
         data: {
           sourceType: "reel",
           sourceId: reelId,
           fileName: `${reelId}.mp4`,
           analysisType: "standard",
-          // Quick mode fields
-          subject: analysis.subject,
-          action: analysis.action,
-          environment: analysis.environment,
-          cameraStyle: analysis.cameraStyle,
-          mood: analysis.mood,
-          colorPalette: analysis.colorPalette,
-          style: analysis.style,
           duration: analysis.duration,
           aspectRatio: analysis.aspectRatio,
-          // Pro mode fields
-          scenes: analysis.scenes,
-          characters: analysis.characters,
-          objects: analysis.objects,
-          cameraMovements: analysis.cameraMovements,
-          lighting: analysis.lighting,
-          transitions: analysis.transitions,
-          audio: analysis.audio,
-          textOverlays: analysis.textOverlays,
-          // Legacy fields
-          pacing: analysis.pacing,
-          cameraWork: analysis.cameraWork,
-          // Prompts
-          klingPrompt: analysis.klingPrompt,
-          veo3Prompt: analysis.veo3Prompt,
-          tags: analysis.tags,
+          elements: analysis.elements,
         },
       });
 
@@ -591,46 +568,23 @@ class ReelPipeline {
         stage: "analyze",
         message: "Frame analysis received",
         metadata: {
-          promptLength: analysis.klingPrompt.length,
+          elementsCount: analysis.elements.length,
           frameCount: framesData.count,
         },
       });
 
       await onProgress("analyze", 95, "Сохранение результатов анализа...");
 
-      // Сохраняем в БД
+      // Сохраняем в БД - только необходимые поля
       const savedAnalysis = await prisma.videoAnalysis.create({
         data: {
           sourceType: "reel",
           sourceId: reelId,
           fileName: `${reelId}.mp4`,
           analysisType: "frames",
-          // Quick mode fields
-          subject: analysis.subject,
-          action: analysis.action,
-          environment: analysis.environment,
-          cameraStyle: analysis.cameraStyle,
-          mood: analysis.mood,
-          colorPalette: analysis.colorPalette,
-          style: analysis.style,
           duration: analysis.duration,
           aspectRatio: analysis.aspectRatio,
-          // Pro mode fields
-          scenes: analysis.scenes,
-          characters: analysis.characters,
-          objects: analysis.objects,
-          cameraMovements: analysis.cameraMovements,
-          lighting: analysis.lighting,
-          transitions: analysis.transitions,
-          audio: analysis.audio,
-          textOverlays: analysis.textOverlays,
-          // Legacy fields
-          pacing: analysis.pacing,
-          cameraWork: analysis.cameraWork,
-          // Prompts
-          klingPrompt: analysis.klingPrompt,
-          veo3Prompt: analysis.veo3Prompt,
-          tags: analysis.tags,
+          elements: analysis.elements,
         },
       });
 
