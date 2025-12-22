@@ -60,6 +60,9 @@ type KlingTaskCreateResponse = {
   };
 };
 
+// Official Kling API statuses: submitted, processing, succeed, failed
+type KlingApiStatus = "submitted" | "processing" | "succeed" | "failed";
+// Internal normalized status for callbacks
 type KlingTaskStatus = "pending" | "processing" | "completed" | "failed";
 
 type KlingTaskStatusResponse = {
@@ -67,12 +70,31 @@ type KlingTaskStatusResponse = {
   message: string;
   data?: {
     task_id: string;
-    status: KlingTaskStatus;
-    progress?: number;
-    video_url?: string;
-    error?: string;
+    task_status: KlingApiStatus;
+    task_status_msg?: string;
+    task_result?: {
+      videos?: {
+        id: string;
+        url: string;
+        duration: string;
+      }[];
+    };
   };
 };
+
+// Map API status to internal status
+function normalizeStatus(apiStatus: KlingApiStatus): KlingTaskStatus {
+  switch (apiStatus) {
+    case "submitted":
+      return "pending";
+    case "processing":
+      return "processing";
+    case "succeed":
+      return "completed";
+    case "failed":
+      return "failed";
+  }
+}
 
 const STATUS_EMOJI: Record<KlingTaskStatus, string> = {
   pending: "⏳",
@@ -289,62 +311,63 @@ export class KlingService {
     }
 
     try {
-      // Ensure prompt references the video
-      const fullPrompt = prompt.includes("@Video1")
-        ? prompt
-        : `Based on @Video1, ${prompt}`;
+      // Convert @Video1 syntax to <<<video_1>>> per Kling API spec
+      let fullPrompt = prompt
+        .replace(/@Video1/gi, "<<<video_1>>>")
+        .replace(/@Image(\d+)/gi, (_, n) => `<<<image_${n}>>>`)
+        .replace(/@Element(\d+)/gi, (_, n) => `<<<element_${n}>>>`);
 
-      // Build input with video and optional image/element references
-      // Note: prompt and negative_prompt go at the TOP LEVEL, not inside input
-      // aspect_ratio must be inside input object per Kling API spec
-      const input: {
-        videos: { url: string }[];
-        aspect_ratio: string;
-        image_urls?: string[];
-        elements?: {
-          reference_image_urls: string[];
-          frontal_image_url?: string;
-        }[];
-      } = {
-        videos: [{ url: sourceVideoUrl }],
-        aspect_ratio: options.aspectRatio || "16:9",
-      };
-
-      // Add image references (@Image1, @Image2...)
-      if (options.imageUrls && options.imageUrls.length > 0) {
-        input.image_urls = options.imageUrls;
+      // Ensure prompt references the video if not already
+      if (!fullPrompt.includes("<<<video_1>>>")) {
+        fullPrompt = `Based on <<<video_1>>>, ${fullPrompt}`;
       }
 
-      // Add element references (@Element1, @Element2...)
-      if (options.elements && options.elements.length > 0) {
-        input.elements = options.elements.map((el) => ({
-          reference_image_urls: el.referenceImageUrls,
-          frontal_image_url: el.frontalImageUrl,
+      // Build request body per official Kling OmniVideo API spec
+      // All fields at root level, no nested input/config objects
+      const requestBody: {
+        model_name: string;
+        prompt: string;
+        video_list: {
+          video_url: string;
+          refer_type: string;
+          keep_original_sound: string;
+        }[];
+        image_list?: { image_url: string }[];
+        mode: string;
+        aspect_ratio?: string;
+        duration?: string;
+      } = {
+        model_name: "kling-video-o1",
+        prompt: fullPrompt,
+        video_list: [
+          {
+            video_url: sourceVideoUrl,
+            // refer_type: "base" = video editing (aspect_ratio not needed)
+            // refer_type: "feature" = video reference (aspect_ratio needed)
+            refer_type: "base",
+            keep_original_sound: options.keepAudio ? "yes" : "no",
+          },
+        ],
+        mode: options.mode || "pro",
+      };
+
+      // Add image references (<<<image_1>>>, <<<image_2>>>...)
+      if (options.imageUrls && options.imageUrls.length > 0) {
+        requestBody.image_list = options.imageUrls.map((url) => ({
+          image_url: url,
         }));
       }
 
-      const requestBody = {
-        model: "kling-video",
-        type: "video_to_video",
-        // prompt and negative_prompt are TOP LEVEL fields per Kling API spec
-        prompt: fullPrompt,
-        negative_prompt: options.negativePrompt || "",
-        input,
-        config: {
-          duration: options.duration || 5,
-          mode: options.mode || "std",
-          keep_audio: options.keepAudio,
-        },
-      };
+      // Note: aspect_ratio is NOT needed for video editing (refer_type: "base")
+      // The output uses the same aspect ratio as the input video
 
       this.log("📤", "Отправка запроса на генерацию...", {
         promptLength: fullPrompt.length,
         promptPreview: fullPrompt.slice(0, 100),
-        duration: requestBody.config.duration,
-        aspectRatio: input.aspect_ratio,
-        mode: requestBody.config.mode,
-        hasImages: !!input.image_urls?.length,
-        hasElements: !!input.elements?.length,
+        referType: "base",
+        mode: requestBody.mode,
+        keepOriginalSound: options.keepAudio ? "yes" : "no",
+        hasImages: !!requestBody.image_list?.length,
       });
 
       const createResponse = await this.request<KlingTaskCreateResponse>(
@@ -376,10 +399,9 @@ export class KlingService {
         await logHandle.success({
           inputMeta: {
             promptLength: prompt.length,
-            duration: options.duration || 5,
-            mode: options.mode || "std",
+            mode: options.mode || "pro",
+            referType: "base",
             hasImageRefs: !!options.imageUrls?.length,
-            hasElementRefs: !!options.elements?.length,
           },
           outputMeta: { taskId },
         });
@@ -390,8 +412,8 @@ export class KlingService {
         await logHandle.fail(new Error(result.error || "Generation failed"), {
           inputMeta: {
             promptLength: prompt.length,
-            duration: options.duration || 5,
-            mode: options.mode || "std",
+            mode: options.mode || "pro",
+            referType: "base",
           },
         });
       }
@@ -453,10 +475,11 @@ export class KlingService {
           continue;
         }
 
-        const status = statusResponse.data.status;
+        // Normalize API status to internal status
+        const apiStatus = statusResponse.data.task_status;
+        const status = normalizeStatus(apiStatus);
         const emoji = STATUS_EMOJI[status] ?? "❓";
         const statusRu = STATUS_RU[status] ?? status;
-        const progress = statusResponse.data.progress;
 
         // Log only on status change or every 5 attempts
         if (status !== lastStatus || attempts % 5 === 0) {
@@ -464,22 +487,18 @@ export class KlingService {
             taskId: taskId.slice(0, 20),
             attempt: `${attempts}/${maxAttempts}`,
             elapsed: formatDuration(elapsed),
-            progress: progress !== undefined ? `${progress}%` : undefined,
-            status,
+            apiStatus,
           });
           lastStatus = status;
         }
 
         // Call progress callback
         const elapsedFormatted = formatDuration(elapsed);
-        const progressMessage =
-          progress !== undefined
-            ? `${statusRu} (${progress}%, ${elapsedFormatted})`
-            : `${statusRu} (${elapsedFormatted})`;
-        await onProgress?.(status, progress, progressMessage);
+        const progressMessage = `${statusRu} (${elapsedFormatted})`;
+        await onProgress?.(status, undefined, progressMessage);
 
         if (status === "completed") {
-          const videoUrl = statusResponse.data.video_url;
+          const videoUrl = statusResponse.data.task_result?.videos?.[0]?.url;
           if (videoUrl) {
             this.log("✅", `Генерация завершена за ${formatDuration(elapsed)}`);
             await onProgress?.(
@@ -493,7 +512,8 @@ export class KlingService {
         }
 
         if (status === "failed") {
-          const errorMsg = statusResponse.data.error ?? "Generation failed";
+          const errorMsg =
+            statusResponse.data.task_status_msg ?? "Generation failed";
           this.log("❌", "Генерация провалилась", { error: errorMsg });
           await onProgress?.("failed", undefined, `Ошибка: ${errorMsg}`);
           return { success: false, error: errorMsg, taskId };
@@ -531,7 +551,6 @@ export class KlingService {
    */
   async getTaskStatus(taskId: string): Promise<{
     status: KlingTaskStatus;
-    progress?: number;
     videoUrl?: string;
   }> {
     const response = await this.request<KlingTaskStatusResponse>(
@@ -543,9 +562,8 @@ export class KlingService {
     }
 
     return {
-      status: response.data.status,
-      progress: response.data.progress,
-      videoUrl: response.data.video_url,
+      status: normalizeStatus(response.data.task_status),
+      videoUrl: response.data.task_result?.videos?.[0]?.url,
     };
   }
 
