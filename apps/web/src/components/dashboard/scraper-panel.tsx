@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   useAddReel,
   useAuthStatus,
+  useBatchRefreshDuration,
   useScrapeJobs,
   useStartScrape,
   useUploadPipelineVideo,
@@ -91,6 +92,7 @@ export function ScraperPanel() {
   const startScrape = useStartScrape();
   const addReel = useAddReel();
   const uploadVideo = useUploadPipelineVideo();
+  const batchRefreshDuration = useBatchRefreshDuration();
 
   const isAuthenticated = authStatus?.isConfigured ?? false;
 
@@ -282,6 +284,40 @@ export function ScraperPanel() {
                 Поддерживаются MP4, MOV. Макс. 100MB.
               </p>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Batch Refresh Duration */}
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm">Служебные функции</h4>
+            <Button
+              className="w-full"
+              disabled={batchRefreshDuration.isPending}
+              onClick={() => {
+                batchRefreshDuration.mutate(undefined, {
+                  onSuccess: (data) => {
+                    toast.success(
+                      `Обновлено ${data.updated} из ${data.total} рилов`
+                    );
+                  },
+                  onError: (err) => {
+                    toast.error(`Ошибка: ${err.message}`);
+                  },
+                });
+              }}
+              variant="outline"
+            >
+              {batchRefreshDuration.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Clock className="mr-2 h-4 w-4" />
+              )}
+              Обновить duration
+            </Button>
+            <p className="text-center text-[10px] text-muted-foreground">
+              Запросить длительность для рилов без duration
+            </p>
           </div>
 
           {/* Active Jobs */}

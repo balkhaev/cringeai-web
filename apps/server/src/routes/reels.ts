@@ -819,6 +819,7 @@ reelsRouter.post("/:id/refresh-metadata", async (c) => {
       viewCount?: number;
       author?: string;
       thumbnailUrl?: string;
+      duration?: number;
       error?: string;
     };
 
@@ -836,6 +837,7 @@ reelsRouter.post("/:id/refresh-metadata", async (c) => {
         viewCount: metadata.viewCount ?? reel.viewCount,
         author: metadata.author ?? reel.author,
         thumbnailUrl: metadata.thumbnailUrl ?? reel.thumbnailUrl,
+        duration: metadata.duration ?? reel.duration,
       },
     });
 
@@ -847,6 +849,95 @@ reelsRouter.post("/:id/refresh-metadata", async (c) => {
   } catch (error) {
     console.error("Refresh metadata error:", error);
     return c.json({ error: "Failed to refresh metadata" }, 500);
+  }
+});
+
+// Batch refresh duration for reels without duration
+reelsRouter.post("/batch-refresh-duration", async (c) => {
+  try {
+    // Находим все рилы без duration
+    const reelsWithoutDuration = await prisma.reel.findMany({
+      where: { duration: null },
+      select: { id: true },
+      take: 100, // Лимит чтобы не перегрузить
+    });
+
+    if (reelsWithoutDuration.length === 0) {
+      return c.json({
+        success: true,
+        message: "No reels without duration found",
+        updated: 0,
+        failed: 0,
+        total: 0,
+      });
+    }
+
+    let updated = 0;
+    let failed = 0;
+    const errors: { id: string; error: string }[] = [];
+
+    // Обновляем по очереди с небольшой задержкой
+    for (const reel of reelsWithoutDuration) {
+      try {
+        const metadataResponse = await fetch(
+          `${SCRAPPER_SERVICE_URL}/metadata`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ shortcode: reel.id }),
+          }
+        );
+
+        if (!metadataResponse.ok) {
+          failed++;
+          errors.push({ id: reel.id, error: "Failed to fetch metadata" });
+          continue;
+        }
+
+        const metadata = (await metadataResponse.json()) as {
+          success: boolean;
+          duration?: number;
+          error?: string;
+        };
+
+        if (!(metadata.success && metadata.duration)) {
+          failed++;
+          errors.push({
+            id: reel.id,
+            error: metadata.error || "No duration in metadata",
+          });
+          continue;
+        }
+
+        await prisma.reel.update({
+          where: { id: reel.id },
+          data: { duration: metadata.duration },
+        });
+
+        updated++;
+
+        // Небольшая задержка между запросами
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (err) {
+        failed++;
+        errors.push({
+          id: reel.id,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      message: `Updated ${updated} reels, ${failed} failed`,
+      updated,
+      failed,
+      total: reelsWithoutDuration.length,
+      errors: errors.slice(0, 10), // Первые 10 ошибок
+    });
+  } catch (error) {
+    console.error("Batch refresh duration error:", error);
+    return c.json({ error: "Failed to batch refresh duration" }, 500);
   }
 });
 

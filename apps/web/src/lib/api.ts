@@ -506,3 +506,36 @@ export async function trimVideo(request: TrimVideoRequest): Promise<Blob> {
 
   return response.blob();
 }
+
+export type TrimVideoByUrlRequest = {
+  videoUrl: string;
+  startTime: number;
+  endTime: number;
+};
+
+/**
+ * Trim video by URL between startTime and endTime
+ * Downloads the video first, then trims it
+ * Returns trimmed video as Blob
+ */
+export async function trimVideoByUrl(
+  request: TrimVideoByUrlRequest
+): Promise<Blob> {
+  // Download the video first
+  const videoResponse = await fetch(request.videoUrl, {
+    credentials: "include",
+  });
+
+  if (!videoResponse.ok) {
+    throw new Error("Не удалось скачать видео для обрезки");
+  }
+
+  const videoBlob = await videoResponse.blob();
+  const videoFile = new File([videoBlob], "video.mp4", { type: "video/mp4" });
+
+  return trimVideo({
+    video: videoFile,
+    startTime: request.startTime,
+    endTime: request.endTime,
+  });
+}

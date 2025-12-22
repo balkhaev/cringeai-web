@@ -58,6 +58,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VideoGenerator } from "@/components/video-generator";
 import { VideoPreview } from "@/components/video-preview";
+import { VideoTrimSection } from "@/components/video-trim-section";
 import { useDeleteReel } from "@/lib/hooks/use-dashboard";
 import {
   useAnalyzeReel,
@@ -418,6 +419,13 @@ export default function ReelDetailPage() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Video Trim Section */}
+            {hasVideo(data.reel) && (data.videoUrl || data.reel.videoUrl) && (
+              <VideoTrimSection
+                videoUrl={data.videoUrl || data.reel.videoUrl || ""}
+              />
+            )}
           </div>
 
           {/* Info and Debug */}

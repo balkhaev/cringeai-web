@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
 type VideoTrimEditorProps = {
-  videoFile: File;
+  videoFile?: File;
+  videoUrl?: string;
   onTrim: (startTime: number, endTime: number) => void;
   isLoading?: boolean;
 };
@@ -20,6 +21,7 @@ function formatTime(seconds: number): string {
 
 export function VideoTrimEditor({
   videoFile,
+  videoUrl: externalUrl,
   onTrim,
   isLoading = false,
 }: VideoTrimEditorProps) {
@@ -29,14 +31,21 @@ export function VideoTrimEditor({
   const [isPlaying, setIsPlaying] = useState(false);
   const [trimRange, setTrimRange] = useState<[number, number]>([0, 0]);
 
-  const videoUrl = useMemo(() => URL.createObjectURL(videoFile), [videoFile]);
+  const blobUrl = useMemo(
+    () => (videoFile ? URL.createObjectURL(videoFile) : null),
+    [videoFile]
+  );
 
-  // Cleanup URL on unmount
+  const videoUrl = externalUrl || blobUrl || "";
+
+  // Cleanup URL on unmount (only for blob URLs)
   useEffect(
     () => () => {
-      URL.revokeObjectURL(videoUrl);
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
     },
-    [videoUrl]
+    [blobUrl]
   );
 
   const handleLoadedMetadata = useCallback(() => {

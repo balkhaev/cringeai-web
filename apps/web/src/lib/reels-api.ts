@@ -388,6 +388,32 @@ export async function refreshReelMetadata(
   return response.json();
 }
 
+export type BatchRefreshDurationResponse = {
+  success: boolean;
+  message: string;
+  updated: number;
+  failed: number;
+  total: number;
+  errors?: { id: string; error: string }[];
+};
+
+/**
+ * Batch refresh duration for all reels without duration
+ */
+export async function batchRefreshDuration(): Promise<BatchRefreshDurationResponse> {
+  const response = await fetch(`${API_URL}/api/reels/batch-refresh-duration`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to batch refresh duration");
+  }
+
+  return response.json();
+}
+
 /**
  * Check if reel has video available (either in S3 or locally)
  */

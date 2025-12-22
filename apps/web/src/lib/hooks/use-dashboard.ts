@@ -5,6 +5,7 @@ import {
   addReelByUrl,
   type BatchAnalyzeRequest,
   batchAnalyzeReels,
+  batchRefreshDuration,
   deleteAllReels,
   deleteReel,
   getAuthStatus,
@@ -242,6 +243,18 @@ export function useBatchAnalyze() {
       queryClient.invalidateQueries({ queryKey: ["reels"] });
       queryClient.invalidateQueries({ queryKey: ["reelStats"] });
       queryClient.invalidateQueries({ queryKey: ["templates"] });
+    },
+  });
+}
+
+export function useBatchRefreshDuration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => batchRefreshDuration(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reels"] });
+      queryClient.invalidateQueries({ queryKey: ["reelStats"] });
     },
   });
 }
