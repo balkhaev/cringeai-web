@@ -5,6 +5,12 @@ enum LogLevel {
   error
 }
 
+enum AIProvider {
+  gemini
+  openai
+  kling
+}
+
 model ReelLog {
   id        String   @id @default(uuid())
   reelId    String
@@ -21,6 +27,35 @@ model ReelLog {
   @@index([reelId])
   @@index([stage])
   @@index([createdAt])
+}
+
+model AILog {
+  id           String     @id @default(uuid())
+  reelId       String?
+  generationId String?
+
+  provider     AIProvider
+  operation    String     // analyzeVideo, generateOptions, generateVideo, pollStatus
+  model        String?    // gemini-2.0-flash, gpt-4o, kling-video
+
+  status       String     // pending, success, error
+  error        String?
+
+  startedAt    DateTime
+  completedAt  DateTime?
+  duration     Int?       // ms
+
+  inputTokens  Int?
+  outputTokens Int?
+  inputMeta    Json?      // { promptLength, framesCount, videoSize }
+  outputMeta   Json?      // { elementsCount, optionsCount }
+
+  createdAt    DateTime   @default(now())
+
+  @@index([provider])
+  @@index([reelId])
+  @@index([createdAt])
+  @@index([status])
 }
 
 

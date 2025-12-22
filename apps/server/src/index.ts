@@ -68,6 +68,7 @@ app.route("/api/files", filesRouter);
 app.route("/api/queues", queuesRouter);
 app.route("/api/pipeline", pipelineRouter);
 app.route("/api/trim", trimRouter);
+app.route("/api/debug", debugRouter);
 app.route("/api/v1/auth", authRouter);
 
 app.get("/", (c) => c.text("OK"));

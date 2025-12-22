@@ -5,6 +5,7 @@ import {
   HarmCategory,
 } from "@google/generative-ai";
 import { FileState, GoogleAIFileManager } from "@google/generative-ai/server";
+import { aiLogger } from "./ai-logger";
 
 // Scene in the video with timestamp
 export type VideoScene = {
@@ -497,41 +498,60 @@ export class GeminiService {
 
   async analyzeVideo(
     fileUri: string,
-    onProgress?: GeminiProgressCallback
+    onProgress?: GeminiProgressCallback,
+    reelId?: string
   ): Promise<VideoAnalysis> {
-    await onProgress?.("analyzing", 55, "Запуск AI-анализа видео...");
-
-    const model = this.genAI.getGenerativeModel({
+    const logHandle = await aiLogger.startTimer({
+      provider: "gemini",
+      operation: "analyzeVideo",
       model: "gemini-2.0-flash",
-      safetySettings: SAFETY_SETTINGS,
+      reelId,
     });
 
-    const result = await model.generateContent([
-      {
-        fileData: {
-          mimeType: "video/mp4",
-          fileUri,
+    try {
+      await onProgress?.("analyzing", 55, "Запуск AI-анализа видео...");
+
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        safetySettings: SAFETY_SETTINGS,
+      });
+
+      const result = await model.generateContent([
+        {
+          fileData: {
+            mimeType: "video/mp4",
+            fileUri,
+          },
         },
-      },
-      { text: ANALYSIS_PROMPT },
-    ]);
+        { text: ANALYSIS_PROMPT },
+      ]);
 
-    await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+      await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
 
-    const response = result.response;
-    const text = extractTextFromResponse(response);
+      const response = result.response;
+      const text = extractTextFromResponse(response);
 
-    const jsonMatch = text.match(JSON_REGEX);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse analysis response");
+      const jsonMatch = text.match(JSON_REGEX);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse analysis response");
+      }
+
+      const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
+      const parsed = parseRawAnalysis(raw);
+
+      await onProgress?.("analyzing", 90, "Анализ завершён");
+
+      await logHandle.success({
+        outputMeta: { elementsCount: parsed.elements.length },
+      });
+
+      return parsed;
+    } catch (error) {
+      await logHandle.fail(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
     }
-
-    const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
-    const parsed = parseRawAnalysis(raw);
-
-    await onProgress?.("analyzing", 90, "Анализ завершён");
-
-    return parsed;
   }
 
   async processVideo(
@@ -558,52 +578,72 @@ export class GeminiService {
    */
   async analyzeFrames(
     frames: string[],
-    onProgress?: GeminiProgressCallback
+    onProgress?: GeminiProgressCallback,
+    reelId?: string
   ): Promise<VideoAnalysis> {
     if (frames.length === 0) {
       throw new Error("No frames provided for analysis");
     }
 
-    await onProgress?.(
-      "analyzing",
-      55,
-      `Анализ ${frames.length} кадров через Gemini AI...`
-    );
-
-    const model = this.genAI.getGenerativeModel({
+    const logHandle = await aiLogger.startTimer({
+      provider: "gemini",
+      operation: "analyzeFrames",
       model: "gemini-2.5-flash",
-      safetySettings: SAFETY_SETTINGS,
+      reelId,
     });
 
-    // Build content parts: all frames + prompt
-    const imageParts = frames.map((base64) => ({
-      inlineData: {
-        mimeType: "image/jpeg",
-        data: base64,
-      },
-    }));
+    try {
+      await onProgress?.(
+        "analyzing",
+        55,
+        `Анализ ${frames.length} кадров через Gemini AI...`
+      );
 
-    const result = await model.generateContent([
-      ...imageParts,
-      { text: FRAMES_ANALYSIS_PROMPT },
-    ]);
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        safetySettings: SAFETY_SETTINGS,
+      });
 
-    await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+      // Build content parts: all frames + prompt
+      const imageParts = frames.map((base64) => ({
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64,
+        },
+      }));
 
-    const response = result.response;
-    const text = extractTextFromResponse(response);
+      const result = await model.generateContent([
+        ...imageParts,
+        { text: FRAMES_ANALYSIS_PROMPT },
+      ]);
 
-    const jsonMatch = text.match(JSON_REGEX);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse analysis response");
+      await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+
+      const response = result.response;
+      const text = extractTextFromResponse(response);
+
+      const jsonMatch = text.match(JSON_REGEX);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse analysis response");
+      }
+
+      const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
+      const parsed = parseRawAnalysis(raw);
+
+      await onProgress?.("analyzing", 90, "Анализ кадров завершён");
+
+      await logHandle.success({
+        inputMeta: { framesCount: frames.length },
+        outputMeta: { elementsCount: parsed.elements.length },
+      });
+
+      return parsed;
+    } catch (error) {
+      await logHandle.fail(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
     }
-
-    const raw = JSON.parse(jsonMatch[0]) as GeminiRawAnalysis;
-    const parsed = parseRawAnalysis(raw);
-
-    await onProgress?.("analyzing", 90, "Анализ кадров завершён");
-
-    return parsed;
   }
 
   /**
@@ -672,57 +712,78 @@ export class GeminiService {
    */
   async analyzeVideoElementsOnly(
     fileUri: string,
-    onProgress?: GeminiProgressCallback
+    onProgress?: GeminiProgressCallback,
+    reelId?: string
   ): Promise<VideoAnalysisWithoutOptions> {
-    await onProgress?.(
-      "analyzing",
-      55,
-      "Запуск AI-анализа видео (enchanting)..."
-    );
-
-    const model = this.genAI.getGenerativeModel({
+    const logHandle = await aiLogger.startTimer({
+      provider: "gemini",
+      operation: "analyzeVideoElementsOnly",
       model: "gemini-2.0-flash",
-      safetySettings: SAFETY_SETTINGS,
+      reelId,
     });
 
-    const result = await model.generateContent([
-      {
-        fileData: {
-          mimeType: "video/mp4",
-          fileUri,
+    try {
+      await onProgress?.(
+        "analyzing",
+        55,
+        "Запуск AI-анализа видео (enchanting)..."
+      );
+
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        safetySettings: SAFETY_SETTINGS,
+      });
+
+      const result = await model.generateContent([
+        {
+          fileData: {
+            mimeType: "video/mp4",
+            fileUri,
+          },
         },
-      },
-      { text: ELEMENTS_ONLY_PROMPT },
-    ]);
+        { text: ELEMENTS_ONLY_PROMPT },
+      ]);
 
-    await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+      await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
 
-    const response = result.response;
-    const text = extractTextFromResponse(response);
+      const response = result.response;
+      const text = extractTextFromResponse(response);
 
-    const jsonMatch = text.match(JSON_REGEX);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse analysis response");
+      const jsonMatch = text.match(JSON_REGEX);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse analysis response");
+      }
+
+      const raw = JSON.parse(jsonMatch[0]) as {
+        duration?: number | string | null;
+        aspectRatio?: string;
+        elements?: ElementWithoutOptions[];
+      };
+
+      const duration =
+        typeof raw.duration === "string"
+          ? Number.parseInt(raw.duration, 10) || null
+          : (raw.duration ?? null);
+
+      await onProgress?.("analyzing", 90, "Анализ элементов завершён");
+
+      const result2 = {
+        duration,
+        aspectRatio: raw.aspectRatio || "9:16",
+        elements: raw.elements || [],
+      };
+
+      await logHandle.success({
+        outputMeta: { elementsCount: result2.elements.length },
+      });
+
+      return result2;
+    } catch (error) {
+      await logHandle.fail(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
     }
-
-    const raw = JSON.parse(jsonMatch[0]) as {
-      duration?: number | string | null;
-      aspectRatio?: string;
-      elements?: ElementWithoutOptions[];
-    };
-
-    const duration =
-      typeof raw.duration === "string"
-        ? Number.parseInt(raw.duration, 10) || null
-        : (raw.duration ?? null);
-
-    await onProgress?.("analyzing", 90, "Анализ элементов завершён");
-
-    return {
-      duration,
-      aspectRatio: raw.aspectRatio || "9:16",
-      elements: raw.elements || [],
-    };
   }
 
   /**
@@ -748,63 +809,85 @@ export class GeminiService {
    */
   async analyzeFramesElementsOnly(
     frames: string[],
-    onProgress?: GeminiProgressCallback
+    onProgress?: GeminiProgressCallback,
+    reelId?: string
   ): Promise<VideoAnalysisWithoutOptions> {
     if (frames.length === 0) {
       throw new Error("No frames provided for analysis");
     }
 
-    await onProgress?.(
-      "analyzing",
-      55,
-      `Анализ ${frames.length} кадров (enchanting)...`
-    );
-
-    const model = this.genAI.getGenerativeModel({
+    const logHandle = await aiLogger.startTimer({
+      provider: "gemini",
+      operation: "analyzeFramesElementsOnly",
       model: "gemini-2.5-flash",
-      safetySettings: SAFETY_SETTINGS,
+      reelId,
     });
 
-    const imageParts = frames.map((base64) => ({
-      inlineData: {
-        mimeType: "image/jpeg",
-        data: base64,
-      },
-    }));
+    try {
+      await onProgress?.(
+        "analyzing",
+        55,
+        `Анализ ${frames.length} кадров (enchanting)...`
+      );
 
-    const result = await model.generateContent([
-      ...imageParts,
-      { text: FRAMES_ELEMENTS_ONLY_PROMPT },
-    ]);
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        safetySettings: SAFETY_SETTINGS,
+      });
 
-    await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+      const imageParts = frames.map((base64) => ({
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64,
+        },
+      }));
 
-    const response = result.response;
-    const text = extractTextFromResponse(response);
+      const result = await model.generateContent([
+        ...imageParts,
+        { text: FRAMES_ELEMENTS_ONLY_PROMPT },
+      ]);
 
-    const jsonMatch = text.match(JSON_REGEX);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse analysis response");
+      await onProgress?.("analyzing", 80, "Обработка результатов анализа...");
+
+      const response = result.response;
+      const text = extractTextFromResponse(response);
+
+      const jsonMatch = text.match(JSON_REGEX);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse analysis response");
+      }
+
+      const raw = JSON.parse(jsonMatch[0]) as {
+        duration?: number | string | null;
+        aspectRatio?: string;
+        elements?: ElementWithoutOptions[];
+      };
+
+      const duration =
+        typeof raw.duration === "string"
+          ? Number.parseInt(raw.duration, 10) || null
+          : (raw.duration ?? null);
+
+      await onProgress?.("analyzing", 90, "Анализ кадров завершён");
+
+      const result2 = {
+        duration,
+        aspectRatio: raw.aspectRatio || "9:16",
+        elements: raw.elements || [],
+      };
+
+      await logHandle.success({
+        inputMeta: { framesCount: frames.length },
+        outputMeta: { elementsCount: result2.elements.length },
+      });
+
+      return result2;
+    } catch (error) {
+      await logHandle.fail(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
     }
-
-    const raw = JSON.parse(jsonMatch[0]) as {
-      duration?: number | string | null;
-      aspectRatio?: string;
-      elements?: ElementWithoutOptions[];
-    };
-
-    const duration =
-      typeof raw.duration === "string"
-        ? Number.parseInt(raw.duration, 10) || null
-        : (raw.duration ?? null);
-
-    await onProgress?.("analyzing", 90, "Анализ кадров завершён");
-
-    return {
-      duration,
-      aspectRatio: raw.aspectRatio || "9:16",
-      elements: raw.elements || [],
-    };
   }
 
   /**

@@ -7,6 +7,7 @@
  */
 
 import jwt from "jsonwebtoken";
+import { aiLogger } from "./ai-logger";
 
 export type KlingGenerationResult = {
   success: boolean;
@@ -36,6 +37,10 @@ export type KlingGenerationOptions = {
   elements?: KlingImageElement[];
   /** Callback для обновления прогресса генерации */
   onProgress?: KlingProgressCallback;
+  /** ID генерации для логирования */
+  generationId?: string;
+  /** ID рила для логирования */
+  reelId?: string;
 };
 
 /**
@@ -260,6 +265,14 @@ export class KlingService {
   ): Promise<KlingGenerationResult> {
     const startTime = Date.now();
 
+    const logHandle = await aiLogger.startTimer({
+      provider: "kling",
+      operation: "generateVideoToVideo",
+      model: "kling-video",
+      generationId: options.generationId,
+      reelId: options.reelId,
+    });
+
     this.log("🚀", "═══ НАЧАЛО ГЕНЕРАЦИИ KLING ═══");
     this.log("📝", "Промпт", {
       length: prompt.length,
@@ -316,7 +329,7 @@ export class KlingService {
         input,
         config: {
           duration: options.duration || 5,
-          aspect_ratio: options.aspectRatio || "auto",
+          aspect_ratio: options.aspectRatio || "16:9",
           mode: options.mode || "std",
           keep_audio: options.keepAudio,
         },
@@ -358,9 +371,26 @@ export class KlingService {
         this.log("🎉", `═══ ГЕНЕРАЦИЯ ЗАВЕРШЕНА (${totalTime}) ═══`, {
           videoUrl: result.videoUrl?.slice(0, 80),
         });
+        await logHandle.success({
+          inputMeta: {
+            promptLength: prompt.length,
+            duration: options.duration || 5,
+            mode: options.mode || "std",
+            hasImageRefs: !!options.imageUrls?.length,
+            hasElementRefs: !!options.elements?.length,
+          },
+          outputMeta: { taskId },
+        });
       } else {
         this.log("❌", `═══ ГЕНЕРАЦИЯ ПРОВАЛИЛАСЬ (${totalTime}) ═══`, {
           error: result.error,
+        });
+        await logHandle.fail(new Error(result.error || "Generation failed"), {
+          inputMeta: {
+            promptLength: prompt.length,
+            duration: options.duration || 5,
+            mode: options.mode || "std",
+          },
         });
       }
 
@@ -369,6 +399,7 @@ export class KlingService {
       const totalTime = formatDuration((Date.now() - startTime) / 1000);
       this.log("💥", `═══ КРИТИЧЕСКАЯ ОШИБКА (${totalTime}) ═══`);
       const err = error instanceof Error ? error : new Error(String(error));
+      await logHandle.fail(err);
       return this.parseError(err);
     }
   }

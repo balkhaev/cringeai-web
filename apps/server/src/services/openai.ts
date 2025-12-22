@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { aiLogger } from "./ai-logger";
 import type { DetectableElement, RemixOption } from "./gemini";
 
 // Элемент без вариантов (для передачи в ChatGPT)
@@ -149,67 +150,96 @@ export class OpenAIService {
   /**
    * Генерирует remix-варианты для элементов через ChatGPT
    * @param elements Элементы без вариантов (от Gemini анализа)
+   * @param reelId ID рила для логирования
    * @returns Элементы с сгенерированными вариантами
    */
   async generateEnchantingOptions(
-    elements: ElementWithoutOptions[]
+    elements: ElementWithoutOptions[],
+    reelId?: string
   ): Promise<EnchantingResult[]> {
     if (elements.length === 0) {
       return [];
     }
 
-    const inputJson = JSON.stringify(
-      elements.map((e) => ({
-        id: e.id,
-        type: e.type,
-        label: e.label,
-        description: e.description,
-      })),
-      null,
-      2
-    );
-
-    const response = await this.client.chat.completions.create({
+    const logHandle = await aiLogger.startTimer({
+      provider: "openai",
+      operation: "generateEnchantingOptions",
       model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: NORMAL_ABSURD_REMIX_PROMPT,
-        },
-        {
-          role: "user",
-          content: `Generate remix options for these elements:\n\n${inputJson}`,
-        },
-      ],
-      temperature: 0.8,
-      max_tokens: 4000,
+      reelId,
     });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty response from ChatGPT");
-    }
+    try {
+      const inputJson = JSON.stringify(
+        elements.map((e) => ({
+          id: e.id,
+          type: e.type,
+          label: e.label,
+          description: e.description,
+        })),
+        null,
+        2
+      );
 
-    const jsonMatch = content.match(JSON_REGEX);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse ChatGPT response as JSON array");
-    }
+      const response = await this.client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: NORMAL_ABSURD_REMIX_PROMPT,
+          },
+          {
+            role: "user",
+            content: `Generate remix options for these elements:\n\n${inputJson}`,
+          },
+        ],
+        temperature: 0.8,
+        max_tokens: 4000,
+      });
 
-    const results = JSON.parse(jsonMatch[0]) as EnchantingResult[];
-
-    // Валидация результатов
-    for (const result of results) {
-      if (!(result.id && result.type && result.remixOptions)) {
-        throw new Error(`Invalid result structure for element ${result.id}`);
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("Empty response from ChatGPT");
       }
-      if (result.remixOptions.length !== 4) {
-        throw new Error(
-          `Expected 4 options for element ${result.id}, got ${result.remixOptions.length}`
-        );
-      }
-    }
 
-    return results;
+      const jsonMatch = content.match(JSON_REGEX);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse ChatGPT response as JSON array");
+      }
+
+      const results = JSON.parse(jsonMatch[0]) as EnchantingResult[];
+
+      // Валидация результатов
+      for (const result of results) {
+        if (!(result.id && result.type && result.remixOptions)) {
+          throw new Error(`Invalid result structure for element ${result.id}`);
+        }
+        if (result.remixOptions.length !== 4) {
+          throw new Error(
+            `Expected 4 options for element ${result.id}, got ${result.remixOptions.length}`
+          );
+        }
+      }
+
+      await logHandle.success({
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        inputMeta: { elementsCount: elements.length },
+        outputMeta: {
+          resultsCount: results.length,
+          optionsCount: results.reduce(
+            (acc, r) => acc + r.remixOptions.length,
+            0
+          ),
+        },
+      });
+
+      return results;
+    } catch (error) {
+      await logHandle.fail(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      throw error;
+    }
   }
 }
 
