@@ -594,32 +594,46 @@ export class KlingService {
 
   private parseError(error: Error): KlingGenerationResult {
     const msg = error.message;
+    const accessKeyPreview = this.accessKey
+      ? `${this.accessKey.slice(0, 8)}...${this.accessKey.slice(-4)}`
+      : "not set";
 
     this.log("❌", "Ошибка Kling", {
       message: msg,
+      accessKey: accessKeyPreview,
       stack: error.stack?.slice(0, 200),
     });
 
     if (msg.includes("401") || msg.includes("unauthorized")) {
       return {
         success: false,
-        error: "Неверный API ключ Kling. Проверьте KLING_API_KEY.",
-      };
-    }
-    if (msg.includes("429") || msg.includes("rate_limit")) {
-      return {
-        success: false,
-        error: "Превышен лимит запросов Kling. Попробуйте позже.",
-      };
-    }
-    if (msg.includes("insufficient") || msg.includes("quota")) {
-      return {
-        success: false,
-        error: "Недостаточно квоты Kling для генерации видео.",
+        error: `Неверный API ключ Kling (${accessKeyPreview}). Проверьте KLING_ACCESS_KEY.`,
       };
     }
 
-    return { success: false, error: msg };
+    // Account balance error (code 1102)
+    if (msg.includes("balance not enough") || msg.includes("1102")) {
+      return {
+        success: false,
+        error: `Недостаточно средств на аккаунте Kling (${accessKeyPreview}). Пополните баланс на https://app.klingai.com`,
+      };
+    }
+
+    if (msg.includes("429") || msg.includes("rate_limit")) {
+      return {
+        success: false,
+        error: `Превышен лимит запросов Kling (${accessKeyPreview}). Попробуйте позже.`,
+      };
+    }
+
+    if (msg.includes("insufficient") || msg.includes("quota")) {
+      return {
+        success: false,
+        error: `Недостаточно квоты Kling (${accessKeyPreview}) для генерации видео.`,
+      };
+    }
+
+    return { success: false, error: `${msg} [key: ${accessKeyPreview}]` };
   }
 }
 
