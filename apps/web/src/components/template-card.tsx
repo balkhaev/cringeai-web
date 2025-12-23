@@ -63,8 +63,7 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
       toast.error("Промпт недоступен в этом режиме");
       return;
     }
-    const prompt =
-      template.analysis.klingPrompt || template.analysis.veo3Prompt || "";
+    const prompt = template.analysis.klingPrompt || "";
     if (!prompt) {
       toast.error("Промпт не найден");
       return;

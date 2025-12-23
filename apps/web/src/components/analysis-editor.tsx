@@ -1,19 +1,15 @@
 "use client";
 
 import {
-  Camera,
   ChevronDown,
   ChevronUp,
   Clock,
   Edit3,
   Film,
-  MapPin,
-  Palette,
   Save,
   Settings2,
   Sparkles,
   Users,
-  Zap,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -53,48 +49,6 @@ type QuickField = {
 
 const QUICK_FIELDS: QuickField[] = [
   {
-    key: "subject",
-    label: "Субъект",
-    icon: Users,
-    type: "textarea",
-    placeholder: "Кто или что является главным объектом видео",
-  },
-  {
-    key: "action",
-    label: "Действие",
-    icon: Zap,
-    type: "textarea",
-    placeholder: "Что происходит на видео",
-  },
-  {
-    key: "environment",
-    label: "Окружение",
-    icon: MapPin,
-    type: "textarea",
-    placeholder: "Где происходит действие",
-  },
-  {
-    key: "cameraStyle",
-    label: "Камера",
-    icon: Camera,
-    type: "text",
-    placeholder: "Стиль съёмки и движения камеры",
-  },
-  {
-    key: "mood",
-    label: "Настроение",
-    icon: Sparkles,
-    type: "text",
-    placeholder: "Атмосфера и эмоции",
-  },
-  {
-    key: "colorPalette",
-    label: "Цвета",
-    icon: Palette,
-    type: "text",
-    placeholder: "Цветовая гамма и грейдинг",
-  },
-  {
     key: "style",
     label: "Стиль",
     icon: Film,
@@ -121,6 +75,13 @@ const QUICK_FIELDS: QuickField[] = [
       { value: "1:1", label: "1:1 (Квадрат)" },
       { value: "auto", label: "Авто" },
     ],
+  },
+  {
+    key: "klingPrompt",
+    label: "Промпт Kling",
+    icon: Sparkles,
+    type: "textarea",
+    placeholder: "Промпт для video-to-video генерации",
   },
 ];
 
@@ -309,40 +270,18 @@ export function AnalysisEditor({
         {/* Pro Mode Sections */}
         {Boolean(isProMode) && (
           <div className="space-y-3 border-t pt-4">
-            {/* Lighting */}
-            <div className="space-y-2">
-              <Label>Освещение</Label>
-              <Textarea
-                onChange={(e) => setValue("lighting", e.target.value)}
-                placeholder="Детальное описание освещения"
-                rows={2}
-                value={String(getValue("lighting") || "")}
-              />
-            </div>
-
-            {/* Kling Prompt */}
-            <div className="space-y-2">
-              <Label>Промпт для Kling AI</Label>
-              <Textarea
-                onChange={(e) => setValue("klingPrompt", e.target.value)}
-                placeholder="Промпт изменений для video-to-video генерации"
-                rows={3}
-                value={String(getValue("klingPrompt") || "")}
-              />
-            </div>
-
-            {/* Characters Section */}
+            {/* Video Elements Section */}
             <Collapsible
-              onOpenChange={() => toggleSection("characters")}
-              open={expandedSections.includes("characters")}
+              onOpenChange={() => toggleSection("elements")}
+              open={expandedSections.includes("elements")}
             >
               <CollapsibleTrigger asChild>
                 <Button className="w-full justify-between" variant="ghost">
                   <span className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Персонажи ({analysis.characters?.length || 0})
+                    Элементы ({analysis.videoElements?.length || 0})
                   </span>
-                  {expandedSections.includes("characters") ? (
+                  {expandedSections.includes("elements") ? (
                     <ChevronUp className="h-4 w-4" />
                   ) : (
                     <ChevronDown className="h-4 w-4" />
@@ -350,22 +289,20 @@ export function AnalysisEditor({
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 pt-2">
-                {analysis.characters?.map((char, idx) => (
+                {analysis.videoElements?.map((element) => (
                   <div
                     className="rounded-lg border bg-surface-1 p-3 text-sm"
-                    key={char.id || idx}
+                    key={element.id}
                   >
-                    <div className="font-medium">{char.id}</div>
-                    <div className="text-muted-foreground">
-                      {char.age}, {char.gender}
-                    </div>
-                    <div>{char.appearance}</div>
-                    <div className="text-muted-foreground">{char.clothing}</div>
+                    <div className="font-medium">{element.label}</div>
+                    <div className="text-muted-foreground">{element.type}</div>
+                    <div>{element.description}</div>
                   </div>
                 ))}
-                {(!analysis.characters || analysis.characters.length === 0) && (
+                {(!analysis.videoElements ||
+                  analysis.videoElements.length === 0) && (
                   <p className="text-muted-foreground text-sm">
-                    Персонажи не обнаружены
+                    Элементы не обнаружены
                   </p>
                 )}
               </CollapsibleContent>
@@ -380,7 +317,7 @@ export function AnalysisEditor({
                 <Button className="w-full justify-between" variant="ghost">
                   <span className="flex items-center gap-2">
                     <Film className="h-4 w-4" />
-                    Сцены ({analysis.scenes?.length || 0})
+                    Сцены ({analysis.videoScenes?.length || 0})
                   </span>
                   {expandedSections.includes("scenes") ? (
                     <ChevronUp className="h-4 w-4" />
@@ -390,60 +327,24 @@ export function AnalysisEditor({
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 pt-2">
-                {analysis.scenes?.map((scene) => (
+                {analysis.videoScenes?.map((scene) => (
                   <div
                     className="rounded-lg border bg-surface-1 p-3 text-sm"
-                    key={scene.timestamp}
-                  >
-                    <div className="font-medium">{scene.timestamp}</div>
-                    <div>{scene.description}</div>
-                    <div className="text-muted-foreground">{scene.action}</div>
-                  </div>
-                ))}
-                {(!analysis.scenes || analysis.scenes.length === 0) && (
-                  <p className="text-muted-foreground text-sm">
-                    Сцены не разобраны
-                  </p>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Camera Movements Section */}
-            <Collapsible
-              onOpenChange={() => toggleSection("camera")}
-              open={expandedSections.includes("camera")}
-            >
-              <CollapsibleTrigger asChild>
-                <Button className="w-full justify-between" variant="ghost">
-                  <span className="flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    Движения камеры ({analysis.cameraMovements?.length || 0})
-                  </span>
-                  {expandedSections.includes("camera") ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 pt-2">
-                {analysis.cameraMovements?.map((mov) => (
-                  <div
-                    className="rounded-lg border bg-surface-1 p-3 text-sm"
-                    key={`${mov.type}-${mov.startTime}`}
+                    key={scene.id}
                   >
                     <div className="font-medium">
-                      {mov.type} {mov.direction}
+                      Сцена {scene.index + 1} ({scene.duration.toFixed(1)}с)
                     </div>
                     <div className="text-muted-foreground">
-                      {mov.startTime} - {mov.endTime}, скорость: {mov.speed}
+                      {scene.startTime.toFixed(1)}с - {scene.endTime.toFixed(1)}
+                      с
                     </div>
                   </div>
                 ))}
-                {(!analysis.cameraMovements ||
-                  analysis.cameraMovements.length === 0) && (
+                {(!analysis.videoScenes ||
+                  analysis.videoScenes.length === 0) && (
                   <p className="text-muted-foreground text-sm">
-                    Движения камеры не обнаружены
+                    Сцены не разобраны
                   </p>
                 )}
               </CollapsibleContent>

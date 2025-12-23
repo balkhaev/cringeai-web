@@ -77,23 +77,24 @@ export function VideoGenerator({
   isAnalyzingFrames = false,
   canAnalyze = true,
 }: VideoGeneratorProps) {
-  // Group analyses by type (only standard and frames)
+  // Group analyses by type
   const analysesByType = useMemo(() => {
-    const byType: Record<"standard" | "frames", TemplateAnalysis | null> = {
+    const byType: Record<
+      "standard" | "frames" | "scenes",
+      TemplateAnalysis | null
+    > = {
       standard: null,
       frames: null,
+      scenes: null,
     };
 
     for (const analysis of analyses) {
       const type = analysis.analysisType || "standard";
-      // Map enchanting and scenes to standard for display purposes
-      const displayType =
-        type === "enchanting" || type === "scenes" ? "standard" : type;
       if (
-        (displayType === "standard" || displayType === "frames") &&
-        !byType[displayType]
+        (type === "standard" || type === "frames" || type === "scenes") &&
+        !byType[type]
       ) {
-        byType[displayType] = analysis;
+        byType[type] = analysis;
       }
     }
 

@@ -196,7 +196,7 @@ function OverviewTab({
             Шаблон создан
           </h4>
           <p className="text-muted-foreground text-sm">
-            {data.template.title || data.template.analysis.subject || "Шаблон"}
+            {data.template.title || "Шаблон"}
           </p>
           {data.template.tags.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
