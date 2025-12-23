@@ -27,12 +27,14 @@ import {
   useAuthStatus,
   useBatchRefreshDuration,
   useBatchResizeAll,
+  useProcessReel,
   useScrapeJobs,
   useStartScrape,
   useUploadPipelineVideo,
 } from "@/lib/hooks/use-dashboard";
-import type { JobStatus } from "@/lib/reels-api";
+import type { JobStatus, SavedReel } from "@/lib/reels-api";
 import { InstagramAuthPanel } from "./instagram-auth-panel";
+import { VideoLibrary } from "./video-library";
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) {
@@ -94,6 +96,7 @@ export function ScraperPanel() {
   const startScrape = useStartScrape();
   const addReel = useAddReel();
   const uploadVideo = useUploadPipelineVideo();
+  const processReel = useProcessReel();
   const batchRefreshDuration = useBatchRefreshDuration();
   const batchResizeAll = useBatchResizeAll();
 
@@ -140,6 +143,17 @@ export function ScraperPanel() {
         },
       });
     }
+  };
+
+  const handleSelectFromLibrary = (reel: SavedReel) => {
+    processReel.mutate(reel.id, {
+      onSuccess: () => {
+        toast.success("Видео отправлено в обработку");
+      },
+      onError: (err) => {
+        toast.error(`Ошибка: ${err.message}`);
+      },
+    });
   };
 
   const activeJobs = jobs.filter(
@@ -283,6 +297,10 @@ export function ScraperPanel() {
               <p className="text-center text-[10px] text-muted-foreground">
                 Поддерживаются MP4, MOV. Макс. 100MB.
               </p>
+              <VideoLibrary
+                disabled={processReel.isPending}
+                onSelect={handleSelectFromLibrary}
+              />
             </div>
           </div>
 
