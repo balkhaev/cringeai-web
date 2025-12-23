@@ -159,13 +159,19 @@ class ReelPipeline {
       const tags =
         analysis.tags.length > 0 ? analysis.tags : this.extractTags(analysis);
 
-      const template = await prisma.template.create({
-        data: {
+      const template = await prisma.template.upsert({
+        where: { reelId },
+        create: {
           reelId,
           analysisId,
           tags,
           category: this.detectCategory(analysis),
           isPublished: true,
+        },
+        update: {
+          analysisId,
+          tags,
+          category: this.detectCategory(analysis),
         },
       });
 
