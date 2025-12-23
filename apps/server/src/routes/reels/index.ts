@@ -48,9 +48,7 @@ initScrapeWorkerHandler();
 // Get all scrape jobs
 reelsRouter.get("/jobs", async (c) => {
   try {
-    const { scrapeJobQueue } = await import(
-      "../../services/queues/scrape-queue"
-    );
+    const { scrapeJobQueue } = await import("../../services/queues");
     const jobs = await scrapeJobQueue.getAllJobs();
 
     return c.json(

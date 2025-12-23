@@ -1,77 +1,153 @@
-# trender
+# Trender
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, and more.
+Платформа для анализа видео, скрапинга Instagram Reels и AI-генерации видео.
 
-## Features
+## Требования
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Hono** - Lightweight, performant server framework
-- **Bun** - Runtime environment
-- **Prisma** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
-- **Turborepo** - Optimized monorepo build system
-- **Biome** - Linting and formatting
-- **Husky** - Git hooks for code quality
+- Docker и Docker Compose
+- Bun 1.3+
+- Python 3.12+ (опционально, для локального запуска video-frames)
 
-## Getting Started
-
-First, install the dependencies:
+## Быстрый старт
 
 ```bash
-bun install
-```
-## Database Setup
+# 1. Клонировать репозиторий
+git clone <repo-url>
+cd trender
 
-This project uses PostgreSQL with Prisma.
+# 2. Создать .env файлы
+cp .env.docker.example .env
+cp apps/server/.env.example apps/server/.env
+# Заполнить API ключи (GEMINI_API_KEY обязателен)
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+# 3. Первый запуск (установка + настройка БД)
+make setup
 
-3. Generate the Prisma client and push the schema:
-```bash
-bun run db:push
-```
-
-
-Then, run the development server:
-
-```bash
-bun run dev
+# 4. Запуск разработки
+make dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+После запуска:
+- **Web UI**: http://localhost:3000
+- **API**: http://localhost:3001
+- **API Docs**: http://localhost:3001/reference
+- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
 
+## Команды
 
+### Разработка
 
+| Команда | Описание |
+|---------|----------|
+| `make dev` | Установить зависимости + запустить infra + bun dev |
+| `make setup` | Полная настройка (deps + python + db) |
+| `make install` | Только установка зависимостей |
+| `make build` | Собрать все пакеты |
 
+### Инфраструктура
 
+| Команда | Описание |
+|---------|----------|
+| `make infra` | Запустить postgres, redis, minio |
+| `make infra-down` | Остановить инфраструктуру |
 
+### База данных
 
-## Project Structure
+| Команда | Описание |
+|---------|----------|
+| `make db-push` | Push схемы в БД |
+| `make db-migrate` | Применить миграции |
+| `make db-studio` | Открыть Prisma Studio |
+| `make db-reset` | Сбросить БД |
+
+### Docker (полный стек)
+
+| Команда | Описание |
+|---------|----------|
+| `make docker` | Запустить всё в Docker (dev) |
+| `make docker-prod` | Запустить всё в Docker (prod) |
+| `make docker-down` | Остановить Docker |
+| `make docker-clean` | Удалить containers и volumes |
+
+## Архитектура
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Web UI    │────▶│   Server    │────▶│  PostgreSQL │
+│  (Next.js)  │     │   (Hono)    │     └─────────────┘
+└─────────────┘     └──────┬──────┘            │
+                          │              ┌─────────┐
+         ┌────────────────┼──────────────│  Redis  │
+         │                │              │(BullMQ) │
+         ▼                ▼              └─────────┘
+   ┌───────────┐   ┌─────────────┐
+   │  Scrapper │   │Video-Frames │
+   │(Instagram)│   │(PySceneDetect)│
+   └───────────┘   └─────────────┘
+```
+
+## Сервисы
+
+| Сервис | Порт | Описание |
+|--------|------|----------|
+| web | 3000 | Next.js фронтенд |
+| server | 3001 | Hono API сервер |
+| video-frames | 8002 | Python: извлечение кадров, детекция сцен |
+| scrapper | 8001 | Python: Instagram скрапер |
+| postgres | 5432 | База данных |
+| redis | 6379 | Очереди задач |
+| minio | 9000/9001 | S3-совместимое хранилище |
+
+## Структура проекта
 
 ```
 trender/
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
-│   └── server/      # Backend API (Hono)
+│   ├── web/           # Frontend (Next.js)
+│   ├── server/        # Backend API (Hono)
+│   ├── video-frames/  # Python: кадры и сцены
+│   └── scrapper/      # Python: Instagram
 ├── packages/
-│   ├── api/         # API layer / business logic
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│   ├── db/            # Prisma схема и клиент
+│   └── auth/          # Аутентификация
 ```
 
-## Available Scripts
+## Переменные окружения
 
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:server`: Start only the server
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:studio`: Open database studio UI
-- `bun run check`: Run Biome formatting and linting
+Скопировать и заполнить:
+- `.env.docker.example` → `.env` (для docker-compose)
+- `apps/server/.env.example` → `apps/server/.env` (для сервера)
+
+Основные ключи:
+
+```env
+GEMINI_API_KEY=          # Google Gemini (анализ видео) - обязательно
+KLING_ACCESS_KEY=        # Kling AI (генерация видео)
+KLING_SECRET_KEY=
+INSTAGRAM_USER=          # Instagram (опционально)
+INSTAGRAM_PASS=
+```
+
+## Scene-based генерация
+
+Разбиение видео на сцены с помощью PySceneDetect:
+
+1. Детекция переходов в видео
+2. Анализ каждой сцены через Gemini
+3. Параллельная генерация через Kling
+4. Автоматическая склейка результата
+
+API:
+```
+POST /api/scenes/analyze     - запустить анализ
+GET  /api/scenes/:analysisId - получить сцены
+POST /api/scenes/generate    - запустить генерацию
+```
+
+## Технологии
+
+- **Frontend**: Next.js, TailwindCSS, shadcn/ui
+- **Backend**: Hono, BullMQ, Prisma
+- **AI**: Google Gemini, Kling AI
+- **Video**: PySceneDetect, FFmpeg
+- **Infra**: PostgreSQL, Redis, MinIO
