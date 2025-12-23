@@ -1,3 +1,15 @@
+-- Add missing fields to ScrapeJob
+ALTER TABLE "ScrapeJob" ADD COLUMN IF NOT EXISTS "jobId" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "ScrapeJob_jobId_key" ON "ScrapeJob"("jobId");
+
+-- Add missing fields to VideoGeneration
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "jobId" TEXT;
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "progress" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "progressStage" TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "progressMessage" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "lastActivityAt" TIMESTAMP(3);
+CREATE UNIQUE INDEX IF NOT EXISTS "VideoGeneration_jobId_key" ON "VideoGeneration"("jobId");
+
 -- Add scenes fields to VideoAnalysis
 ALTER TABLE "VideoAnalysis" ADD COLUMN IF NOT EXISTS "hasScenes" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "VideoAnalysis" ADD COLUMN IF NOT EXISTS "scenesCount" INTEGER;
