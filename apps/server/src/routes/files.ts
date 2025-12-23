@@ -240,35 +240,71 @@ filesRouter.openapi(streamGenerationRoute, async (c) => {
   // Look up generation to get s3Key
   const generation = await prisma.videoGeneration.findUnique({
     where: { id },
-    select: { s3Key: true },
+    select: { s3Key: true, status: true, videoUrl: true },
   });
 
   if (!generation) {
+    console.log(`[Files] Generation ${id} not found in DB`);
     return c.json({ error: "Generation not found" }, 404);
   }
 
-  // Use s3Key from database or generate from id
-  const s3Key = generation.s3Key || getS3Key("generations", id);
+  console.log(
+    `[Files] Generation ${id}: status=${generation.status}, s3Key=${generation.s3Key}, videoUrl=${generation.videoUrl}`
+  );
 
-  try {
-    const result = await s3Service.getFileStream(s3Key);
-
-    if (!result) {
-      return c.json({ error: "Video file not found in storage" }, 404);
+  // Try S3 first if s3Key exists
+  if (generation.s3Key) {
+    try {
+      const result = await s3Service.getFileStream(generation.s3Key);
+      if (result) {
+        return new Response(result.stream, {
+          headers: {
+            "Content-Type": result.metadata.contentType,
+            "Content-Length": result.metadata.contentLength.toString(),
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Content-Disposition": `inline; filename="${id}.mp4"`,
+          },
+        });
+      }
+      console.log(`[Files] S3 file not found: ${generation.s3Key}`);
+    } catch (s3Error) {
+      console.error(`[Files] S3 error for ${id}:`, s3Error);
     }
-
-    return new Response(result.stream, {
-      headers: {
-        "Content-Type": result.metadata.contentType,
-        "Content-Length": result.metadata.contentLength.toString(),
-        "Cache-Control": "public, max-age=31536000, immutable",
-        "Content-Disposition": `inline; filename="${id}.mp4"`,
-      },
-    });
-  } catch (error) {
-    console.error(`Error streaming generation ${id}:`, error);
-    return c.json({ error: "Failed to stream video" }, 500);
   }
+
+  // Fallback to local file
+  const localPath = getGenerationsPath(`${id}.mp4`);
+  if (existsSync(localPath)) {
+    console.log(`[Files] Serving from local: ${localPath}`);
+    try {
+      const fileStat = await stat(localPath);
+      const fileStream = createReadStream(localPath);
+      const webStream = Readable.toWeb(fileStream) as ReadableStream;
+
+      return new Response(webStream, {
+        headers: {
+          "Content-Type": "video/mp4",
+          "Content-Length": fileStat.size.toString(),
+          "Cache-Control": "public, max-age=31536000, immutable",
+          "Content-Disposition": `inline; filename="${id}.mp4"`,
+        },
+      });
+    } catch (localError) {
+      console.error(`[Files] Local file error for ${id}:`, localError);
+    }
+  }
+
+  // Fallback to redirect if videoUrl is external
+  if (
+    generation.videoUrl &&
+    (generation.videoUrl.startsWith("http://") ||
+      generation.videoUrl.startsWith("https://"))
+  ) {
+    console.log(`[Files] Redirecting to external URL: ${generation.videoUrl}`);
+    return c.redirect(generation.videoUrl, 302);
+  }
+
+  return c.json({ error: "Video file not found" }, 404);
 });
 
 filesRouter.openapi(headGenerationRoute, async (c) => {

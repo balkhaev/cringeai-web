@@ -23,6 +23,7 @@ export {
 
 // Individual queues - import first to ensure registration
 export * from "./pipeline-queue";
+export * from "./scene-gen-queue";
 export * from "./scrape-queue";
 export * from "./types";
 export * from "./video-gen-queue";

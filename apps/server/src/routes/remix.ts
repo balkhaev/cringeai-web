@@ -12,7 +12,15 @@ import { buildReelVideoUrl } from "../services/url-builder";
 
 const app = new OpenAPIHono();
 
-// Helper to build prompt from selections
+/**
+ * Build prompt from selections for Kling API
+ * Returns prompt with <<<image_N>>> references and list of image URLs
+ *
+ * Kling API uses:
+ * - <<<video_1>>> for source video reference
+ * - <<<image_1>>>, <<<image_2>>>... for image references
+ * - image_list[] array with URLs in corresponding order
+ */
 function buildPromptFromSelections(
   elements: Array<{
     id: string;
@@ -26,14 +34,16 @@ function buildPromptFromSelections(
     selectedOptionId?: string;
     customMediaUrl?: string;
   }>
-): string {
+): { prompt: string; imageUrls: string[] } {
   const parts: string[] = [];
+  const imageUrls: string[] = [];
 
   for (const selection of selections) {
     const element = elements.find((e) => e.id === selection.elementId);
     if (!element) continue;
 
     if (selection.selectedOptionId) {
+      // User selected a predefined option
       const option = element.remixOptions.find(
         (o) => o.id === selection.selectedOptionId
       );
@@ -41,11 +51,19 @@ function buildPromptFromSelections(
         parts.push(option.prompt);
       }
     } else if (selection.customMediaUrl) {
-      parts.push(`Replace ${element.label} with custom image reference`);
+      // User provided custom image - add to image_list and reference in prompt
+      imageUrls.push(selection.customMediaUrl);
+      const imageIndex = imageUrls.length; // 1-based index for Kling
+      parts.push(
+        `Replace ${element.label} with the reference from <<<image_${imageIndex}>>>`
+      );
     }
   }
 
-  return parts.join(". ");
+  return {
+    prompt: parts.join(". "),
+    imageUrls,
+  };
 }
 
 // ============================================
@@ -236,15 +254,18 @@ app.openapi(simpleConfigureRoute, async (c) => {
     remixOptions: Array<{ id: string; label: string; prompt: string }>;
   }>;
 
-  // Build prompt from selections
-  const generatedPrompt = buildPromptFromSelections(elements, selections);
+  // Build prompt from selections (returns prompt with <<<image_N>>> refs and imageUrls array)
+  const { prompt: generatedPrompt, imageUrls } = buildPromptFromSelections(
+    elements,
+    selections
+  );
 
   // Estimate credits (5 per generation)
   const estimatedCredits = sceneSelections
     ? sceneSelections.filter((s) => !s.useOriginal).length * 5
     : 5;
 
-  // Create configuration
+  // Create configuration with referenceImages for Kling image_list
   const config = await prisma.generationConfig.create({
     data: {
       analysisId,
@@ -252,6 +273,7 @@ app.openapi(simpleConfigureRoute, async (c) => {
       selections: selections as object[],
       sceneSelections: sceneSelections as object[] | undefined,
       generatedPrompt,
+      referenceImages: imageUrls, // Store for generate.ts to pass to Kling
       estimatedCredits,
     },
   });
@@ -367,12 +389,12 @@ app.openapi(expertDataRoute, async (c) => {
     status: gen.status,
   }));
 
-  // Prompt hints
+  // Prompt hints for Kling API syntax
   const promptHints = [
-    "Use @Video1 to reference the source video",
-    "Be specific about what to change",
-    "Describe the desired mood and style",
-    "Mention camera movements if needed",
+    "Используйте @Video1 для референса на исходное видео",
+    "Используйте @Image1, @Image2... для своих изображений (добавьте URLs в referenceImages)",
+    "Опишите желаемые изменения конкретно",
+    "Укажите настроение и стиль",
   ];
 
   return c.json({

@@ -9,7 +9,7 @@ import {
   NotFoundResponseSchema,
   VideoGenerationListQuerySchema,
 } from "../schemas";
-import { videoGenJobQueue } from "../services/queues";
+import { sceneGenJobQueue, videoGenJobQueue } from "../services/queues";
 import {
   buildReelVideoUrl,
   getGenerationVideoPublicUrl,
@@ -69,28 +69,46 @@ app.openapi(generateRoute, async (c) => {
   const { configurationId, analysisId, prompt, options } = c.req.valid("json");
 
   try {
-    let config: {
+    // Get config from DB or build from direct parameters
+    let configData: {
       analysisId: string;
       generatedPrompt: string | null;
       prompt: string | null;
-      options: object | null;
-    } | null = null;
+      options: {
+        duration?: number;
+        aspectRatio?: string;
+        keepAudio?: boolean;
+      } | null;
+      referenceImages: string[];
+    };
 
-    // Get config or use direct parameters
     if (configurationId) {
-      config = await prisma.generationConfig.findUnique({
+      const dbConfig = await prisma.generationConfig.findUnique({
         where: { id: configurationId },
       });
 
-      if (!config) {
+      if (!dbConfig) {
         return c.json({ error: "Configuration not found" }, 404);
       }
+
+      configData = {
+        analysisId: dbConfig.analysisId,
+        generatedPrompt: dbConfig.generatedPrompt,
+        prompt: dbConfig.prompt,
+        options: dbConfig.options as {
+          duration?: number;
+          aspectRatio?: string;
+          keepAudio?: boolean;
+        } | null,
+        referenceImages: dbConfig.referenceImages,
+      };
     } else if (analysisId && prompt) {
-      config = {
+      configData = {
         analysisId,
         generatedPrompt: prompt,
         prompt,
         options: options ?? null,
+        referenceImages: [], // Direct mode doesn't have referenceImages
       };
     } else {
       return c.json(
@@ -101,7 +119,7 @@ app.openapi(generateRoute, async (c) => {
 
     // Get analysis with reel
     const analysis = await prisma.videoAnalysis.findUnique({
-      where: { id: config.analysisId },
+      where: { id: configData.analysisId },
       include: {
         template: {
           include: {
@@ -122,17 +140,119 @@ app.openapi(generateRoute, async (c) => {
       return c.json({ error: "Source video not found" }, 400);
     }
 
-    const finalPrompt = config.generatedPrompt || config.prompt || "";
-    const genOptions =
-      (config.options as {
-        duration?: number;
-        aspectRatio?: string;
-        keepAudio?: boolean;
-      }) ?? {};
+    const finalPrompt = configData.generatedPrompt || configData.prompt || "";
+    const genOptions = configData.options ?? {};
 
-    // Start generation via queue (this creates the generation record internally)
+    // Check for scene-based generation
+    type SceneSelection = {
+      sceneId: string;
+      useOriginal: boolean;
+      elementSelections?: Array<{
+        elementId: string;
+        selectedOptionId?: string;
+        customMediaUrl?: string;
+      }>;
+    };
+
+    let sceneSelections: SceneSelection[] = [];
+
+    if (configurationId) {
+      const fullConfig = await prisma.generationConfig.findUnique({
+        where: { id: configurationId },
+      });
+      const rawSelections = fullConfig?.sceneSelections;
+      if (Array.isArray(rawSelections)) {
+        sceneSelections = rawSelections as SceneSelection[];
+      }
+    }
+
+    // If scene selections exist - use scene-based generation
+    if (sceneSelections.length > 0) {
+      // Load scenes from DB
+      const scenes = await prisma.videoScene.findMany({
+        where: { analysisId: configData.analysisId },
+        orderBy: { index: "asc" },
+      });
+
+      // Build scene configs and start generation for each modified scene
+      const sceneConfigs: Array<{
+        sceneId: string;
+        sceneIndex: number;
+        useOriginal: boolean;
+        generationId?: string;
+        startTime: number;
+        endTime: number;
+      }> = [];
+
+      for (const selection of sceneSelections) {
+        const scene = scenes.find((s) => s.id === selection.sceneId);
+        if (!scene) continue;
+
+        if (selection.useOriginal) {
+          sceneConfigs.push({
+            sceneId: scene.id,
+            sceneIndex: scene.index,
+            useOriginal: true,
+            startTime: scene.startTime,
+            endTime: scene.endTime,
+          });
+        } else {
+          // Start generation for this scene
+          const sceneGenerationId = await sceneGenJobQueue.startSceneGeneration(
+            scene.id,
+            finalPrompt,
+            sourceVideoUrl,
+            scene.startTime,
+            scene.endTime,
+            {
+              duration: genOptions.duration as 5 | 10 | undefined,
+              aspectRatio: genOptions.aspectRatio as
+                | "16:9"
+                | "9:16"
+                | "1:1"
+                | "auto"
+                | undefined,
+              keepAudio: genOptions.keepAudio,
+              imageUrls:
+                configData.referenceImages.length > 0
+                  ? configData.referenceImages
+                  : undefined,
+            }
+          );
+
+          sceneConfigs.push({
+            sceneId: scene.id,
+            sceneIndex: scene.index,
+            useOriginal: false,
+            generationId: sceneGenerationId,
+            startTime: scene.startTime,
+            endTime: scene.endTime,
+          });
+        }
+      }
+
+      // Start composite generation (concatenation)
+      const compositeId = await sceneGenJobQueue.startCompositeGeneration(
+        configData.analysisId,
+        sourceVideoUrl,
+        sceneConfigs
+      );
+
+      return c.json(
+        {
+          success: true,
+          compositeGenerationId: compositeId,
+          type: "composite" as const,
+          status: "queued" as const,
+        },
+        202
+      );
+    }
+
+    // Otherwise - standard full video generation
+    // Pass referenceImages as imageUrls for Kling's image_list parameter
     const generationId = await videoGenJobQueue.startGeneration(
-      config.analysisId,
+      configData.analysisId,
       finalPrompt,
       sourceVideoUrl,
       {
@@ -144,6 +264,10 @@ app.openapi(generateRoute, async (c) => {
           | "auto"
           | undefined,
         keepAudio: genOptions.keepAudio,
+        imageUrls:
+          configData.referenceImages.length > 0
+            ? configData.referenceImages
+            : undefined,
       }
     );
 
@@ -151,6 +275,7 @@ app.openapi(generateRoute, async (c) => {
       {
         success: true,
         generationId,
+        type: "full" as const,
         status: "queued" as const,
       },
       202
@@ -314,6 +439,93 @@ app.openapi(listRoute, async (c) => {
       },
     })),
     total,
+  });
+});
+
+// ============================================
+// GET /{compositeId}/composite-status - Get composite generation status
+// ============================================
+
+const compositeStatusRoute = createRoute({
+  method: "get",
+  path: "/{compositeId}/composite-status",
+  summary: "Get composite generation status",
+  tags: ["Generate"],
+  description: "Returns current composite generation status and progress.",
+  request: {
+    params: z.object({
+      compositeId: z
+        .string()
+        .openapi({ description: "Composite Generation ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            compositeGenerationId: z.string(),
+            status: z.enum([
+              "pending",
+              "waiting",
+              "concatenating",
+              "uploading",
+              "completed",
+              "failed",
+            ]),
+            progress: z.number(),
+            stage: z.string().optional(),
+            message: z.string().optional(),
+            result: z
+              .object({
+                videoUrl: z.string(),
+              })
+              .optional(),
+            error: z.string().optional(),
+          }),
+        },
+      },
+      description: "Composite generation status",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: NotFoundResponseSchema,
+        },
+      },
+      description: "Composite generation not found",
+    },
+  },
+});
+
+app.openapi(compositeStatusRoute, async (c) => {
+  const { compositeId } = c.req.valid("param");
+
+  const composite = await prisma.compositeGeneration.findUnique({
+    where: { id: compositeId },
+  });
+
+  if (!composite) {
+    return c.json({ error: "Composite generation not found" }, 404);
+  }
+
+  return c.json({
+    compositeGenerationId: composite.id,
+    status: composite.status as
+      | "pending"
+      | "waiting"
+      | "concatenating"
+      | "uploading"
+      | "completed"
+      | "failed",
+    progress: composite.progress,
+    stage: composite.progressStage ?? undefined,
+    message: composite.progressMessage ?? undefined,
+    ...(composite.status === "completed" &&
+      composite.videoUrl && {
+        result: { videoUrl: composite.videoUrl },
+      }),
+    error: composite.error ?? undefined,
   });
 });
 

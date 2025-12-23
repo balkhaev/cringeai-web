@@ -12,6 +12,7 @@ import {
 import { isKlingConfigured } from "../services/kling";
 import { videoGenJobQueue } from "../services/queues";
 import { getReelVideoPublicUrl } from "../services/s3";
+import { buildReelVideoUrl } from "../services/url-builder";
 
 // Schemas moved to centralized location
 

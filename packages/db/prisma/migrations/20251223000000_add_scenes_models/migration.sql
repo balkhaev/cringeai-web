@@ -112,3 +112,91 @@ DO $$ BEGIN
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
+
+-- CreateTable UserMedia
+CREATE TABLE IF NOT EXISTS "UserMedia" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "filename" TEXT NOT NULL,
+    "s3Key" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "width" INTEGER,
+    "height" INTEGER,
+    "duration" DOUBLE PRECISION,
+    "mimeType" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "UserMedia_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "UserMedia_userId_idx" ON "UserMedia"("userId");
+CREATE INDEX IF NOT EXISTS "UserMedia_type_idx" ON "UserMedia"("type");
+CREATE INDEX IF NOT EXISTS "UserMedia_createdAt_idx" ON "UserMedia"("createdAt");
+
+-- CreateTable GenerationConfig
+CREATE TABLE IF NOT EXISTS "GenerationConfig" (
+    "id" TEXT NOT NULL,
+    "analysisId" TEXT NOT NULL,
+    "mode" TEXT NOT NULL,
+    "selections" JSONB NOT NULL DEFAULT '[]',
+    "prompt" TEXT,
+    "options" JSONB,
+    "sceneSelections" JSONB,
+    "referenceImages" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "generatedPrompt" TEXT,
+    "estimatedCredits" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GenerationConfig_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "GenerationConfig_analysisId_idx" ON "GenerationConfig"("analysisId");
+CREATE INDEX IF NOT EXISTS "GenerationConfig_mode_idx" ON "GenerationConfig"("mode");
+
+-- AddForeignKey GenerationConfig
+DO $$ BEGIN
+    ALTER TABLE "GenerationConfig" ADD CONSTRAINT "GenerationConfig_analysisId_fkey" FOREIGN KEY ("analysisId") REFERENCES "VideoAnalysis"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Add configId to VideoGeneration
+ALTER TABLE "VideoGeneration" ADD COLUMN IF NOT EXISTS "configId" TEXT;
+CREATE INDEX IF NOT EXISTS "VideoGeneration_configId_idx" ON "VideoGeneration"("configId");
+
+-- AddForeignKey VideoGeneration.configId
+DO $$ BEGIN
+    ALTER TABLE "VideoGeneration" ADD CONSTRAINT "VideoGeneration_configId_fkey" FOREIGN KEY ("configId") REFERENCES "GenerationConfig"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- CreateTable JobHealthLog
+CREATE TABLE IF NOT EXISTS "JobHealthLog" (
+    "id" TEXT NOT NULL,
+    "queueName" TEXT NOT NULL,
+    "jobId" TEXT NOT NULL,
+    "entityId" TEXT,
+    "entityType" TEXT,
+    "status" TEXT NOT NULL,
+    "substage" TEXT,
+    "startedAt" TIMESTAMP(3) NOT NULL,
+    "lastActivityAt" TIMESTAMP(3) NOT NULL,
+    "completedAt" TIMESTAMP(3),
+    "expectedDurationMs" INTEGER,
+    "actualDurationMs" INTEGER,
+    "alertedAt" TIMESTAMP(3),
+    "alertMessage" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "JobHealthLog_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "JobHealthLog_queueName_idx" ON "JobHealthLog"("queueName");
+CREATE INDEX IF NOT EXISTS "JobHealthLog_jobId_idx" ON "JobHealthLog"("jobId");
+CREATE INDEX IF NOT EXISTS "JobHealthLog_status_idx" ON "JobHealthLog"("status");
+CREATE INDEX IF NOT EXISTS "JobHealthLog_lastActivityAt_idx" ON "JobHealthLog"("lastActivityAt");
+CREATE INDEX IF NOT EXISTS "JobHealthLog_entityId_entityType_idx" ON "JobHealthLog"("entityId", "entityType");
