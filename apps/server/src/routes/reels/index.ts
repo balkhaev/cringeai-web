@@ -926,14 +926,26 @@ reelsRouter.openapi(getReelDebugRoute, async (c) => {
       metadata: log.metadata,
     }));
 
-    // Получаем все анализы для этого рила (включая сцены)
+    // Получаем все анализы для этого рила (только нужные поля)
     const analyses = await prisma.videoAnalysis.findMany({
       where: {
         sourceType: "reel",
         sourceId: id,
       },
-      include: {
-        videoScenes: { orderBy: { index: "asc" } },
+      select: {
+        id: true,
+        sourceType: true,
+        sourceId: true,
+        analysisType: true,
+        duration: true,
+        aspectRatio: true,
+        elements: true,
+        hasScenes: true,
+        scenesCount: true,
+        createdAt: true,
+        videoScenes: {
+          orderBy: { index: "asc" },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

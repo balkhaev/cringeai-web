@@ -10,8 +10,8 @@ make dev              # Install deps + start infra + run all services
 make setup            # Full setup (deps + python + db) - first time only
 
 # Individual services
-bun run dev:web       # Start Next.js frontend (port 3000)
-bun run dev:server    # Start Hono backend (port 3001)
+bun run dev:web       # Start Next.js frontend (port 3001)
+bun run dev:server    # Start Hono backend (port 3000)
 bun run dev:scrapper  # Start Python scrapper
 bun run dev:video-frames # Start Python video-frames service
 
@@ -39,8 +39,8 @@ bun test <file>       # Run specific test file
 **Monorepo** using Turborepo with Bun as package manager.
 
 ### Apps
-- `apps/web` - Next.js 16 frontend (React 19, TailwindCSS, shadcn/ui) - port 3000
-- `apps/server` - Hono backend API with BullMQ queues - port 3001
+- `apps/web` - Next.js 16 frontend (React 19, TailwindCSS, shadcn/ui) - port 3001
+- `apps/server` - Hono backend API with BullMQ queues - port 3000
 - `apps/scrapper` - Python Instagram scraping service - port 8001
 - `apps/video-frames` - Python video processing (PySceneDetect) - port 8002
 

@@ -49,6 +49,14 @@ export const DetectableElementSchema = z
 // ===== FEED API SCHEMAS =====
 
 export const FeedQuerySchema = z.object({
+  type: z
+    .enum(["trends", "community", "bookmarks"])
+    .default("trends")
+    .openapi({
+      param: { name: "type", in: "query" },
+      description:
+        "Feed type: trends (featured), community (all), bookmarks (user saved)",
+    }),
   limit: z.coerce
     .number()
     .int()
@@ -86,6 +94,7 @@ export const FeedTemplateItemSchema = z
     thumbnailUrl: z.string(),
     previewVideoUrl: z.string().optional(),
     generationCount: z.number(),
+    isBookmarked: z.boolean().optional(),
     reel: z.object({
       id: z.string(),
       author: z.string().nullable(),
@@ -608,3 +617,45 @@ export const VideoGenerationListQuerySchema = z.object({
     .optional()
     .openapi({ param: { name: "status", in: "query" } }),
 });
+
+// ===== SEARCH API SCHEMAS =====
+
+export const SearchQuerySchema = z.object({
+  q: z
+    .string()
+    .min(1)
+    .openapi({
+      param: { name: "q", in: "query" },
+      description: "Search query",
+    }),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(20)
+    .openapi({ param: { name: "limit", in: "query" } }),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .openapi({ param: { name: "offset", in: "query" } }),
+});
+
+export const SearchResponseSchema = z
+  .object({
+    items: z.array(FeedTemplateItemSchema),
+    total: z.number(),
+    query: z.string(),
+  })
+  .openapi("SearchResponse");
+
+// ===== BOOKMARK API SCHEMAS =====
+
+export const BookmarkResponseSchema = z
+  .object({
+    bookmarked: z.boolean(),
+    templateId: z.string(),
+  })
+  .openapi("BookmarkResponse");

@@ -399,10 +399,18 @@ export async function analyzeReelEnchanting(
   };
 
   try {
+    console.log(`[ENCHANTING] ${reelId}: Starting enchanting analysis...`);
     await onProgress("analyze", 2, "Загрузка видеофайла...");
+    console.log(`[ENCHANTING] ${reelId}: Loading video buffer...`);
     const buffer = await loadVideoBuffer(reel);
+    console.log(
+      `[ENCHANTING] ${reelId}: Video buffer loaded (${buffer.length} bytes)`
+    );
 
     await onProgress("analyze", 10, "Gemini определяет элементы видео...");
+    console.log(
+      `[ENCHANTING] ${reelId}: Starting Gemini processVideoElementsOnly...`
+    );
     const geminiService = getGeminiService();
     const elementsAnalysis = await geminiService.processVideoElementsOnly(
       buffer,
@@ -410,11 +418,17 @@ export async function analyzeReelEnchanting(
       `${reelId}.mp4`,
       onProgress
     );
+    console.log(
+      `[ENCHANTING] ${reelId}: Gemini completed, ${elementsAnalysis.elements.length} elements`
+    );
 
     await onProgress(
       "analyze",
       60,
       `ChatGPT генерирует варианты для ${elementsAnalysis.elements.length} элементов...`
+    );
+    console.log(
+      `[ENCHANTING] ${reelId}: Starting ChatGPT enchanting options...`
     );
     const openaiService = getOpenAIService();
     const enchantingResults = await openaiService.generateEnchantingOptions(

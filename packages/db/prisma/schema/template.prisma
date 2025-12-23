@@ -14,12 +14,28 @@ model Template {
   generationCount Int      @default(0)
 
   isPublished     Boolean  @default(false)
+  isFeatured      Boolean  @default(false) // Для раздела "Тренды"
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  bookmarks       TemplateBookmark[]
+
   @@index([isPublished])
+  @@index([isFeatured])
   @@index([category])
   @@index([createdAt])
+}
+
+model TemplateBookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, templateId])
+  @@index([userId])
+  @@index([templateId])
 }
 
 

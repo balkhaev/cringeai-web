@@ -1,9 +1,9 @@
 "use client";
 
 import {
+  Bookmark,
   Check,
   Copy,
-  ExternalLink,
   Heart,
   Loader2,
   Sparkles,
@@ -14,15 +14,13 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { useGenerateFromTemplate } from "@/lib/hooks/use-templates";
-import type { Template } from "@/lib/templates-api";
+  useGenerateFromTemplate,
+  useToggleBookmark,
+} from "@/lib/hooks/use-templates";
+import type { FeedTemplateItem, Template } from "@/lib/templates-api";
+import { cn } from "@/lib/utils";
 
 function formatLikes(likes: number | null | undefined): string {
   if (likes === null || likes === undefined) {
@@ -38,15 +36,33 @@ function formatLikes(likes: number | null | undefined): string {
 }
 
 type TemplateCardProps = {
-  template: Template;
-  onSelect?: (template: Template) => void;
+  template: Template | FeedTemplateItem;
+  onSelect?: (template: Template | FeedTemplateItem) => void;
 };
+
+// Type guard to check if template is full Template
+function isFullTemplate(t: Template | FeedTemplateItem): t is Template {
+  return "analysis" in t && "klingPrompt" in (t as Template).analysis;
+}
 
 export function TemplateCard({ template, onSelect }: TemplateCardProps) {
   const [copied, setCopied] = useState(false);
   const { mutate: generate, isPending } = useGenerateFromTemplate();
+  const { mutate: toggleBookmark, isPending: isBookmarkPending } =
+    useToggleBookmark();
+
+  const isBookmarked =
+    "isBookmarked" in template ? template.isBookmarked : false;
+  const thumbnailUrl =
+    "thumbnailUrl" in template
+      ? template.thumbnailUrl
+      : template.reel.thumbnailUrl;
 
   const handleCopy = useCallback(async () => {
+    if (!isFullTemplate(template)) {
+      toast.error("Промпт недоступен в этом режиме");
+      return;
+    }
     const prompt =
       template.analysis.klingPrompt || template.analysis.veo3Prompt || "";
     if (!prompt) {
@@ -57,7 +73,7 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
     setCopied(true);
     toast.success("Промпт скопирован");
     setTimeout(() => setCopied(false), 2000);
-  }, [template.analysis.klingPrompt, template.analysis.veo3Prompt]);
+  }, [template]);
 
   const handleGenerate = useCallback(() => {
     generate(
@@ -73,17 +89,33 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
     );
   }, [template.id, generate]);
 
+  const handleBookmark = useCallback(() => {
+    toggleBookmark(
+      { templateId: template.id, isBookmarked: !!isBookmarked },
+      {
+        onSuccess: (data) => {
+          toast.success(
+            data.bookmarked ? "Добавлено в закладки" : "Удалено из закладок"
+          );
+        },
+        onError: (err) => {
+          toast.error(err.message);
+        },
+      }
+    );
+  }, [template.id, isBookmarked, toggleBookmark]);
+
   return (
     <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
       {/* Thumbnail / Preview */}
       <div className="relative aspect-[9/16] max-h-48 overflow-hidden bg-muted">
-        {template.reel.thumbnailUrl ? (
+        {thumbnailUrl ? (
           <Image
             alt={template.title || "Template preview"}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
             fill
             sizes="(max-width: 768px) 50vw, 200px"
-            src={template.reel.thumbnailUrl}
+            src={thumbnailUrl}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -91,22 +123,30 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
           </div>
         )}
 
-        {/* Overlay with likes */}
+        {/* Overlay with likes and bookmark */}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1 font-medium text-sm text-white">
               <Heart className="h-4 w-4 fill-pink-500 text-pink-500" />
               {formatLikes(template.reel.likeCount)}
             </span>
-            <a
-              className="text-white/80 transition-colors hover:text-white"
-              href={template.reel.url}
-              onClick={(e) => e.stopPropagation()}
-              rel="noopener noreferrer"
-              target="_blank"
+            <button
+              className={cn(
+                "transition-colors",
+                isBookmarked
+                  ? "text-yellow-400 hover:text-yellow-300"
+                  : "text-white/80 hover:text-white"
+              )}
+              disabled={isBookmarkPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBookmark();
+              }}
             >
-              <ExternalLink className="h-4 w-4" />
-            </a>
+              <Bookmark
+                className={cn("h-4 w-4", isBookmarked && "fill-current")}
+              />
+            </button>
           </div>
         </div>
 
@@ -123,13 +163,8 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
 
       <CardHeader className="p-3 pb-2">
         <CardTitle className="line-clamp-2 text-sm">
-          {template.title || template.analysis.subject || "Шаблон"}
+          {template.title || "Шаблон"}
         </CardTitle>
-        {template.analysis.action && (
-          <CardDescription className="line-clamp-1 text-xs">
-            {template.analysis.action}
-          </CardDescription>
-        )}
       </CardHeader>
 
       <CardContent className="space-y-3 p-3 pt-0">
@@ -171,24 +206,26 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
           Kling AI
         </Button>
 
-        <Button
-          className="w-full"
-          onClick={handleCopy}
-          size="sm"
-          variant="outline"
-        >
-          {copied ? (
-            <>
-              <Check className="mr-1 h-3 w-3" />
-              Скопировано
-            </>
-          ) : (
-            <>
-              <Copy className="mr-1 h-3 w-3" />
-              Промпт
-            </>
-          )}
-        </Button>
+        {isFullTemplate(template) && (
+          <Button
+            className="w-full"
+            onClick={handleCopy}
+            size="sm"
+            variant="outline"
+          >
+            {copied ? (
+              <>
+                <Check className="mr-1 h-3 w-3" />
+                Скопировано
+              </>
+            ) : (
+              <>
+                <Copy className="mr-1 h-3 w-3" />
+                Промпт
+              </>
+            )}
+          </Button>
+        )}
 
         {onSelect ? (
           <Button

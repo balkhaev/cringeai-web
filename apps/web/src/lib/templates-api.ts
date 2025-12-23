@@ -218,6 +218,7 @@ export async function updateTemplate(
     tags?: string[];
     category?: string;
     isPublished?: boolean;
+    isFeatured?: boolean;
   }
 ): Promise<Template> {
   const response = await fetch(`${API_URL}/api/templates/${id}`, {
@@ -466,6 +467,7 @@ export type ReelDebugInfo = {
     title: string | null;
     tags: string[];
     category: string | null;
+    isFeatured: boolean;
     analysis: TemplateAnalysis;
   } | null;
   // All analyses for this reel (for comparison)
@@ -616,4 +618,142 @@ export async function analyzeReelByFrames(reelId: string): Promise<void> {
   if (!response.ok) {
     throw new Error("Failed to start frame analysis");
   }
+}
+
+// ===== Feed API =====
+
+export type FeedType = "trends" | "community" | "bookmarks";
+
+export type FeedTemplateItem = {
+  id: string;
+  title: string | null;
+  tags: string[];
+  category: string | null;
+  thumbnailUrl: string;
+  previewVideoUrl?: string;
+  generationCount: number;
+  isBookmarked?: boolean;
+  reel: {
+    id: string;
+    author: string | null;
+    likeCount: number | null;
+  };
+  elements: {
+    id: string;
+    type: "character" | "object" | "background";
+    label: string;
+  }[];
+};
+
+export type FeedResponse = {
+  items: FeedTemplateItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type FeedParams = {
+  type?: FeedType;
+  limit?: number;
+  cursor?: string;
+  category?: string;
+  tags?: string;
+  sort?: "popular" | "recent" | "trending";
+};
+
+export async function getFeed(params: FeedParams = {}): Promise<FeedResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.type) searchParams.set("type", params.type);
+  if (params.limit) searchParams.set("limit", params.limit.toString());
+  if (params.cursor) searchParams.set("cursor", params.cursor);
+  if (params.category) searchParams.set("category", params.category);
+  if (params.tags) searchParams.set("tags", params.tags);
+  if (params.sort) searchParams.set("sort", params.sort);
+
+  const response = await fetch(
+    `${API_URL}/api/templates/feed?${searchParams.toString()}`,
+    { credentials: "include" }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to get feed");
+  }
+
+  return response.json();
+}
+
+// ===== Search API =====
+
+export type SearchResponse = {
+  items: FeedTemplateItem[];
+  total: number;
+  query: string;
+};
+
+export type SearchParams = {
+  q: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function searchTemplates(
+  params: SearchParams
+): Promise<SearchResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("q", params.q);
+  if (params.limit) searchParams.set("limit", params.limit.toString());
+  if (params.offset) searchParams.set("offset", params.offset.toString());
+
+  const response = await fetch(
+    `${API_URL}/api/templates/search?${searchParams.toString()}`,
+    { credentials: "include" }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to search templates");
+  }
+
+  return response.json();
+}
+
+// ===== Bookmark API =====
+
+export type BookmarkResponse = {
+  bookmarked: boolean;
+  templateId: string;
+};
+
+export async function addBookmark(
+  templateId: string
+): Promise<BookmarkResponse> {
+  const response = await fetch(
+    `${API_URL}/api/templates/${templateId}/bookmark`,
+    {
+      method: "POST",
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to add bookmark");
+  }
+
+  return response.json();
+}
+
+export async function removeBookmark(
+  templateId: string
+): Promise<BookmarkResponse> {
+  const response = await fetch(
+    `${API_URL}/api/templates/${templateId}/bookmark`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to remove bookmark");
+  }
+
+  return response.json();
 }

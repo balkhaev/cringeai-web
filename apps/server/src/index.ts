@@ -99,6 +99,7 @@ app.get("/doc/public", (c) => {
         description:
           "Публичное API для клиентского приложения. Документация: docs/api-contracts.md",
       },
+      servers: [{ url: "/api", description: "API base path" }],
     });
     return c.json(document);
   } catch (e) {
@@ -117,6 +118,7 @@ app.get("/doc/internal", (c) => {
         title: "Trender Internal API",
         description: "Внутреннее API для администрирования и отладки.",
       },
+      servers: [{ url: "/api", description: "API base path" }],
     });
     return c.json(document);
   } catch (e) {

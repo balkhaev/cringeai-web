@@ -179,6 +179,22 @@ export default function ReelDetailPage() {
   const { mutate: resizeReel, isPending: isResizing } = useResizeReel();
   const { mutate: resetReelStatus, isPending: isResetting } =
     useResetReelStatus();
+  const { mutate: updateTemplate, isPending: isUpdatingTemplate } = useMutation(
+    {
+      mutationFn: ({
+        id,
+        data,
+      }: {
+        id: string;
+        data: { isFeatured?: boolean };
+      }) =>
+        import("@/lib/templates-api").then((m) => m.updateTemplate(id, data)),
+      onSuccess: () => {
+        refetch();
+      },
+      onError: (err: Error) => toast.error(err.message),
+    }
+  );
   const { mutate: refreshMetadata, isPending: isRefreshingMetadata } =
     useMutation({
       mutationFn: () => refreshReelMetadata(reelId),
@@ -244,6 +260,21 @@ export default function ReelDetailPage() {
       toast.error("Не удалось удалить рил");
     }
   }, [reelId, deleteReelAsync, router]);
+
+  const handleToggleFeatured = useCallback(() => {
+    if (!data?.template) return;
+    const newFeatured = !data.template.isFeatured;
+    updateTemplate(
+      { id: data.template.id, data: { isFeatured: newFeatured } },
+      {
+        onSuccess: () => {
+          toast.success(
+            newFeatured ? "Добавлено в тренды" : "Убрано из трендов"
+          );
+        },
+      }
+    );
+  }, [data?.template, updateTemplate]);
 
   const handleGenerate = useCallback(
     (prompt: string, options: KlingGenerationOptions, analysisId: string) => {
@@ -343,6 +374,41 @@ export default function ReelDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Featured toggle button - only show if template exists */}
+              {data?.template && (
+                <Button
+                  className="transition-all duration-200 hover:scale-105 active:scale-95"
+                  disabled={isUpdatingTemplate}
+                  onClick={handleToggleFeatured}
+                  size="sm"
+                  title={
+                    data.template.isFeatured
+                      ? "Убрать из трендов"
+                      : "Добавить в тренды"
+                  }
+                  variant={data.template.isFeatured ? "default" : "outline"}
+                >
+                  {isUpdatingTemplate ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      className={`mr-1 h-4 w-4 ${data.template.isFeatured ? "fill-current" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  {data.template.isFeatured ? "В трендах" : "В тренды"}
+                </Button>
+              )}
+
               <Button
                 className="transition-all duration-200 hover:scale-105 active:scale-95"
                 disabled={isLoading}

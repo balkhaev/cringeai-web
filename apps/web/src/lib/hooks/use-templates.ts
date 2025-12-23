@@ -54,11 +54,13 @@ export function useUpdateTemplate() {
         tags?: string[];
         category?: string;
         isPublished?: boolean;
+        isFeatured?: boolean;
       };
     }) => updateTemplate(id, data),
     onSuccess: (template) => {
       queryClient.invalidateQueries({ queryKey: ["templates"] });
       queryClient.invalidateQueries({ queryKey: ["template", template.id] });
+      queryClient.invalidateQueries({ queryKey: ["reel-debug"] });
     },
   });
 }
@@ -307,6 +309,61 @@ export function useResetReelStatus() {
     onSuccess: (_, reelId) => {
       queryClient.invalidateQueries({ queryKey: ["reel-debug", reelId] });
       queryClient.invalidateQueries({ queryKey: ["saved-reels"] });
+    },
+  });
+}
+
+// ===== Feed Hooks =====
+
+export type { FeedType } from "../templates-api";
+
+export function useFeed(params: {
+  type?: "trends" | "community" | "bookmarks";
+  limit?: number;
+  category?: string;
+  tags?: string;
+  sort?: "popular" | "recent" | "trending";
+}) {
+  return useQuery({
+    queryKey: ["feed", params],
+    queryFn: () => import("../templates-api").then((m) => m.getFeed(params)),
+  });
+}
+
+// ===== Search Hooks =====
+
+export function useSearchTemplates(query: string, enabled = true) {
+  return useQuery({
+    queryKey: ["search-templates", query],
+    queryFn: () =>
+      import("../templates-api").then((m) =>
+        m.searchTemplates({ q: query, limit: 20 })
+      ),
+    enabled: enabled && query.length > 0,
+  });
+}
+
+// ===== Bookmark Hooks =====
+
+export function useToggleBookmark() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      templateId,
+      isBookmarked,
+    }: {
+      templateId: string;
+      isBookmarked: boolean;
+    }) => {
+      const api = await import("../templates-api");
+      return isBookmarked
+        ? api.removeBookmark(templateId)
+        : api.addBookmark(templateId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+      queryClient.invalidateQueries({ queryKey: ["search-templates"] });
     },
   });
 }

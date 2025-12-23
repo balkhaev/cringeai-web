@@ -414,16 +414,24 @@ export class GeminiService {
     displayName: string,
     onProgress?: GeminiProgressCallback
   ): Promise<string> {
+    console.log(
+      `[GEMINI] uploadVideo: writing temp file for ${displayName}...`
+    );
     const tempPath = `/tmp/${Date.now()}-${displayName}`;
     await writeFile(tempPath, videoBuffer);
+    console.log(`[GEMINI] uploadVideo: temp file written to ${tempPath}`);
 
     await onProgress?.("uploading", 5, "Загрузка видео в Gemini...");
 
     try {
+      console.log("[GEMINI] uploadVideo: calling fileManager.uploadFile...");
       const uploadResult = await this.fileManager.uploadFile(tempPath, {
         mimeType,
         displayName,
       });
+      console.log(
+        `[GEMINI] uploadVideo: upload done, state: ${uploadResult.file.state}`
+      );
 
       let file = uploadResult.file;
       let pollCount = 0;

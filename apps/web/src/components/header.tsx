@@ -26,9 +26,9 @@ export default function Header() {
             </Link>
             <Link
               className="text-muted-foreground hover:text-foreground"
-              href="/queues"
+              href="/debug"
             >
-              Очереди
+              Debug
             </Link>
           </nav>
         </div>

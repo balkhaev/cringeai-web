@@ -1,15 +1,10 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Loader2, Search } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -142,27 +137,21 @@ export function DebugLogsTable() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.map((log) => (
-                  <Collapsible
-                    asChild
-                    key={log.id}
-                    open={expandedRows.has(log.id)}
-                  >
+                  <Fragment key={log.id}>
                     <TableRow className="cursor-pointer hover:bg-muted/50">
                       <TableCell>
-                        <CollapsibleTrigger asChild>
-                          <Button
-                            className="h-6 w-6 p-0"
-                            onClick={() => toggleRow(log.id)}
-                            size="sm"
-                            variant="ghost"
-                          >
-                            {expandedRows.has(log.id) ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </CollapsibleTrigger>
+                        <Button
+                          className="h-6 w-6 p-0"
+                          onClick={() => toggleRow(log.id)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          {expandedRows.has(log.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -185,7 +174,7 @@ export function DebugLogsTable() {
                         {new Date(log.createdAt).toLocaleString("ru")}
                       </TableCell>
                     </TableRow>
-                    <CollapsibleContent asChild>
+                    {expandedRows.has(log.id) && (
                       <TableRow className="bg-muted/30">
                         <TableCell className="p-4" colSpan={6}>
                           <div className="space-y-2">
@@ -229,8 +218,8 @@ export function DebugLogsTable() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    )}
+                  </Fragment>
                 ))}
                 {filteredLogs.length === 0 && (
                   <TableRow>

@@ -1,11 +1,14 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import prisma from "@trender/db";
 import {
+  BookmarkResponseSchema,
   ErrorResponseSchema,
   FeedQuerySchema,
   FeedResponseSchema,
   ListQuerySchema,
   NotFoundResponseSchema,
+  SearchQuerySchema,
+  SearchResponseSchema,
   TemplateSchema,
   UnauthorizedResponseSchema,
 } from "../schemas";
@@ -13,6 +16,9 @@ import { isKlingConfigured } from "../services/kling";
 import { videoGenJobQueue } from "../services/queues";
 import { getReelVideoPublicUrl } from "../services/s3";
 import { buildReelVideoUrl } from "../services/url-builder";
+
+// TODO: Get userId from auth session
+const getUserId = () => "default-user";
 
 // Schemas moved to centralized location
 
@@ -123,6 +129,7 @@ const updateTemplateRoute = createRoute({
             tags: z.array(z.string()).optional(),
             category: z.string().optional(),
             isPublished: z.boolean().optional(),
+            isFeatured: z.boolean().optional(),
           }),
         },
       },
@@ -302,16 +309,122 @@ const getTagsRoute = createRoute({
   },
 });
 
+// Search route
+const searchRoute = createRoute({
+  method: "get",
+  path: "/search",
+  summary: "Search templates",
+  tags: ["Templates"],
+  description: "Search templates by title, tags, or category",
+  request: {
+    query: SearchQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: SearchResponseSchema,
+        },
+      },
+      description: "Search results",
+    },
+  },
+});
+
+// Bookmark routes
+const addBookmarkRoute = createRoute({
+  method: "post",
+  path: "/{id}/bookmark",
+  summary: "Add template to bookmarks",
+  tags: ["Templates"],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: BookmarkResponseSchema,
+        },
+      },
+      description: "Template bookmarked",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: NotFoundResponseSchema,
+        },
+      },
+      description: "Template not found",
+    },
+  },
+});
+
+const removeBookmarkRoute = createRoute({
+  method: "delete",
+  path: "/{id}/bookmark",
+  summary: "Remove template from bookmarks",
+  tags: ["Templates"],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: BookmarkResponseSchema,
+        },
+      },
+      description: "Bookmark removed",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: NotFoundResponseSchema,
+        },
+      },
+      description: "Template not found",
+    },
+  },
+});
+
 export const templatesRouter = new OpenAPIHono();
 
 // Feed handler
 templatesRouter.openapi(feedRoute, async (c) => {
-  const { limit, cursor, category, tags, sort } = c.req.valid("query");
+  const { type, limit, cursor, category, tags, sort } = c.req.valid("query");
+  const userId = getUserId();
 
-  // Build where clause
-  const where: Record<string, unknown> = {
-    isPublished: true,
-  };
+  // Build where clause based on feed type
+  const where: Record<string, unknown> = {};
+
+  switch (type) {
+    case "trends":
+      // Только отобранные в админке (isFeatured)
+      where.isPublished = true;
+      where.isFeatured = true;
+      break;
+    case "bookmarks": {
+      // Только закладки пользователя
+      const bookmarks = await prisma.templateBookmark.findMany({
+        where: { userId },
+        select: { templateId: true },
+      });
+      const bookmarkedIds = bookmarks.map((b) => b.templateId);
+      where.id = { in: bookmarkedIds };
+      where.isPublished = true;
+      break;
+    }
+    case "community":
+    default:
+      // Все опубликованные
+      where.isPublished = true;
+      break;
+  }
 
   if (category) {
     where.category = category;
@@ -324,7 +437,10 @@ templatesRouter.openapi(feedRoute, async (c) => {
 
   // Cursor-based pagination
   if (cursor) {
-    where.id = { lt: cursor };
+    where.id =
+      typeof where.id === "object"
+        ? { ...where.id, lt: cursor }
+        : { lt: cursor };
   }
 
   // Build orderBy based on sort
@@ -368,6 +484,10 @@ templatesRouter.openapi(feedRoute, async (c) => {
           elements: true,
         },
       },
+      bookmarks: {
+        where: { userId },
+        select: { id: true },
+      },
     },
   });
 
@@ -394,6 +514,7 @@ templatesRouter.openapi(feedRoute, async (c) => {
           ? (buildReelVideoUrl(t.reel) ?? undefined)
           : undefined,
         generationCount: t.generationCount,
+        isBookmarked: t.bookmarks.length > 0,
         reel: {
           id: t.reel?.id ?? "",
           author: t.reel?.author ?? null,
@@ -598,4 +719,139 @@ templatesRouter.openapi(getTagsRoute, async (c) => {
     .sort((a, b) => b.count - a.count);
 
   return c.json({ tags }, 200);
+});
+
+// Search handler
+templatesRouter.openapi(searchRoute, async (c) => {
+  const { q, limit, offset } = c.req.valid("query");
+  const userId = getUserId();
+
+  // Search by title, tags, category
+  const where = {
+    isPublished: true,
+    OR: [
+      { title: { contains: q, mode: "insensitive" as const } },
+      { tags: { hasSome: [q] } },
+      { category: { contains: q, mode: "insensitive" as const } },
+    ],
+  };
+
+  const [templates, total] = await Promise.all([
+    prisma.template.findMany({
+      where,
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: "desc" },
+      include: {
+        reel: {
+          select: {
+            id: true,
+            author: true,
+            likeCount: true,
+            thumbnailUrl: true,
+            s3Key: true,
+            localPath: true,
+            hashtag: true,
+            source: true,
+          },
+        },
+        analysis: {
+          select: {
+            id: true,
+            elements: true,
+          },
+        },
+        bookmarks: {
+          where: { userId },
+          select: { id: true },
+        },
+      },
+    }),
+    prisma.template.count({ where }),
+  ]);
+
+  return c.json({
+    items: templates.map((t) => {
+      const elements =
+        (t.analysis?.elements as Array<{
+          id: string;
+          type: "character" | "object" | "background";
+          label: string;
+        }>) ?? [];
+
+      return {
+        id: t.id,
+        title: t.title,
+        tags: t.tags,
+        category: t.category,
+        thumbnailUrl: t.reel?.thumbnailUrl ?? "",
+        previewVideoUrl: t.reel
+          ? (buildReelVideoUrl(t.reel) ?? undefined)
+          : undefined,
+        generationCount: t.generationCount,
+        isBookmarked: t.bookmarks.length > 0,
+        reel: {
+          id: t.reel?.id ?? "",
+          author: t.reel?.author ?? null,
+          likeCount: t.reel?.likeCount ?? null,
+        },
+        elements: elements.slice(0, 5).map((el) => ({
+          id: el.id,
+          type: el.type,
+          label: el.label,
+        })),
+      };
+    }),
+    total,
+    query: q,
+  });
+});
+
+// Bookmark handlers
+templatesRouter.openapi(addBookmarkRoute, async (c) => {
+  const { id } = c.req.valid("param");
+  const userId = getUserId();
+
+  // Check if template exists
+  const template = await prisma.template.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!template) {
+    return c.json({ error: "Template not found" }, 404);
+  }
+
+  // Upsert bookmark (idempotent)
+  await prisma.templateBookmark.upsert({
+    where: {
+      userId_templateId: { userId, templateId: id },
+    },
+    create: { userId, templateId: id },
+    update: {},
+  });
+
+  return c.json({ bookmarked: true, templateId: id }, 200);
+});
+
+templatesRouter.openapi(removeBookmarkRoute, async (c) => {
+  const { id } = c.req.valid("param");
+  const userId = getUserId();
+
+  // Check if template exists
+  const template = await prisma.template.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!template) {
+    return c.json({ error: "Template not found" }, 404);
+  }
+
+  // Delete bookmark (if exists)
+  await prisma.templateBookmark.deleteMany({
+    where: { userId, templateId: id },
+  });
+
+  return c.json({ bookmarked: false, templateId: id }, 200);
 });
