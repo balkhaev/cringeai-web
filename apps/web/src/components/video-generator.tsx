@@ -33,9 +33,9 @@ import type {
   TemplateAnalysis,
 } from "@/lib/templates-api";
 
-// Только standard и frames показываем в UI (enchanting встроен в оба)
+// Типы анализа для UI
 const ANALYSIS_TYPE_CONFIG: Record<
-  "standard" | "frames",
+  "standard" | "frames" | "scenes",
   { label: string; description: string; icon: React.ElementType }
 > = {
   standard: {
@@ -46,6 +46,11 @@ const ANALYSIS_TYPE_CONFIG: Record<
   frames: {
     label: "По кадрам",
     description: "Быстрый анализ + ChatGPT варианты",
+    icon: Film,
+  },
+  scenes: {
+    label: "По сценам",
+    description: "PySceneDetect + Gemini unified анализ",
     icon: Film,
   },
 };
@@ -102,7 +107,7 @@ export function VideoGenerator({
   }, [analyses]);
 
   // Determine active tab based on available analyses
-  type DisplayAnalysisType = "standard" | "frames";
+  type DisplayAnalysisType = "standard" | "frames" | "scenes";
   const availableTypes = useMemo(
     () =>
       (Object.keys(analysesByType) as DisplayAnalysisType[]).filter(
@@ -115,7 +120,7 @@ export function VideoGenerator({
     if (availableTypes.length > 0) {
       return availableTypes[0];
     }
-    return "standard";
+    return "scenes";
   });
 
   // Update active tab when analyses change
@@ -257,7 +262,7 @@ export function VideoGenerator({
         >
           <div className="flex items-center gap-2">
             <TabsList className="flex-1">
-              {(["standard", "frames"] as const).map((type) => {
+              {(["scenes", "standard", "frames"] as const).map((type) => {
                 const config = ANALYSIS_TYPE_CONFIG[type];
                 const Icon = config.icon;
                 const hasAnalysis = analysesByType[type] !== null;
@@ -286,20 +291,17 @@ export function VideoGenerator({
               size="sm"
               variant="outline"
             >
-              {(activeTab === "standard" && isAnalyzing) ||
-              (activeTab === "frames" && isAnalyzingFrames) ? (
+              {isAnyAnalyzing ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
                 <Sparkles className="mr-1 h-3 w-3" />
               )}
-              {analysesByType[activeTab as "standard" | "frames"]
-                ? "Переанализ"
-                : "Анализ"}
+              {analysesByType[activeTab] ? "Переанализ" : "Анализ"}
             </Button>
           </div>
 
           {/* Tab Content */}
-          {(["standard", "frames"] as const).map((type) => {
+          {(["scenes", "standard", "frames"] as const).map((type) => {
             const analysis = analysesByType[type];
             const config = ANALYSIS_TYPE_CONFIG[type];
 

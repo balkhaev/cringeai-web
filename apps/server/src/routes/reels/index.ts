@@ -946,6 +946,7 @@ reelsRouter.openapi(getReelDebugRoute, async (c) => {
         videoScenes: {
           orderBy: { index: "asc" },
         },
+        videoElements: true,
       },
       orderBy: { createdAt: "desc" },
     });
