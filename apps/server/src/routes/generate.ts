@@ -117,9 +117,25 @@ app.openapi(generateRoute, async (c) => {
         options: options ?? null,
         referenceImages: [], // Direct mode doesn't have referenceImages
       };
+    } else if (
+      analysisId &&
+      directSceneSelections &&
+      directSceneSelections.length > 0
+    ) {
+      // Scene-based generation with direct sceneSelections
+      configData = {
+        analysisId,
+        generatedPrompt: null, // Will be built per-scene
+        prompt: null,
+        options: options ?? null,
+        referenceImages: [],
+      };
     } else {
       return c.json(
-        { error: "Either configurationId or analysisId+prompt required" },
+        {
+          error:
+            "Either configurationId, analysisId+prompt, or analysisId+sceneSelections required",
+        },
         400
       );
     }
@@ -247,12 +263,32 @@ app.openapi(generateRoute, async (c) => {
           ) {
             const sceneElements = getElementsForScene(scene.index);
 
+            console.log(
+              `[Generate] Scene ${scene.index} elementSelections:`,
+              JSON.stringify(selection.elementSelections)
+            );
+            console.log(
+              `[Generate] Scene ${scene.index} sceneElements:`,
+              JSON.stringify(
+                sceneElements.map((e) => ({
+                  id: e.id,
+                  label: e.label,
+                  remixOptions: e.remixOptions,
+                }))
+              )
+            );
+
             if (sceneElements && sceneElements.length > 0) {
               const { prompt: builtPrompt, imageUrls } =
                 buildPromptFromSelections(
                   sceneElements,
                   selection.elementSelections
                 );
+
+              console.log(
+                `[Generate] Scene ${scene.index} builtPrompt:`,
+                builtPrompt
+              );
 
               if (builtPrompt) {
                 scenePrompt = builtPrompt;

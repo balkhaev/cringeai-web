@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildElementPrompt, canGenerate } from "@/lib/remix-prompt";
 import { buildSceneSelections, canUseSceneGeneration } from "@/lib/scene-utils";
 import {
@@ -34,28 +33,6 @@ import {
   type KlingGenerationOptions,
   type TemplateAnalysis,
 } from "@/lib/templates-api";
-
-// Типы анализа для UI
-const ANALYSIS_TYPE_CONFIG: Record<
-  "standard" | "frames" | "scenes",
-  { label: string; description: string; icon: React.ElementType }
-> = {
-  standard: {
-    label: "Анализ",
-    description: "Gemini + ChatGPT для вариантов",
-    icon: Sparkles,
-  },
-  frames: {
-    label: "По кадрам",
-    description: "Быстрый анализ + ChatGPT варианты",
-    icon: Film,
-  },
-  scenes: {
-    label: "По сценам",
-    description: "PySceneDetect + Gemini unified анализ",
-    icon: Film,
-  },
-};
 
 type VideoGeneratorProps = {
   analyses: TemplateAnalysis[];
@@ -66,10 +43,8 @@ type VideoGeneratorProps = {
     analysisId: string
   ) => Promise<void>;
   onAnalyze: () => void;
-  onAnalyzeFrames: () => void;
   isGenerating?: boolean;
   isAnalyzing?: boolean;
-  isAnalyzingFrames?: boolean;
   canAnalyze?: boolean;
 };
 
@@ -78,62 +53,18 @@ export function VideoGenerator({
   sourceVideoUrl,
   onGenerate,
   onAnalyze,
-  onAnalyzeFrames,
   isGenerating = false,
   isAnalyzing = false,
-  isAnalyzingFrames = false,
   canAnalyze = true,
 }: VideoGeneratorProps) {
-  // Group analyses by type
-  const analysesByType = useMemo(() => {
-    const byType: Record<
-      "standard" | "frames" | "scenes",
-      TemplateAnalysis | null
-    > = {
-      standard: null,
-      frames: null,
-      scenes: null,
-    };
-
-    for (const analysis of analyses) {
-      const type = analysis.analysisType || "standard";
-      if (
-        (type === "standard" || type === "frames" || type === "scenes") &&
-        !byType[type]
-      ) {
-        byType[type] = analysis;
-      }
-    }
-
-    return byType;
+  // Get the latest scenes analysis (or first available)
+  const analysis = useMemo(() => {
+    // Prefer scenes analysis
+    const scenesAnalysis = analyses.find((a) => a.analysisType === "scenes");
+    if (scenesAnalysis) return scenesAnalysis;
+    // Fallback to first available
+    return analyses[0] ?? null;
   }, [analyses]);
-
-  // Determine active tab based on available analyses
-  type DisplayAnalysisType = "standard" | "frames" | "scenes";
-  const availableTypes = useMemo(
-    () =>
-      (Object.keys(analysesByType) as DisplayAnalysisType[]).filter(
-        (type) => analysesByType[type] !== null
-      ),
-    [analysesByType]
-  );
-
-  const [activeTab, setActiveTab] = useState<DisplayAnalysisType>(() => {
-    if (availableTypes.length > 0) {
-      return availableTypes[0];
-    }
-    return "scenes";
-  });
-
-  // Update active tab when analyses change
-  useEffect(() => {
-    if (availableTypes.length > 0 && !availableTypes.includes(activeTab)) {
-      setActiveTab(availableTypes[0]);
-    }
-  }, [availableTypes, activeTab]);
-
-  // Get current analysis based on active tab
-  const currentAnalysis = analysesByType[activeTab];
 
   // Element selections for remix
   const [elementSelections, setElementSelections] = useState<
@@ -143,48 +74,39 @@ export function VideoGenerator({
   // Reset selections when analysis changes
   useEffect(() => {
     setElementSelections([]);
-  }, []);
+  }, [analysis?.id]);
 
   // Generation options
-  const [duration, setDuration] = useState<number>(() => {
-    const d = currentAnalysis?.duration;
-    if (d && d >= 1 && d <= 10) {
-      return d;
-    }
-    return 5;
-  });
-
+  const [duration, setDuration] = useState<number>(5);
   const [aspectRatio, setAspectRatio] = useState<
     "16:9" | "9:16" | "1:1" | "auto"
-  >(() => {
-    const ar = currentAnalysis?.aspectRatio;
-    if (ar && ["16:9", "9:16", "1:1"].includes(ar)) {
-      return ar as "16:9" | "9:16" | "1:1";
-    }
-    return "auto";
-  });
-
+  >("auto");
   const [keepAudio, setKeepAudio] = useState(false);
 
   // Update options when analysis changes
   useEffect(() => {
-    if (currentAnalysis) {
-      const d = currentAnalysis.duration;
+    if (analysis) {
+      const d = analysis.duration;
       if (d && d >= 1 && d <= 10) {
         setDuration(d);
       }
-      const ar = currentAnalysis.aspectRatio;
+      const ar = analysis.aspectRatio;
       if (ar && ["16:9", "9:16", "1:1"].includes(ar)) {
         setAspectRatio(ar as "16:9" | "9:16" | "1:1");
       }
     }
-  }, [currentAnalysis]);
+  }, [analysis]);
 
   // Collect all elements from videoElements
-  const allElements = useMemo(
-    () => currentAnalysis?.videoElements || [],
-    [currentAnalysis]
-  );
+  const allElements = useMemo(() => {
+    if (!analysis) return [];
+
+    if (analysis.videoElements && analysis.videoElements.length > 0) {
+      return analysis.videoElements;
+    }
+
+    return [];
+  }, [analysis]);
 
   // Generated prompt
   const { prompt: generatedPrompt, elementRefs } = useMemo(
@@ -210,7 +132,7 @@ export function VideoGenerator({
       return;
     }
 
-    if (!currentAnalysis) {
+    if (!analysis) {
       toast.error("Сначала проанализируйте видео");
       return;
     }
@@ -226,7 +148,7 @@ export function VideoGenerator({
       keepAudio,
     };
 
-    const scenes = currentAnalysis.videoScenes;
+    const scenes = analysis.videoScenes;
 
     // Scene-based генерация если есть сцены
     if (canUseSceneGeneration(scenes, elementSelections)) {
@@ -238,7 +160,7 @@ export function VideoGenerator({
 
       try {
         const result = await generateWithScenes(
-          currentAnalysis.id,
+          analysis.id,
           sceneSelections,
           options
         );
@@ -259,10 +181,10 @@ export function VideoGenerator({
       options.elements = elementRefs;
     }
 
-    await onGenerate(generatedPrompt, options, currentAnalysis.id);
+    await onGenerate(generatedPrompt, options, analysis.id);
   }, [
     sourceVideoUrl,
-    currentAnalysis,
+    analysis,
     canGenerateNow,
     generatedPrompt,
     elementRefs,
@@ -274,202 +196,152 @@ export function VideoGenerator({
     onGenerate,
   ]);
 
-  const isAnyAnalyzing = isAnalyzing || isAnalyzingFrames;
-
   return (
     <Card className="border-violet-500/20 bg-linear-to-br from-violet-500/5 to-transparent">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Wand2 className="h-4 w-4 text-violet-400" />
-          Генерация видео
-        </CardTitle>
-        <CardDescription>
-          Проанализируйте видео и выберите элементы для ремикса
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Wand2 className="h-4 w-4 text-violet-400" />
+              Генерация видео
+            </CardTitle>
+            <CardDescription>
+              Проанализируйте видео и выберите элементы для ремикса
+            </CardDescription>
+          </div>
+          <Button
+            disabled={!canAnalyze || isAnalyzing}
+            onClick={onAnalyze}
+            size="sm"
+            variant="outline"
+          >
+            {isAnalyzing ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1 h-3 w-3" />
+            )}
+            {analysis ? "Переанализ" : "Анализ"}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Analysis Tabs */}
-        <Tabs
-          onValueChange={(v) => setActiveTab(v as DisplayAnalysisType)}
-          value={activeTab}
-        >
-          <div className="flex items-center gap-2">
-            <TabsList className="flex-1">
-              {(["scenes", "standard", "frames"] as const).map((type) => {
-                const config = ANALYSIS_TYPE_CONFIG[type];
-                const Icon = config.icon;
-                const hasAnalysis = analysesByType[type] !== null;
+        {analysis ? (
+          <>
+            {/* Analysis Results */}
+            <AnalysisResults analysis={analysis} />
 
-                return (
-                  <TabsTrigger className="flex-1 gap-1" key={type} value={type}>
-                    <Icon className="h-3 w-3" />
-                    {config.label}
-                    {hasAnalysis && (
-                      <Badge
-                        className="ml-1 h-4 px-1 text-[10px]"
-                        variant="secondary"
-                      >
-                        ✓
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+            {/* Element List */}
+            {allElements.length > 0 && analysis.videoScenes && (
+              <div className="space-y-2">
+                <Label className="font-medium text-sm">
+                  Элементы для замены
+                </Label>
+                <FlatElementList
+                  disabled={isGenerating}
+                  elements={allElements}
+                  key={analysis.id}
+                  onSelectionsChange={handleSelectionsChange}
+                  scenes={analysis.videoScenes}
+                />
+              </div>
+            )}
 
-            {/* Analyze Button */}
+            {/* Prompt Preview */}
+            {canGenerateNow && (
+              <div className="space-y-2">
+                <Label className="font-medium text-sm">
+                  Сгенерированный промпт
+                </Label>
+                <div className="rounded-lg border bg-surface-1 p-3">
+                  <p className="font-mono text-sm text-violet-200">
+                    {generatedPrompt}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Generation Options */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="w-20"
+                  disabled={isGenerating}
+                  max={10}
+                  min={1}
+                  onChange={(e) => {
+                    const val = Number.parseInt(e.target.value, 10);
+                    if (val >= 1 && val <= 10) {
+                      setDuration(val);
+                    }
+                  }}
+                  type="number"
+                  value={duration}
+                />
+                <span className="text-muted-foreground text-sm">сек</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <Select
+                  disabled={isGenerating}
+                  onValueChange={(v) => setAspectRatio(v as typeof aspectRatio)}
+                  value={aspectRatio}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Авто</SelectItem>
+                    <SelectItem value="9:16">9:16</SelectItem>
+                    <SelectItem value="16:9">16:9</SelectItem>
+                    <SelectItem value="1:1">1:1</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={keepAudio}
+                  disabled={isGenerating}
+                  onCheckedChange={setKeepAudio}
+                />
+                <span className="text-muted-foreground text-sm">
+                  Сохранить аудио
+                </span>
+              </div>
+            </div>
+
+            {/* Generate Button */}
             <Button
-              disabled={!canAnalyze || isAnyAnalyzing}
-              onClick={activeTab === "frames" ? onAnalyzeFrames : onAnalyze}
-              size="sm"
-              variant="outline"
+              className="w-full bg-violet-600 hover:bg-violet-700"
+              disabled={isGenerating || !sourceVideoUrl || !canGenerateNow}
+              onClick={handleGenerate}
             >
-              {isAnyAnalyzing ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Генерация...
+                </>
               ) : (
-                <Sparkles className="mr-1 h-3 w-3" />
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Сгенерировать ремикс
+                </>
               )}
-              {analysesByType[activeTab] ? "Переанализ" : "Анализ"}
             </Button>
+          </>
+        ) : (
+          <div className="rounded-lg border border-dashed p-6 text-center">
+            <Film className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+            <p className="text-muted-foreground text-sm">
+              PySceneDetect + Gemini unified анализ
+            </p>
+            <p className="mt-1 text-muted-foreground/70 text-xs">
+              Нажмите "Анализ" чтобы начать
+            </p>
           </div>
-
-          {/* Tab Content */}
-          {(["scenes", "standard", "frames"] as const).map((type) => {
-            const analysis = analysesByType[type];
-            const config = ANALYSIS_TYPE_CONFIG[type];
-
-            return (
-              <TabsContent className="mt-4 space-y-4" key={type} value={type}>
-                {/* Analysis Status */}
-                {analysis ? (
-                  <>
-                    {/* Analysis Results */}
-                    <AnalysisResults analysis={analysis} />
-
-                    {/* Element List */}
-                    {analysis.videoElements &&
-                      analysis.videoElements.length > 0 &&
-                      analysis.videoScenes && (
-                        <div className="space-y-2">
-                          <Label className="font-medium text-sm">
-                            Элементы для замены
-                          </Label>
-                          <FlatElementList
-                            disabled={isGenerating}
-                            elements={analysis.videoElements}
-                            key={analysis.id}
-                            onSelectionsChange={handleSelectionsChange}
-                            scenes={analysis.videoScenes}
-                          />
-                        </div>
-                      )}
-
-                    {/* Prompt Preview */}
-                    {canGenerateNow && (
-                      <div className="space-y-2">
-                        <Label className="font-medium text-sm">
-                          Сгенерированный промпт
-                        </Label>
-                        <div className="rounded-lg border bg-surface-1 p-3">
-                          <p className="font-mono text-sm text-violet-200">
-                            {generatedPrompt}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Generation Options */}
-                    <div className="flex flex-wrap items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <Input
-                          className="w-20"
-                          disabled={isGenerating}
-                          max={10}
-                          min={1}
-                          onChange={(e) => {
-                            const val = Number.parseInt(e.target.value, 10);
-                            if (val >= 1 && val <= 10) {
-                              setDuration(val);
-                            }
-                          }}
-                          type="number"
-                          value={duration}
-                        />
-                        <span className="text-muted-foreground text-sm">
-                          сек
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-4 w-4 text-muted-foreground" />
-                        <Select
-                          disabled={isGenerating}
-                          onValueChange={(v) =>
-                            setAspectRatio(v as typeof aspectRatio)
-                          }
-                          value={aspectRatio}
-                        >
-                          <SelectTrigger className="w-28">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">Авто</SelectItem>
-                            <SelectItem value="9:16">9:16</SelectItem>
-                            <SelectItem value="16:9">16:9</SelectItem>
-                            <SelectItem value="1:1">1:1</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={keepAudio}
-                          disabled={isGenerating}
-                          onCheckedChange={setKeepAudio}
-                        />
-                        <span className="text-muted-foreground text-sm">
-                          Сохранить аудио
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Generate Button */}
-                    <Button
-                      className="w-full bg-violet-600 hover:bg-violet-700"
-                      disabled={
-                        isGenerating || !sourceVideoUrl || !canGenerateNow
-                      }
-                      onClick={handleGenerate}
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Генерация...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Сгенерировать ремикс
-                        </>
-                      )}
-                    </Button>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-dashed p-6 text-center">
-                    <config.icon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                    <p className="text-muted-foreground text-sm">
-                      {config.description}
-                    </p>
-                    <p className="mt-1 text-muted-foreground/70 text-xs">
-                      Нажмите "Анализ" чтобы начать
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+        )}
       </CardContent>
     </Card>
   );

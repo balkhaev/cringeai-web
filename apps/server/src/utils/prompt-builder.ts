@@ -37,7 +37,20 @@ export function buildPromptFromSelections(
     const element = elements.find((e) => e.id === selection.elementId);
     if (!element) continue;
 
-    if (selection.selectedOptionId) {
+    // Check for custom image first (selectedOptionId === "custom" or has customMediaUrl)
+    if (
+      selection.selectedOptionId === "custom" ||
+      (!selection.selectedOptionId && selection.customMediaUrl)
+    ) {
+      if (selection.customMediaUrl) {
+        // User provided custom image - add to image_list and reference in prompt
+        imageUrls.push(selection.customMediaUrl);
+        const imageIndex = imageUrls.length; // 1-based index for Kling
+        parts.push(
+          `Replace ${element.label} with the reference from <<<image_${imageIndex}>>>`
+        );
+      }
+    } else if (selection.selectedOptionId) {
       // User selected a predefined option
       const option = element.remixOptions.find(
         (o) => o.id === selection.selectedOptionId
@@ -45,13 +58,6 @@ export function buildPromptFromSelections(
       if (option) {
         parts.push(option.prompt);
       }
-    } else if (selection.customMediaUrl) {
-      // User provided custom image - add to image_list and reference in prompt
-      imageUrls.push(selection.customMediaUrl);
-      const imageIndex = imageUrls.length; // 1-based index for Kling
-      parts.push(
-        `Replace ${element.label} with the reference from <<<image_${imageIndex}>>>`
-      );
     }
   }
 

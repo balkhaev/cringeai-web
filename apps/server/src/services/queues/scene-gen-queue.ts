@@ -9,7 +9,7 @@ import { type Job as BullJob, Queue, Worker } from "bullmq";
 import { paths, services } from "../../config";
 import { getKlingService } from "../kling";
 import { redis } from "../redis";
-import { getS3Key, isS3Configured, s3Service } from "../s3";
+import { getS3Key, getS3PublicUrl, isS3Configured, s3Service } from "../s3";
 import { registerQueue, registerWorker } from "./manager";
 import type {
   CompositeGenJobData,
@@ -117,7 +117,7 @@ async function uploadTrimmedVideoForKling(
 
   const s3Key = getS3Key("scene-trimmed", sceneGenerationId);
   await s3Service.uploadFile(s3Key, buffer, "video/mp4");
-  return s3Service.getPublicUrl(s3Key);
+  return getS3PublicUrl(s3Key);
 }
 
 export const sceneGenWorker = new Worker<SceneGenJobData, SceneGenJobResult>(
@@ -227,7 +227,7 @@ export const sceneGenWorker = new Worker<SceneGenJobData, SceneGenJobResult>(
       if (isS3Configured()) {
         s3Key = getS3Key("scene-generations", sceneGenerationId);
         await s3Service.uploadFile(s3Key, videoBuffer, "video/mp4");
-        finalVideoUrl = await s3Service.getPublicUrl(s3Key);
+        finalVideoUrl = await getS3PublicUrl(s3Key);
       } else {
         // Fallback to local
         await ensureDir(SCENE_GENERATIONS_DIR);
@@ -494,7 +494,7 @@ export const compositeGenWorker = new Worker<
             `${compositeGenerationId}_${config.sceneIndex}`
           );
           await s3Service.uploadFile(s3Key, trimmedBuffer, "video/mp4");
-          const trimmedUrl = await s3Service.getPublicUrl(s3Key);
+          const trimmedUrl = await getS3PublicUrl(s3Key);
 
           videoSegments.push({ url: trimmedUrl, order: config.sceneIndex });
         } else if (config.generationId) {
@@ -542,7 +542,7 @@ export const compositeGenWorker = new Worker<
       if (isS3Configured()) {
         s3Key = getS3Key("composite-generations", compositeGenerationId);
         await s3Service.uploadFile(s3Key, concatenatedBuffer, "video/mp4");
-        finalVideoUrl = await s3Service.getPublicUrl(s3Key);
+        finalVideoUrl = await getS3PublicUrl(s3Key);
       } else {
         await ensureDir(COMPOSITE_GENERATIONS_DIR);
         const localPath = join(

@@ -54,7 +54,6 @@ import { VideoTrimButton } from "@/components/video-trim-section";
 import { useDeleteReel } from "@/lib/hooks/use-dashboard";
 import {
   useAnalyzeReel,
-  useAnalyzeReelByFrames,
   useDownloadReel,
   useGenerateVideo,
   useReelDebug,
@@ -171,8 +170,6 @@ export default function ReelDetailPage() {
   const { data, isLoading, refetch } = useReelDebug(reelId);
   const { mutate: downloadReel, isPending: isDownloading } = useDownloadReel();
   const { mutate: analyzeReel, isPending: isAnalyzing } = useAnalyzeReel();
-  const { mutate: analyzeReelByFrames, isPending: isAnalyzingFrames } =
-    useAnalyzeReelByFrames();
   const { mutate: generateVideo, isPending: isGenerating } = useGenerateVideo();
   const { mutateAsync: deleteReelAsync, isPending: isDeleting } =
     useDeleteReel();
@@ -242,13 +239,6 @@ export default function ReelDetailPage() {
       onError: (err: Error) => toast.error(err.message),
     });
   }, [reelId, analyzeReel]);
-
-  const handleAnalyzeFrames = useCallback(() => {
-    analyzeReelByFrames(reelId, {
-      onSuccess: () => toast.success("Анализ по кадрам запущен"),
-      onError: (err: Error) => toast.error(err.message),
-    });
-  }, [reelId, analyzeReelByFrames]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -691,10 +681,8 @@ export default function ReelDetailPage() {
                     data.reel.status !== "downloading"
                   }
                   isAnalyzing={isAnalyzing}
-                  isAnalyzingFrames={isAnalyzingFrames}
                   isGenerating={isGenerating}
                   onAnalyze={handleAnalyze}
-                  onAnalyzeFrames={handleAnalyzeFrames}
                   onGenerate={handleGenerate}
                   sourceVideoUrl={data.videoUrl || data.reel.videoUrl || ""}
                 />

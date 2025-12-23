@@ -56,6 +56,15 @@ export type VideoScene = {
 
 export type AnalysisType = "standard" | "frames" | "scenes";
 
+// Legacy element format (without appearances)
+export type LegacyElement = {
+  id: string;
+  type: "character" | "object" | "background";
+  label: string;
+  description: string;
+  remixOptions: RemixOption[];
+};
+
 // Analysis result with unified elements
 export type TemplateAnalysis = {
   id: string;
@@ -66,7 +75,9 @@ export type TemplateAnalysis = {
   style?: string;
   klingPrompt?: string;
   tags?: string[];
-  // Unified elements with scene appearances
+  // Legacy elements JSON (for standard/frames analysis)
+  elements?: LegacyElement[];
+  // Unified elements with scene appearances (for scenes analysis)
   videoElements?: VideoElement[];
   // Scene data
   scenesCount?: number;

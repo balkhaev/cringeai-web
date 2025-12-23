@@ -943,6 +943,10 @@ reelsRouter.openapi(getReelDebugRoute, async (c) => {
         hasScenes: true,
         scenesCount: true,
         createdAt: true,
+        // Дополнительные поля для UI
+        tags: true,
+        style: true,
+        klingPrompt: true,
         videoScenes: {
           orderBy: { index: "asc" },
         },

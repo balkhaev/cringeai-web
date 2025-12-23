@@ -167,6 +167,36 @@ const headReferenceRoute = createRoute({
   },
 });
 
+const streamMediaRoute = createRoute({
+  method: "get",
+  path: "/media/{s3Key}",
+  summary: "Stream media file by S3 key",
+  tags: ["Files"],
+  request: {
+    params: z.object({
+      s3Key: z.string().openapi({ param: { name: "s3Key", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Media stream",
+      content: {
+        "image/*": {
+          schema: FileStreamSchema,
+        },
+      },
+    },
+    404: {
+      content: { "application/json": { schema: NotFoundResponseSchema } },
+      description: "File not found",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Server error",
+    },
+  },
+});
+
 // ============================================
 // ROUTE IMPLEMENTATIONS
 // ============================================
@@ -397,6 +427,31 @@ filesRouter.openapi(headReferenceRoute, async (c) => {
     });
   } catch {
     return c.body(null, 500);
+  }
+});
+
+filesRouter.openapi(streamMediaRoute, async (c) => {
+  const { s3Key: encodedS3Key } = c.req.valid("param");
+  // Decode the URL-encoded S3 key (e.g., scene-thumbnails%2Fxxx -> scene-thumbnails/xxx)
+  const s3Key = decodeURIComponent(encodedS3Key);
+
+  try {
+    const result = await s3Service.getFileStream(s3Key);
+
+    if (!result) {
+      return c.json({ error: "Media file not found" }, 404);
+    }
+
+    return new Response(result.stream, {
+      headers: {
+        "Content-Type": result.metadata.contentType,
+        "Content-Length": result.metadata.contentLength.toString(),
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+  } catch (error) {
+    console.error(`Error streaming media ${s3Key}:`, error);
+    return c.json({ error: "Failed to stream media" }, 500);
   }
 });
 
