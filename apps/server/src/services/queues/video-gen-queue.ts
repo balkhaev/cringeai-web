@@ -12,6 +12,7 @@ import {
 } from "../url-builder";
 import { registerQueue, registerWorker } from "./manager";
 import type {
+  KlingImageElement,
   VideoGenJobData,
   VideoGenJobProgress,
   VideoGenJobResult,
@@ -148,17 +149,25 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
         let videoUrl = result.videoUrl;
 
         if (downloadResult) {
-          await updateProgress(job, {
-            stage: "uploading",
-            percent: 85,
-            message: "Uploading to storage...",
-          });
+          // Проверяем, была ли ошибка загрузки
+          if (downloadResult.error) {
+            console.warn(
+              "[VideoGenQueue] Download failed but generation succeeded, using original URL"
+            );
+            // Используем оригинальный URL от Kling (временный, истечёт)
+          } else {
+            await updateProgress(job, {
+              stage: "uploading",
+              percent: 85,
+              message: "Uploading to storage...",
+            });
 
-          if (downloadResult.s3Key) {
-            s3Key = downloadResult.s3Key;
-            videoUrl = getGenerationVideoPublicUrl(generationId);
-          } else if (downloadResult.localPath) {
-            videoUrl = getGenerationLocalVideoPublicUrl(generationId);
+            if (downloadResult.s3Key) {
+              s3Key = downloadResult.s3Key;
+              videoUrl = getGenerationVideoPublicUrl(generationId);
+            } else if (downloadResult.localPath) {
+              videoUrl = getGenerationLocalVideoPublicUrl(generationId);
+            }
           }
         }
 
@@ -274,7 +283,7 @@ async function updateProgress(
 async function downloadKlingVideo(
   generationId: string,
   videoUrl: string
-): Promise<{ s3Key?: string; localPath?: string } | undefined> {
+): Promise<{ s3Key?: string; localPath?: string; error?: string } | undefined> {
   try {
     console.log("[VideoGenQueue] Downloading Kling video...");
 
@@ -290,9 +299,10 @@ async function downloadKlingVideo(
         console.log(`[VideoGenQueue] Video uploaded to S3: ${s3Key}`);
         return { s3Key };
       } catch (s3Error) {
+        const s3ErrorMsg =
+          s3Error instanceof Error ? s3Error.message : String(s3Error);
         console.error(
-          "[VideoGenQueue] S3 upload failed, falling back to local:",
-          s3Error
+          `[VideoGenQueue] S3 upload failed for ${generationId}: ${s3ErrorMsg}, falling back to local`
         );
       }
     }
@@ -306,8 +316,24 @@ async function downloadKlingVideo(
     console.log(`[VideoGenQueue] Video saved to ${localPath}`);
     return { localPath };
   } catch (downloadError) {
-    console.error("[VideoGenQueue] Failed to download video:", downloadError);
-    return;
+    const errorMsg =
+      downloadError instanceof Error
+        ? downloadError.message
+        : String(downloadError);
+    console.error(
+      `[VideoGenQueue] Failed to download video for generation ${generationId}: ${errorMsg}`
+    );
+
+    // Сохраняем информацию об ошибке в БД
+    await prisma.videoGeneration.update({
+      where: { id: generationId },
+      data: {
+        progressMessage: `Ошибка загрузки видео: ${errorMsg}`,
+        lastActivityAt: new Date(),
+      },
+    });
+
+    return { error: errorMsg };
   }
 }
 
@@ -326,14 +352,6 @@ videoGenWorker.on("failed", (job, error) => {
 videoGenWorker.on("stalled", (jobId) => {
   console.warn(`[VideoGenQueue] Job ${jobId} stalled`);
 });
-
-/**
- * Image element for Kling multi-image reference
- */
-export type KlingImageElement = {
-  referenceImageUrls: string[];
-  frontalImageUrl?: string;
-};
 
 // Generation options for Kling
 export type KlingGenerationOptions = {

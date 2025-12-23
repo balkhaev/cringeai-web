@@ -34,7 +34,7 @@ trimRouter.post("/", async (c) => {
     const start = Number.parseFloat(startTime.toString());
     const end = Number.parseFloat(endTime.toString());
 
-    if (isNaN(start) || isNaN(end)) {
+    if (Number.isNaN(start) || Number.isNaN(end)) {
       return c.json(
         { error: "startTime and endTime must be valid numbers" },
         400

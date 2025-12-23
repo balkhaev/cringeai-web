@@ -85,7 +85,9 @@ export default function CropPage() {
 
   const handleTrim = useCallback(
     (startTime: number, endTime: number) => {
-      if (!selectedFile) return;
+      if (!selectedFile) {
+        return;
+      }
 
       trimVideo(
         { video: selectedFile, startTime, endTime },
@@ -104,7 +106,9 @@ export default function CropPage() {
   );
 
   const handleDownload = useCallback(() => {
-    if (!(trimmedVideo && selectedFile)) return;
+    if (!(trimmedVideo && selectedFile)) {
+      return;
+    }
 
     const originalName = selectedFile.name.replace(/\.[^/.]+$/, "");
     downloadBlob(trimmedVideo, `${originalName}_trimmed.mp4`);

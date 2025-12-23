@@ -3,10 +3,8 @@ import { join } from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import prisma from "@trender/db";
 import {
-  AnalysisSchema,
   ErrorResponseSchema,
   NotFoundResponseSchema,
-  TemplateSchema,
 } from "../schemas/openapi";
 import { getDownloadsPath } from "../services/instagram/downloader";
 import { pipelineJobQueue } from "../services/queues";
@@ -187,9 +185,10 @@ const generateRoute = createRoute({
           schema: z.object({
             success: z.boolean(),
             reelId: z.string(),
-            jobId: z.string(),
+            jobId: z.string().nullable(),
             status: z.string(),
             message: z.string(),
+            isExisting: z.boolean().optional(),
           }),
         },
       },
@@ -243,9 +242,10 @@ app.openapi(generateRoute, async (c) => {
         {
           success: true,
           reelId: shortcode,
-          jobId: "",
+          jobId: null, // null indicates no new job was created
           status: reel.status,
           message: "Reel already processed",
+          isExisting: true, // Флаг для клиента - рил уже обработан
         },
         202
       );
@@ -306,8 +306,18 @@ const statusRoute = createRoute({
             progress: z.number(),
             progressStage: z.string(),
             progressMessage: z.string(),
-            analysis: AnalysisSchema.nullable(),
-            template: TemplateSchema.nullable(),
+            analysis: z
+              .any()
+              .nullable()
+              .openapi({ description: "Video analysis data" }),
+            template: z
+              .object({
+                id: z.string(),
+                tags: z.array(z.string()),
+                category: z.string(),
+                generationCount: z.number(),
+              })
+              .nullable(),
             error: z.string().optional(),
           }),
         },
@@ -343,23 +353,26 @@ app.openapi(statusRoute, async (c) => {
     return c.json({ error: "Reel not found" }, 404);
   }
 
-  return c.json({
-    reelId: reel.id,
-    status: reel.status,
-    progress: reel.progress,
-    progressStage: reel.progressStage,
-    progressMessage: reel.progressMessage,
-    analysis: reel.template?.analysis ?? null,
-    template: reel.template
-      ? {
-          id: reel.template.id,
-          tags: reel.template.tags,
-          category: reel.template.category,
-          generationCount: reel.template.generationCount,
-        }
-      : null,
-    error: reel.errorMessage ?? undefined,
-  });
+  return c.json(
+    {
+      reelId: reel.id,
+      status: reel.status,
+      progress: reel.progress,
+      progressStage: reel.progressStage,
+      progressMessage: reel.progressMessage,
+      analysis: reel.template?.analysis ?? null,
+      template: reel.template
+        ? {
+            id: reel.template.id,
+            tags: reel.template.tags,
+            category: reel.template.category ?? "",
+            generationCount: reel.template.generationCount,
+          }
+        : null,
+      ...(reel.errorMessage ? { error: reel.errorMessage } : {}),
+    },
+    200
+  );
 });
 
 // ============================================
@@ -420,7 +433,20 @@ app.openapi(jobStatusRoute, async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
-  return c.json(job);
+  return c.json(
+    {
+      id: job.id,
+      reelId: job.reelId,
+      action: job.action as string,
+      state: job.state as string,
+      progress: job.progress,
+      attemptsMade: job.attemptsMade,
+      failedReason: job.failedReason,
+      finishedOn: job.finishedOn,
+      processedOn: job.processedOn,
+    },
+    200
+  );
 });
 
 export { app as pipelineRouter };

@@ -125,15 +125,27 @@ class AILogger {
       Parameters<typeof prisma.aILog.findMany>[0]
     >["where"] = {};
 
-    if (filter.provider) where.provider = filter.provider;
-    if (filter.operation) where.operation = filter.operation;
-    if (filter.status) where.status = filter.status;
-    if (filter.reelId) where.reelId = filter.reelId;
+    if (filter.provider) {
+      where.provider = filter.provider;
+    }
+    if (filter.operation) {
+      where.operation = filter.operation;
+    }
+    if (filter.status) {
+      where.status = filter.status;
+    }
+    if (filter.reelId) {
+      where.reelId = filter.reelId;
+    }
 
     if (filter.from || filter.to) {
       where.createdAt = {};
-      if (filter.from) where.createdAt.gte = filter.from;
-      if (filter.to) where.createdAt.lte = filter.to;
+      if (filter.from) {
+        where.createdAt.gte = filter.from;
+      }
+      if (filter.to) {
+        where.createdAt.lte = filter.to;
+      }
     }
 
     return prisma.aILog.findMany({
@@ -154,8 +166,12 @@ class AILogger {
 
     if (from || to) {
       where.createdAt = {};
-      if (from) where.createdAt.gte = from;
-      if (to) where.createdAt.lte = to;
+      if (from) {
+        where.createdAt.gte = from;
+      }
+      if (to) {
+        where.createdAt.lte = to;
+      }
     }
 
     const logs = await prisma.aILog.findMany({
@@ -183,8 +199,12 @@ class AILogger {
       };
 
       existing.totalCalls += 1;
-      if (log.status === "success") existing.successCalls += 1;
-      if (log.status === "error") existing.errorCalls += 1;
+      if (log.status === "success") {
+        existing.successCalls += 1;
+      }
+      if (log.status === "error") {
+        existing.errorCalls += 1;
+      }
       existing.avgDuration += log.duration ?? 0;
       existing.totalInputTokens += log.inputTokens ?? 0;
       existing.totalOutputTokens += log.outputTokens ?? 0;
@@ -213,8 +233,12 @@ class AILogger {
 
     if (from || to) {
       where.createdAt = {};
-      if (from) where.createdAt.gte = from;
-      if (to) where.createdAt.lte = to;
+      if (from) {
+        where.createdAt.gte = from;
+      }
+      if (to) {
+        where.createdAt.lte = to;
+      }
     }
 
     const [total, success, errors] = await Promise.all([

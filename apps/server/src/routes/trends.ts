@@ -41,8 +41,8 @@ const getTagTrendsRoute = createRoute({
             tags: z.array(
               z.object({
                 tag: z.string(),
-                count: z.number(),
-                percentage: z.number(),
+                score: z.number(),
+                frequency: z.number(),
               })
             ),
           }),

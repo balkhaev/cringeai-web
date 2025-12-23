@@ -24,7 +24,7 @@ export function RemixEditor({
   onSelectionsChange,
   disabled = false,
 }: RemixEditorProps) {
-  const [elementSelections, setElementSelections] = useState<
+  const [_elementSelections, setElementSelections] = useState<
     ElementSelection[]
   >([]);
 

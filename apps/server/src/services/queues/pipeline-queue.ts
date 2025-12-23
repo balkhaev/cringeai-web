@@ -139,6 +139,44 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
           };
         }
 
+        case "analyze-scenes": {
+          const { sceneAnalysisService } = await import(
+            "../analysis/scene-analysis.service"
+          );
+
+          await updateProgress(
+            job,
+            "analyze",
+            20,
+            "Starting scene-based analysis (PySceneDetect + Gemini)..."
+          );
+
+          const analysisScenes =
+            await sceneAnalysisService.analyzeReelWithScenes(
+              reelId,
+              {
+                updateStatus: reelPipeline.updateStatus.bind(reelPipeline),
+                updateProgress: reelPipeline.updateProgress.bind(reelPipeline),
+              },
+              options as { threshold?: number; minSceneLen?: number }
+            );
+
+          await job.updateProgress(90);
+
+          await updateProgress(job, "template", 95, "Creating template...");
+          const templateScenes = await reelPipeline.createTemplate(
+            reelId,
+            analysisScenes.id
+          );
+
+          await job.updateProgress(100);
+          return {
+            reelId,
+            analysisId: analysisScenes.id,
+            templateId: templateScenes.id,
+          };
+        }
+
         case "refresh-duration": {
           await job.updateProgress(20);
 
@@ -161,7 +199,11 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
             error?: string;
           };
 
-          if (!(metadata.success && metadata.duration)) {
+          if (
+            !metadata.success ||
+            metadata.duration === undefined ||
+            metadata.duration === null
+          ) {
             throw new Error(metadata.error || "No duration in metadata");
           }
 
@@ -258,72 +300,112 @@ export const pipelineJobQueue = {
    * Add a download-only job
    */
   async addDownloadJob(reelId: string): Promise<string> {
-    // Сразу обновляем статус на downloading, чтобы UI мог включить polling
+    const jobId = `download-${reelId}-${Date.now()}`;
+
+    // Сначала добавляем job в очередь, потом обновляем статус
+    // Если добавление упадёт - статус не изменится
+    const job = await pipelineQueue.add(
+      "download",
+      { reelId, action: "download" },
+      { jobId }
+    );
+
+    // Обновляем статус только после успешного добавления job
     await prisma.reel.update({
       where: { id: reelId },
       data: { status: "downloading" },
     });
 
-    const job = await pipelineQueue.add(
-      "download",
-      { reelId, action: "download" },
-      { jobId: `download-${reelId}-${Date.now()}` }
-    );
-    return job.id ?? "";
+    return job.id ?? jobId;
   },
 
   /**
    * Add an analyze-only job (requires downloaded video)
    */
   async addAnalyzeJob(reelId: string): Promise<string> {
-    // Сразу обновляем статус на analyzing, чтобы UI мог включить polling
+    const jobId = `analyze-${reelId}-${Date.now()}`;
+
+    // Сначала добавляем job в очередь, потом обновляем статус
+    const job = await pipelineQueue.add(
+      "analyze",
+      { reelId, action: "analyze" },
+      { jobId }
+    );
+
+    // Обновляем статус только после успешного добавления job
     await prisma.reel.update({
       where: { id: reelId },
       data: { status: "analyzing" },
     });
 
-    const job = await pipelineQueue.add(
-      "analyze",
-      { reelId, action: "analyze" },
-      { jobId: `analyze-${reelId}-${Date.now()}` }
-    );
-    return job.id ?? "";
+    return job.id ?? jobId;
   },
 
   /**
    * Add frame-by-frame analysis job (requires downloaded video + video-frames service)
    */
   async addAnalyzeFramesJob(reelId: string): Promise<string> {
-    // Сразу обновляем статус на analyzing, чтобы UI мог включить polling
+    const jobId = `analyze-frames-${reelId}-${Date.now()}`;
+
+    // Сначала добавляем job в очередь, потом обновляем статус
+    const job = await pipelineQueue.add(
+      "analyze-frames",
+      { reelId, action: "analyze-frames" },
+      { jobId }
+    );
+
+    // Обновляем статус только после успешного добавления job
     await prisma.reel.update({
       where: { id: reelId },
       data: { status: "analyzing" },
     });
 
-    const job = await pipelineQueue.add(
-      "analyze-frames",
-      { reelId, action: "analyze-frames" },
-      { jobId: `analyze-frames-${reelId}-${Date.now()}` }
-    );
-    return job.id ?? "";
+    return job.id ?? jobId;
   },
 
   /**
    * Add enchanting analysis job (Gemini + ChatGPT for creative variants)
    */
   async addAnalyzeEnchantingJob(reelId: string): Promise<string> {
-    // Сразу обновляем статус на analyzing, чтобы UI мог включить polling
+    const jobId = `analyze-enchanting-${reelId}-${Date.now()}`;
+
+    // Сначала добавляем job в очередь, потом обновляем статус
+    const job = await pipelineQueue.add(
+      "analyze-enchanting",
+      { reelId, action: "analyze-enchanting" },
+      { jobId }
+    );
+
+    // Обновляем статус только после успешного добавления job
     await prisma.reel.update({
       where: { id: reelId },
       data: { status: "analyzing" },
     });
 
+    return job.id ?? jobId;
+  },
+
+  /**
+   * Add scene-based analysis job (PySceneDetect + Gemini per scene)
+   */
+  async addAnalyzeScenesJob(
+    reelId: string,
+    options?: { threshold?: number; minSceneLen?: number }
+  ): Promise<string> {
+    const jobId = `analyze-scenes-${reelId}-${Date.now()}`;
+
     const job = await pipelineQueue.add(
-      "analyze-enchanting",
-      { reelId, action: "analyze-enchanting" },
-      { jobId: `analyze-enchanting-${reelId}-${Date.now()}` }
+      "analyze-scenes",
+      { reelId, action: "analyze-scenes", options },
+      { jobId }
     );
-    return job.id ?? "";
+
+    await prisma.reel.update({
+      where: { id: reelId },
+      data: { status: "analyzing" },
+    });
+
+    return job.id ?? jobId;
   },
 
   /**
@@ -370,30 +452,59 @@ export const pipelineJobQueue = {
     const progress = job.progress;
 
     return {
-      id: job.id,
+      id: job.id ?? jobId,
       reelId: job.data.reelId,
       action: job.data.action,
       state,
       progress,
       attemptsMade: job.attemptsMade,
-      failedReason: job.failedReason,
-      finishedOn: job.finishedOn,
-      processedOn: job.processedOn,
+      failedReason: job.failedReason ?? null,
+      finishedOn: job.finishedOn ?? null,
+      processedOn: job.processedOn ?? null,
     };
   },
 
   /**
    * Get all jobs for a reel
+   * Оптимизировано: ищем по паттерну jobId вместо загрузки всех jobs
    */
   async getJobsForReel(reelId: string) {
-    const allJobs = await pipelineQueue.getJobs([
-      "waiting",
-      "active",
-      "completed",
-      "failed",
-    ]);
+    // Job IDs содержат reelId, поэтому можем искать по паттерну
+    // Форматы: process-{reelId}-*, download-{reelId}-*, analyze-{reelId}-*, etc.
+    const jobIdPatterns = [
+      `process-${reelId}-`,
+      `download-${reelId}-`,
+      `analyze-${reelId}-`,
+      `analyze-frames-${reelId}-`,
+      `analyze-enchanting-${reelId}-`,
+      `analyze-scenes-${reelId}-`,
+      `refresh-duration-${reelId}-`,
+    ];
 
-    return allJobs.filter((job) => job.data.reelId === reelId);
+    // Получаем только активные и ожидающие jobs (они наиболее релевантны)
+    const activeJobs = await pipelineQueue.getJobs(["waiting", "active"]);
+
+    // Фильтруем по паттернам jobId (быстрее, чем проверка data.reelId для каждого)
+    const relevantJobs = activeJobs.filter((job) => {
+      const jobId = job.id ?? "";
+      return jobIdPatterns.some((pattern) => jobId.startsWith(pattern));
+    });
+
+    // Если нужны completed/failed - загружаем их отдельно с лимитом
+    if (relevantJobs.length === 0) {
+      const recentJobs = await pipelineQueue.getJobs(
+        ["completed", "failed"],
+        0,
+        20 // Лимитируем количество для производительности
+      );
+
+      return recentJobs.filter((job) => {
+        const jobId = job.id ?? "";
+        return jobIdPatterns.some((pattern) => jobId.startsWith(pattern));
+      });
+    }
+
+    return relevantJobs;
   },
 
   /**

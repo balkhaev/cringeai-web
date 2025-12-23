@@ -42,7 +42,9 @@ export function VideoTrimButton({ videoUrl }: VideoTrimButtonProps) {
   );
 
   const handleDownload = useCallback(() => {
-    if (!trimmedVideo) return;
+    if (!trimmedVideo) {
+      return;
+    }
 
     const url = URL.createObjectURL(trimmedVideo);
     const a = document.createElement("a");

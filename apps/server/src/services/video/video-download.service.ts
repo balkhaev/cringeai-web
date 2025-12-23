@@ -60,7 +60,7 @@ export async function resizeVideoIfNeeded(
     const formData = new FormData();
     formData.append(
       "video",
-      new Blob([buffer], { type: "video/mp4" }),
+      new Blob([new Uint8Array(buffer)], { type: "video/mp4" }),
       "video.mp4"
     );
     formData.append("min_width", "720");

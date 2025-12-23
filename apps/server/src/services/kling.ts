@@ -183,7 +183,9 @@ export class KlingService {
     >
   ) {
     // Debug логи только если LOG_LEVEL=debug
-    if (level === "debug" && logLevel !== "debug") return;
+    if (level === "debug" && logLevel !== "debug") {
+      return;
+    }
 
     const timestamp = new Date().toISOString().slice(11, 19);
     const dataStr = data ? ` | ${JSON.stringify(data)}` : "";
@@ -399,7 +401,7 @@ export class KlingService {
             taskId,
             responseCode: createResponse.code,
             responseMessage: createResponse.message,
-            videoUrl: result.videoUrl,
+            videoUrl: result.videoUrl ?? null,
           },
         });
       } else {
@@ -416,7 +418,7 @@ export class KlingService {
           },
           outputMeta: {
             taskId,
-            error: result.error,
+            error: result.error ?? null,
           },
         });
       }
@@ -505,8 +507,25 @@ export class KlingService {
           await onProgress?.("failed", undefined, `Ошибка: ${errorMsg}`);
           return { success: false, error: errorMsg, taskId };
         }
-      } catch {
-        // Continue polling despite errors
+      } catch (pollError) {
+        // Логируем ошибку, но продолжаем polling (может быть временный сбой сети)
+        const errorMsg =
+          pollError instanceof Error ? pollError.message : String(pollError);
+        this.log(
+          "debug",
+          `Ошибка при polling (попытка ${attempts}): ${errorMsg}`
+        );
+
+        // Если ошибка повторяется много раз подряд - прерываем
+        if (attempts > 10 && errorMsg.includes("401")) {
+          this.log("error", "Прерывание polling: ошибка авторизации");
+          await onProgress?.(
+            "failed",
+            undefined,
+            "Ошибка авторизации Kling API"
+          );
+          return { success: false, error: "Authorization error", taskId };
+        }
       }
     }
 
@@ -606,17 +625,28 @@ export class KlingService {
 let klingServiceInstance: KlingService | null = null;
 
 export function getKlingService(): KlingService {
-  // Always create new instance to pick up code changes in dev
   if (!klingConfig.isConfigured()) {
     throw new Error(
       "KLING_ACCESS_KEY and KLING_SECRET_KEY environment variables are required"
     );
   }
-  klingServiceInstance = new KlingService(
-    klingConfig.accessKey,
-    klingConfig.secretKey
-  );
+
+  // Используем синглтон для переиспользования JWT токена и соблюдения rate limits
+  if (!klingServiceInstance) {
+    klingServiceInstance = new KlingService(
+      klingConfig.accessKey,
+      klingConfig.secretKey
+    );
+  }
+
   return klingServiceInstance;
+}
+
+/**
+ * Сбросить синглтон (для тестов или при изменении конфигурации)
+ */
+export function resetKlingService(): void {
+  klingServiceInstance = null;
 }
 
 /**

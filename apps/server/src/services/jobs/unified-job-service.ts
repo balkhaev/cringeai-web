@@ -50,6 +50,9 @@ export async function getJob(
     if (job) {
       const state = await job.getState();
       const queueJobType = QUEUE_TO_JOB_TYPE[queue.name];
+      if (!queueJobType) {
+        continue;
+      }
 
       return mapBullJobToResponse(job, queueJobType, state);
     }
@@ -84,9 +87,14 @@ export async function listJobs(
 
   for (const queueName of queuesToQuery) {
     const queue = getQueueByName(queueName);
-    if (!queue) continue;
+    if (!queue) {
+      continue;
+    }
 
     const jobType = QUEUE_TO_JOB_TYPE[queueName];
+    if (!jobType) {
+      continue;
+    }
 
     for (const state of statesToQuery) {
       const jobs = await queue.getJobs(
@@ -162,11 +170,16 @@ export async function retryFailedJob(jobId: string): Promise<boolean> {
 // Вспомогательные функции
 // ============================================
 
+// Тип job из BullMQ очереди
+type BullJob = NonNullable<
+  Awaited<ReturnType<ReturnType<typeof getAllQueues>[number]["getJob"]>>
+>;
+
 /**
  * Маппинг BullMQ job на унифицированный ответ
  */
 function mapBullJobToResponse(
-  job: Awaited<ReturnType<typeof getAllQueues>[number]["getJob"]>,
+  job: BullJob,
   jobType: JobType,
   state: string
 ): UnifiedJobResponse {
@@ -213,10 +226,7 @@ function mapBullJobToResponse(
 /**
  * Получить stage из job'а
  */
-function getStageFromJob(
-  job: NonNullable<Awaited<ReturnType<typeof getAllQueues>[number]["getJob"]>>,
-  jobType: JobType
-): string {
+function getStageFromJob(job: BullJob, jobType: JobType): string {
   const progress = job.progress;
 
   if (
@@ -243,10 +253,7 @@ function getStageFromJob(
 /**
  * Получить сообщение из job'а
  */
-function getMessageFromJob(
-  job: NonNullable<Awaited<ReturnType<typeof getAllQueues>[number]["getJob"]>>,
-  jobType: JobType
-): string {
+function getMessageFromJob(job: BullJob, jobType: JobType): string {
   const progress = job.progress;
 
   if (
@@ -274,7 +281,7 @@ function getMessageFromJob(
  * Получить связанную сущность из job'а
  */
 function getEntityFromJob(
-  job: NonNullable<Awaited<ReturnType<typeof getAllQueues>[number]["getJob"]>>,
+  job: BullJob,
   jobType: JobType
 ): { entityId?: string; entityType?: "reel" | "generation" | "scrape" } {
   const data = job.data as Record<string, unknown>;

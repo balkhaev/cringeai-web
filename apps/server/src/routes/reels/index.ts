@@ -42,6 +42,35 @@ reelsRouter.route("/scrape", scrapeRouter);
 initScrapeWorkerHandler();
 
 // ============================================
+// JOBS ENDPOINTS
+// ============================================
+
+// Get all scrape jobs
+reelsRouter.get("/jobs", async (c) => {
+  try {
+    const { scrapeJobQueue } = await import(
+      "../../services/queues/scrape-queue"
+    );
+    const jobs = await scrapeJobQueue.getAllJobs();
+
+    return c.json(
+      jobs.map((job) => ({
+        id: job.id,
+        status: job.status,
+        sortMode: job.sortMode,
+        minLikes: job.minLikes,
+        progress: job.progress,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+      }))
+    );
+  } catch (error) {
+    console.error("Get jobs error:", error);
+    return c.json({ error: "Failed to get jobs" }, 500);
+  }
+});
+
+// ============================================
 // DOWNLOADS ENDPOINTS
 // ============================================
 
@@ -400,7 +429,7 @@ reelsRouter.get("/:id/debug", async (c) => {
     // Получаем ID генераций для этого рила
     const generations = await prisma.videoGeneration.findMany({
       where: {
-        analysis: { reelId: id },
+        analysis: { sourceId: id, sourceType: "reel" },
       },
       select: { id: true },
     });

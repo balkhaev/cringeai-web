@@ -293,7 +293,7 @@ export default function ReelDetailPage() {
   const isStatusAnimated =
     data.reel.status === "downloading" || data.reel.status === "analyzing";
 
-  const videoSource =
+  const _videoSource =
     data.reel.source === "reels" ? "reels" : data.reel.source || "reels";
 
   return (

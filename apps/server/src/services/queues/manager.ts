@@ -1,22 +1,48 @@
 import type { Queue, Worker } from "bullmq";
 import { redis } from "../redis";
 
-// Registry for all queues and workers
+// Registry for all queues and workers (используем Map для предотвращения дубликатов)
+const queuesMap = new Map<string, Queue>();
+const workersMap = new Map<string, Worker>();
+
+// Геттеры для обратной совместимости
 const queues: Queue[] = [];
 const workers: Worker[] = [];
 
 /**
  * Register a queue for management
+ * Предотвращает дублирование при hot-reload
  */
 export function registerQueue(queue: Queue): void {
+  const name = queue.name;
+
+  // Проверяем, не зарегистрирована ли уже очередь с таким именем
+  if (queuesMap.has(name)) {
+    console.log(`[Queues] Queue "${name}" already registered, skipping`);
+    return;
+  }
+
+  queuesMap.set(name, queue);
   queues.push(queue);
+  console.log(`[Queues] Queue "${name}" registered`);
 }
 
 /**
  * Register a worker for management
+ * Предотвращает дублирование при hot-reload
  */
 export function registerWorker(worker: Worker): void {
+  const name = worker.name;
+
+  // Проверяем, не зарегистрирован ли уже воркер с таким именем
+  if (workersMap.has(name)) {
+    console.log(`[Queues] Worker "${name}" already registered, skipping`);
+    return;
+  }
+
+  workersMap.set(name, worker);
   workers.push(worker);
+  console.log(`[Queues] Worker "${name}" registered`);
 }
 
 /**
@@ -155,7 +181,7 @@ export async function getQueueJobs(
     id: string;
     name: string;
     data: Record<string, unknown>;
-    progress: number | object;
+    progress: number | object | string | boolean;
     state: string;
     attemptsMade: number;
     failedReason?: string;

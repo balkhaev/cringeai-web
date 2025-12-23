@@ -137,9 +137,9 @@ const refreshRoute = createRoute({
 
 export const authRouter = new OpenAPIHono();
 
-authRouter.openapi(mobileAuthRoute, async (c) => {
+authRouter.openapi(mobileAuthRoute, (c) => {
   const authHeader = c.req.header("authorization");
-  if (!(authHeader && authHeader.startsWith("Basic "))) {
+  if (!authHeader?.startsWith("Basic ")) {
     return c.json({ error: "Missing or invalid Authorization header" }, 401);
   }
 
@@ -175,16 +175,24 @@ authRouter.openapi(mobileAuthRoute, async (c) => {
       },
       200
     );
-  } catch (e) {
+  } catch (_e) {
     return c.json({ error: "Failed to parse authentication token" }, 401);
   }
 });
 
-authRouter.openapi(refreshRoute, async (c) => {
+// JWT payload interface
+interface JwtPayload {
+  sub: string;
+  type: "access" | "refresh";
+  iat?: number;
+  exp?: number;
+}
+
+authRouter.openapi(refreshRoute, (c) => {
   const { refreshToken } = c.req.valid("json");
 
   try {
-    const payload = jwt.verify(refreshToken, JWT_SECRET) as any;
+    const payload = jwt.verify(refreshToken, JWT_SECRET) as JwtPayload;
     if (payload.type !== "refresh") {
       throw new Error("Invalid token type");
     }
@@ -202,7 +210,7 @@ authRouter.openapi(refreshRoute, async (c) => {
       },
       200
     );
-  } catch (e) {
+  } catch (_e) {
     return c.json({ error: "Invalid or expired refresh token" }, 401);
   }
 });

@@ -280,10 +280,15 @@ export const templatesRouter = new OpenAPIHono();
 
 templatesRouter.openapi(listTemplatesRoute, async (c) => {
   const query = c.req.valid("query");
-  const where: any = {};
+  // biome-ignore lint/suspicious/noExplicitAny: Prisma where clause dynamic building
+  const where: Record<string, unknown> = {};
 
-  if (query.category) where.category = query.category;
-  if (query.tag) where.tags = { has: query.tag };
+  if (query.category) {
+    where.category = query.category;
+  }
+  if (query.tag) {
+    where.tags = { has: query.tag };
+  }
   if (query.published !== undefined) {
     where.isPublished = query.published;
   } else {
@@ -342,7 +347,9 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
     },
   });
 
-  if (!template) return c.json({ error: "Template not found" }, 404);
+  if (!template) {
+    return c.json({ error: "Template not found" }, 404);
+  }
   return c.json({ template }, 200);
 });
 
@@ -356,7 +363,7 @@ templatesRouter.openapi(updateTemplateRoute, async (c) => {
       data,
     });
     return c.json({ template }, 200);
-  } catch (e) {
+  } catch (_e) {
     return c.json({ error: "Failed to update template" }, 404);
   }
 });
@@ -374,7 +381,9 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     include: { analysis: true, reel: true },
   });
 
-  if (!template) return c.json({ error: "Template not found" }, 404);
+  if (!template) {
+    return c.json({ error: "Template not found" }, 404);
+  }
 
   // Use public URL for Kling API (needs direct access to video file)
   const sourceVideoUrl = getReelVideoPublicUrl(template.reel);
@@ -408,7 +417,9 @@ templatesRouter.openapi(getGenerationsRoute, async (c) => {
     select: { analysisId: true },
   });
 
-  if (!template) return c.json({ error: "Template not found" }, 404);
+  if (!template) {
+    return c.json({ error: "Template not found" }, 404);
+  }
 
   const generations = await prisma.videoGeneration.findMany({
     where: { analysisId: template.analysisId },

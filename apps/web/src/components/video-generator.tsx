@@ -131,7 +131,7 @@ export function VideoGenerator({
   // Reset selections when analysis changes
   useEffect(() => {
     setElementSelections([]);
-  }, [currentAnalysis?.id]);
+  }, []);
 
   // Generation options
   const [duration, setDuration] = useState<number>(() => {

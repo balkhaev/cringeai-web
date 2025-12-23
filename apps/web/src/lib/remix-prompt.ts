@@ -28,10 +28,14 @@ export function buildElementPrompt(
   let elementIndex = 1;
 
   for (const selection of selections) {
-    if (!selection.selectedOptionId) continue;
+    if (!selection.selectedOptionId) {
+      continue;
+    }
 
     const element = elements.find((e) => e.id === selection.elementId);
-    if (!element) continue;
+    if (!element) {
+      continue;
+    }
 
     if (selection.customImageUrl) {
       // Custom image - use @Element reference

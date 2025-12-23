@@ -93,14 +93,26 @@ debugRouter.get("/logs", async (c) => {
       Parameters<typeof prisma.reelLog.findMany>[0]
     >["where"] = {};
 
-    if (level) where.level = level as "debug" | "info" | "warn" | "error";
-    if (stage) where.stage = stage;
-    if (reelId) where.reelId = reelId;
-    if (search) where.message = { contains: search, mode: "insensitive" };
+    if (level) {
+      where.level = level as "debug" | "info" | "warn" | "error";
+    }
+    if (stage) {
+      where.stage = stage;
+    }
+    if (reelId) {
+      where.reelId = reelId;
+    }
+    if (search) {
+      where.message = { contains: search, mode: "insensitive" };
+    }
     if (fromParam || toParam) {
       where.createdAt = {};
-      if (fromParam) where.createdAt.gte = new Date(fromParam);
-      if (toParam) where.createdAt.lte = new Date(toParam);
+      if (fromParam) {
+        where.createdAt.gte = new Date(fromParam);
+      }
+      if (toParam) {
+        where.createdAt.lte = new Date(toParam);
+      }
     }
 
     const [logs, total] = await Promise.all([
@@ -201,15 +213,12 @@ debugRouter.get("/reels/:reelId/logs", async (c) => {
     const stage = c.req.query("stage");
     const limit = Number.parseInt(c.req.query("limit") || "100", 10);
 
-    let logs;
-    if (stage) {
-      logs = await pipelineLogger.getLogsByStage(
-        reelId,
-        stage as "scrape" | "download" | "analyze" | "generate"
-      );
-    } else {
-      logs = await pipelineLogger.getReelLogs(reelId, limit);
-    }
+    const logs = stage
+      ? await pipelineLogger.getLogsByStage(
+          reelId,
+          stage as "scrape" | "download" | "analyze" | "generate"
+        )
+      : await pipelineLogger.getReelLogs(reelId, limit);
 
     const stats = await pipelineLogger.getStageStats(reelId);
     const recentErrors = await pipelineLogger.getRecentErrors(reelId, 5);

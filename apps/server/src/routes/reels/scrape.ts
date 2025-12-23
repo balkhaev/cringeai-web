@@ -103,7 +103,7 @@ export function initScrapeWorkerHandler(): void {
       console.log(`Saved ${savedCount}/${reels.length} reels to database`);
 
       // Add refresh-duration jobs for reels without duration
-      const reelsWithoutDuration = reels.filter((r) => r.duration == null);
+      const reelsWithoutDuration = reels.filter((r) => r.duration === null);
       if (reelsWithoutDuration.length > 0) {
         console.log(
           `Adding refresh-duration jobs for ${reelsWithoutDuration.length} reels without duration...`

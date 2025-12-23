@@ -1,6 +1,10 @@
 name: trender
 
 services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+
   postgres:
     image: postgres:16-bookworm
     container_name: trender-postgres
@@ -34,6 +38,154 @@ services:
       retries: 5
     restart: unless-stopped
 
+  minio:
+    image: minio/minio:latest
+    container_name: trender-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - trender_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # MinIO bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: trender-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/trender --ignore-existing;
+      mc anonymous set download local/trender;
+      echo 'MinIO bucket trender created and configured';
+      "
+
+  # ============================================
+  # Application Services
+  # ============================================
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: trender-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/trender
+      REDIS_URL: redis://redis:6379
+      INSTALOADER_SERVICE_URL: http://scrapper:8001
+      VIDEO_FRAMES_SERVICE_URL: http://video-frames:8002
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: trender
+      S3_REGION: us-east-1
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3001}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-secret-change-in-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      KLING_ACCESS_KEY: ${KLING_ACCESS_KEY}
+      KLING_SECRET_KEY: ${KLING_SECRET_KEY}
+      KLING_API_URL: ${KLING_API_URL:-https://api-singapore.klingai.com}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  video-frames:
+    build:
+      context: .
+      dockerfile: apps/video-frames/Dockerfile
+    container_name: trender-video-frames
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: 8002
+      RELOAD: "false"
+      FRAME_INTERVAL_SEC: "2.0"
+      MAX_FRAMES: "30"
+      JPEG_QUALITY: "85"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  scrapper:
+    build:
+      context: .
+      dockerfile: apps/scrapper/Dockerfile
+    container_name: trender-scrapper
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: 8001
+      DOWNLOADS_DIR: /app/downloads
+      SESSION_FILE: /app/session
+      INSTAGRAM_USER: ${INSTAGRAM_USER}
+      INSTAGRAM_PASS: ${INSTAGRAM_PASS}
+    volumes:
+      - trender_scrapper_downloads:/app/downloads
+      - trender_scrapper_session:/app/session
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: trender-web
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-http://localhost:3001}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   trender_postgres_data:
   trender_redis_data:
+  trender_minio_data:
+  trender_scrapper_downloads:
+  trender_scrapper_session:

@@ -11,9 +11,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Runtime tools for healthcheck + FFmpeg for frame extraction
+# Runtime tools for healthcheck + FFmpeg for frame extraction + OpenCV deps for PySceneDetect
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates ffmpeg && \
+    apt-get install -y --no-install-recommends \
+        curl ca-certificates ffmpeg \
+        # OpenCV dependencies for PySceneDetect
+        libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (skip if already exists)

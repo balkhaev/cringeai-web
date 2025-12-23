@@ -189,6 +189,42 @@ class ReelPipeline {
   }
 
   /**
+   * Создать шаблон внутри транзакции (для атомарного пересоздания)
+   */
+  private async createTemplateInTransaction(
+    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+    reelId: string,
+    analysisId: string
+  ): Promise<Template> {
+    const analysis = await tx.videoAnalysis.findUnique({
+      where: { id: analysisId },
+    });
+    if (!analysis) {
+      throw new Error(`Analysis ${analysisId} not found`);
+    }
+
+    const tags =
+      analysis.tags.length > 0 ? analysis.tags : this.extractTags(analysis);
+
+    const template = await tx.template.create({
+      data: {
+        reelId,
+        analysisId,
+        tags,
+        category: this.detectCategory(analysis),
+        isPublished: true,
+      },
+    });
+
+    await tx.reel.update({
+      where: { id: reelId },
+      data: { status: "analyzed" },
+    });
+
+    return template;
+  }
+
+  /**
    * Полная обработка рила: download -> analyze -> create template
    */
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-stage pipeline orchestration with conditional logic
@@ -268,11 +304,17 @@ class ReelPipeline {
     });
 
     if (!template || options.forceReprocess) {
-      // Удаляем старый шаблон если есть
+      // Используем транзакцию для атомарного удаления старого и создания нового шаблона
       if (template) {
-        await prisma.template.delete({ where: { id: template.id } });
+        // Удаляем старый шаблон и создаём новый в транзакции
+        const newTemplate = await prisma.$transaction(async (tx) => {
+          await tx.template.delete({ where: { id: template!.id } });
+          return this.createTemplateInTransaction(tx, reelId, analysis.id);
+        });
+        template = newTemplate;
+      } else {
+        template = await this.createTemplate(reelId, analysis.id);
       }
-      template = await this.createTemplate(reelId, analysis.id);
     }
 
     await pipelineLogger.info({

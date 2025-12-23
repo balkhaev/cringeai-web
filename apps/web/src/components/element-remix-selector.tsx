@@ -241,7 +241,9 @@ export function ElementRemixSelector({
   const updateSelection = useCallback(
     (elementId: string, update: Partial<ElementSelection>) => {
       const element = elements.find((e) => e.id === elementId);
-      if (!element) return;
+      if (!element) {
+        return;
+      }
 
       setSelections((prev) => {
         const existing = prev.find((s) => s.elementId === elementId);

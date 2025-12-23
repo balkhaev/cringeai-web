@@ -39,15 +39,13 @@ app.doc("/doc", {
     description:
       "API for video analysis, Instagram scraping, and AI video generation.",
   },
-  components: {
-    securitySchemes: {
-      BearerAuth: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "JWT",
-      },
-    },
-  },
+});
+
+// Register security scheme for OpenAPI
+app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "JWT",
 });
 
 // Swagger UI
@@ -56,10 +54,7 @@ app.get(
   apiReference({
     theme: "purple",
     layout: "modern",
-    // @ts-expect-error
-    spec: {
-      url: "/doc",
-    },
+    url: "/doc",
   })
 );
 
@@ -74,6 +69,10 @@ app.route("/api/jobs", jobsRouter);
 app.route("/api/trim", trimRouter);
 app.route("/api/debug", debugRouter);
 app.route("/api/v1/auth", authRouter);
+
+// Scene-based analysis and generation
+const scenesRouter = await import("./routes/scenes");
+app.route("/api/scenes", scenesRouter.default);
 
 app.get("/", (c) => c.text("OK"));
 

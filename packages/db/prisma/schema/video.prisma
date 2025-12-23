@@ -3,7 +3,7 @@ model VideoAnalysis {
   sourceType   String // "upload", "reel", "url"
   sourceId     String? // reelId if from reel
   fileName     String?
-  analysisType String @default("standard") // "standard" | "frames"
+  analysisType String @default("standard") // "standard" | "frames" | "scenes"
 
   // Core fields
   duration     Int?   // Длительность в секундах
@@ -11,6 +11,10 @@ model VideoAnalysis {
 
   // Smart Remix Elements - main data
   elements     Json @default("[]") // [{id, type, label, description, remixOptions}]
+
+  // Scene-based analysis
+  hasScenes    Boolean @default(false) // Флаг: есть ли разбиение на сцены
+  scenesCount  Int?                     // Количество сцен
 
   // Legacy fields (kept for old analyses, optional now)
   subject      String @default("")
@@ -45,6 +49,8 @@ model VideoAnalysis {
   // Relations
   generations VideoGeneration[]
   template    Template?
+  videoScenes VideoScene[]
+  compositeGenerations CompositeGeneration[]
 
   @@index([sourceType])
   @@index([sourceId])
@@ -100,4 +106,108 @@ model VideoGeneration {
   @@index([status])
   @@index([klingTaskId])
   @@index([remixSource])
+}
+
+// Scene in a video (detected by PySceneDetect)
+model VideoScene {
+  id           String   @id @default(uuid())
+  analysisId   String
+  analysis     VideoAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  // Scene position
+  index        Int              // Sequential number (0, 1, 2...)
+  startTime    Float            // Start time in seconds
+  endTime      Float            // End time in seconds
+  duration     Float            // Duration in seconds
+
+  // Preview
+  thumbnailUrl    String?       // URL of scene thumbnail
+  thumbnailS3Key  String?       // S3 key of thumbnail
+
+  // Elements detected in this scene
+  elements     Json @default("[]")  // [{id, type, label, description, remixOptions}]
+
+  // Generation status for this scene
+  generationStatus String @default("none")  // "none" | "pending" | "processing" | "completed" | "original"
+
+  createdAt    DateTime @default(now())
+
+  // Relations
+  generations  SceneGeneration[]
+
+  @@unique([analysisId, index])
+  @@index([analysisId])
+  @@index([generationStatus])
+}
+
+// Generation for a specific scene
+model SceneGeneration {
+  id           String   @id @default(uuid())
+  sceneId      String
+  scene        VideoScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+
+  // BullMQ link
+  jobId        String?  @unique
+
+  // Selected elements and options for remix
+  selectedElements Json @default("[]")  // [{elementId, selectedOptionId, prompt}]
+  prompt       String              // Full prompt for Kling
+
+  // Kling API
+  provider     String @default("kling")
+  status       String @default("pending")  // pending, processing, completed, failed
+  klingTaskId  String?
+
+  // Result
+  videoUrl     String?
+  s3Key        String?
+  error        String?
+
+  // Progress
+  progress        Int       @default(0)      // 0-100%
+  progressStage   String    @default("pending") // "pending" | "trimming" | "generating" | "downloading" | "uploading"
+  progressMessage String    @default("")
+  lastActivityAt  DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+
+  @@index([sceneId])
+  @@index([status])
+  @@index([klingTaskId])
+}
+
+// Composite generation (concatenation of all scenes)
+model CompositeGeneration {
+  id           String   @id @default(uuid())
+  analysisId   String
+  analysis     VideoAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  // BullMQ link
+  jobId        String?  @unique
+
+  // Configuration: which scenes to use
+  sceneConfig  Json @default("[]")  // [{sceneId, sceneIndex, useOriginal: boolean, generationId?: string}]
+
+  // Status
+  status       String @default("pending")  // pending, waiting, generating, concatenating, uploading, completed, failed
+
+  // Result
+  videoUrl     String?
+  s3Key        String?
+  error        String?
+
+  // Progress
+  progress        Int       @default(0)      // 0-100%
+  progressStage   String    @default("pending") // "pending" | "waiting" | "concatenating" | "uploading" | "completed"
+  progressMessage String    @default("")
+  lastActivityAt  DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+
+  @@index([analysisId])
+  @@index([status])
 }

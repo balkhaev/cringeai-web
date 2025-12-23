@@ -108,8 +108,12 @@ export async function getDebugStats(
   to?: string
 ): Promise<DebugStats> {
   const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
 
   const response = await fetch(`${API_URL}/api/debug/stats?${params}`, {
     credentials: "include",
@@ -129,14 +133,30 @@ export async function getDebugLogs(
   filter: LogsFilter = {}
 ): Promise<{ logs: ReelLog[]; total: number; limit: number; offset: number }> {
   const params = new URLSearchParams();
-  if (filter.level) params.set("level", filter.level);
-  if (filter.stage) params.set("stage", filter.stage);
-  if (filter.reelId) params.set("reelId", filter.reelId);
-  if (filter.search) params.set("search", filter.search);
-  if (filter.from) params.set("from", filter.from);
-  if (filter.to) params.set("to", filter.to);
-  if (filter.limit) params.set("limit", filter.limit.toString());
-  if (filter.offset) params.set("offset", filter.offset.toString());
+  if (filter.level) {
+    params.set("level", filter.level);
+  }
+  if (filter.stage) {
+    params.set("stage", filter.stage);
+  }
+  if (filter.reelId) {
+    params.set("reelId", filter.reelId);
+  }
+  if (filter.search) {
+    params.set("search", filter.search);
+  }
+  if (filter.from) {
+    params.set("from", filter.from);
+  }
+  if (filter.to) {
+    params.set("to", filter.to);
+  }
+  if (filter.limit) {
+    params.set("limit", filter.limit.toString());
+  }
+  if (filter.offset) {
+    params.set("offset", filter.offset.toString());
+  }
 
   const response = await fetch(`${API_URL}/api/debug/logs?${params}`, {
     credentials: "include",
@@ -156,14 +176,30 @@ export async function getAILogs(
   filter: AILogsFilter = {}
 ): Promise<{ logs: AILog[]; total: number; limit: number; offset: number }> {
   const params = new URLSearchParams();
-  if (filter.provider) params.set("provider", filter.provider);
-  if (filter.operation) params.set("operation", filter.operation);
-  if (filter.status) params.set("status", filter.status);
-  if (filter.reelId) params.set("reelId", filter.reelId);
-  if (filter.from) params.set("from", filter.from);
-  if (filter.to) params.set("to", filter.to);
-  if (filter.limit) params.set("limit", filter.limit.toString());
-  if (filter.offset) params.set("offset", filter.offset.toString());
+  if (filter.provider) {
+    params.set("provider", filter.provider);
+  }
+  if (filter.operation) {
+    params.set("operation", filter.operation);
+  }
+  if (filter.status) {
+    params.set("status", filter.status);
+  }
+  if (filter.reelId) {
+    params.set("reelId", filter.reelId);
+  }
+  if (filter.from) {
+    params.set("from", filter.from);
+  }
+  if (filter.to) {
+    params.set("to", filter.to);
+  }
+  if (filter.limit) {
+    params.set("limit", filter.limit.toString());
+  }
+  if (filter.offset) {
+    params.set("offset", filter.offset.toString());
+  }
 
   const response = await fetch(`${API_URL}/api/debug/ai-logs?${params}`, {
     credentials: "include",
@@ -184,8 +220,12 @@ export async function getAIMetrics(
   to?: string
 ): Promise<{ metrics: AIMetrics[] }> {
   const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
 
   const response = await fetch(`${API_URL}/api/debug/ai-metrics?${params}`, {
     credentials: "include",
@@ -216,8 +256,12 @@ export async function getReelLogs(
   recentErrors: ReelLog[];
 }> {
   const params = new URLSearchParams();
-  if (stage) params.set("stage", stage);
-  if (limit) params.set("limit", limit.toString());
+  if (stage) {
+    params.set("stage", stage);
+  }
+  if (limit) {
+    params.set("limit", limit.toString());
+  }
 
   const response = await fetch(
     `${API_URL}/api/debug/reels/${reelId}/logs?${params}`,
@@ -254,10 +298,16 @@ export async function cleanupLogs(olderThanDays = 30): Promise<{
 
 // Helper functions
 export function formatDuration(ms: number | null | undefined): string {
-  if (ms === null || ms === undefined) return "-";
-  if (ms < 1000) return `${ms}ms`;
+  if (ms === null || ms === undefined) {
+    return "-";
+  }
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
   const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
   return `${minutes}m ${remainingSeconds}s`;

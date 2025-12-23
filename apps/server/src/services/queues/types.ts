@@ -32,12 +32,16 @@ export type PipelineJobData = {
     | "analyze"
     | "analyze-frames"
     | "analyze-enchanting"
+    | "analyze-scenes"
     | "refresh-duration";
   options?: {
     skipDownload?: boolean;
     skipAnalysis?: boolean;
     forceReprocess?: boolean;
     useFrames?: boolean;
+    // Scene analysis options
+    threshold?: number;
+    minSceneLen?: number;
   };
 };
 
@@ -105,4 +109,73 @@ export type QueueJobInfo = {
   createdAt: Date;
   finishedAt?: Date;
   failedReason?: string;
+};
+
+// Scene Generation Queue (single scene Kling generation)
+export type SceneGenJobData = {
+  sceneGenerationId: string;
+  sceneId: string;
+  analysisId: string;
+  prompt: string;
+  sourceVideoUrl: string;
+  startTime: number;
+  endTime: number;
+  options?: {
+    duration?: number;
+    aspectRatio?: "16:9" | "9:16" | "1:1" | "auto";
+    keepAudio?: boolean;
+    imageUrls?: string[];
+    elements?: KlingImageElement[];
+  };
+};
+
+export type SceneGenJobProgress = {
+  stage: "pending" | "trimming" | "generating" | "downloading" | "uploading";
+  percent: number;
+  message: string;
+  klingProgress?: number;
+};
+
+export type SceneGenJobResult = {
+  sceneGenerationId: string;
+  videoUrl?: string;
+  s3Key?: string;
+  klingTaskId?: string;
+  error?: string;
+};
+
+// Composite Generation Queue (concatenate scenes)
+export type CompositeGenJobData = {
+  compositeGenerationId: string;
+  analysisId: string;
+  sourceVideoUrl: string;
+  sceneConfigs: {
+    sceneId: string;
+    sceneIndex: number;
+    useOriginal: boolean;
+    generationId?: string;
+    startTime: number;
+    endTime: number;
+  }[];
+};
+
+export type CompositeGenJobProgress = {
+  stage:
+    | "pending"
+    | "waiting"
+    | "preparing"
+    | "concatenating"
+    | "uploading"
+    | "completed";
+  percent: number;
+  message: string;
+  completedScenes?: number;
+  totalScenes?: number;
+};
+
+export type CompositeGenJobResult = {
+  compositeGenerationId: string;
+  videoUrl?: string;
+  s3Key?: string;
+  error?: string;
 };

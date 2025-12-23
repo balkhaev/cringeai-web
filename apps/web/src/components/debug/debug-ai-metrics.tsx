@@ -92,17 +92,15 @@ export function DebugAIMetrics() {
                   </div>
                   {(metric.totalInputTokens > 0 ||
                     metric.totalOutputTokens > 0) && (
-                    <>
-                      <div className="col-span-2 border-t pt-2">
-                        <div className="mb-1 text-muted-foreground text-sm">
-                          Токены (вход / выход)
-                        </div>
-                        <div className="font-mono text-sm">
-                          {metric.totalInputTokens.toLocaleString()} /{" "}
-                          {metric.totalOutputTokens.toLocaleString()}
-                        </div>
+                    <div className="col-span-2 border-t pt-2">
+                      <div className="mb-1 text-muted-foreground text-sm">
+                        Токены (вход / выход)
                       </div>
-                    </>
+                      <div className="font-mono text-sm">
+                        {metric.totalInputTokens.toLocaleString()} /{" "}
+                        {metric.totalOutputTokens.toLocaleString()}
+                      </div>
+                    </div>
                   )}
                 </div>
               </CardContent>

@@ -11,7 +11,7 @@ export type EntityType = "reel" | "generation" | "scrape";
 /**
  * Унифицированный ответ для всех типов job'ов
  */
-export interface UnifiedJobResponse {
+export type UnifiedJobResponse = {
   id: string; // jobId из BullMQ
   type: JobType;
   status: JobStatus;
@@ -35,12 +35,12 @@ export interface UnifiedJobResponse {
   createdAt: string;
   startedAt?: string;
   finishedAt?: string;
-}
+};
 
 /**
  * Результат выполнения job'а
  */
-export interface JobResult {
+export type JobResult = {
   // Scrape
   reelsCount?: number;
   downloadedCount?: number;
@@ -54,17 +54,17 @@ export interface JobResult {
   generationId?: string;
   videoUrl?: string;
   s3Key?: string;
-}
+};
 
 /**
  * Фильтры для списка job'ов
  */
-export interface JobFilters {
+export type JobFilters = {
   type?: JobType;
   status?: JobStatus;
   limit?: number;
   offset?: number;
-}
+};
 
 /**
  * Маппинг состояний BullMQ на унифицированные статусы
@@ -90,15 +90,19 @@ export function mapBullStateToStatus(state: string | undefined): JobStatus {
  * Определяет тип job'а по его ID
  */
 export function getJobTypeFromId(jobId: string): JobType | null {
-  if (jobId.startsWith("scrape-")) return "scrape";
+  if (jobId.startsWith("scrape-")) {
+    return "scrape";
+  }
   if (
     jobId.startsWith("process-") ||
     jobId.startsWith("download-") ||
     jobId.startsWith("analyze-")
-  )
+  ) {
     return "pipeline";
+  }
   // Support both old (gen-) and new (video-gen-) formats
-  if (jobId.startsWith("video-gen-") || jobId.startsWith("gen-"))
+  if (jobId.startsWith("video-gen-") || jobId.startsWith("gen-")) {
     return "video-gen";
+  }
   return null;
 }

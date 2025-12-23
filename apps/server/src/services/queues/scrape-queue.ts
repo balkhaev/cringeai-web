@@ -271,6 +271,7 @@ class ScrapeJobQueue {
 
   /**
    * Update job progress
+   * Обновляет Prisma и BullMQ атомарно (насколько возможно)
    */
   async updateJobProgress(
     id: string,
@@ -288,25 +289,46 @@ class ScrapeJobQueue {
       updateData.downloaded = progressUpdate.downloaded;
     }
 
-    if (Object.keys(updateData).length > 0) {
-      await prisma.scrapeJob.updateMany({
-        where: { jobId: id },
-        data: updateData,
-      });
+    if (Object.keys(updateData).length === 0) {
+      return;
     }
 
-    // Also update BullMQ job progress (percentage)
-    const bullJob = await scrapeQueue.getJob(id);
-    if (bullJob) {
-      const dbJob = await prisma.scrapeJob.findFirst({
-        where: { jobId: id },
-      });
+    // Получаем текущее состояние и BullMQ job до обновления
+    const [dbJob, bullJob] = await Promise.all([
+      prisma.scrapeJob.findFirst({ where: { jobId: id } }),
+      scrapeQueue.getJob(id),
+    ]);
 
-      if (dbJob) {
-        const percent =
-          dbJob.limit > 0 ? Math.round((dbJob.found / dbJob.limit) * 100) : 0;
-        await bullJob.updateProgress(percent);
-      }
+    if (!dbJob) {
+      console.warn(`[ScrapeQueue] Job ${id} not found in database`);
+      return;
+    }
+
+    // Вычисляем новые значения
+    const newFound = progressUpdate.found ?? dbJob.found;
+    const percent =
+      dbJob.limit > 0 ? Math.round((newFound / dbJob.limit) * 100) : 0;
+
+    // Обновляем оба хранилища параллельно для минимизации рассинхронизации
+    const updatePromises: Promise<unknown>[] = [
+      prisma.scrapeJob.update({
+        where: { id: dbJob.id },
+        data: updateData,
+      }),
+    ];
+
+    if (bullJob) {
+      updatePromises.push(bullJob.updateProgress(percent));
+    }
+
+    try {
+      await Promise.all(updatePromises);
+    } catch (error) {
+      console.error(
+        `[ScrapeQueue] Error updating progress for job ${id}:`,
+        error
+      );
+      // Не пробрасываем ошибку - прогресс не критичен
     }
   }
 

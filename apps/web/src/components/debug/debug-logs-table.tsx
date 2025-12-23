@@ -147,91 +147,89 @@ export function DebugLogsTable() {
                     key={log.id}
                     open={expandedRows.has(log.id)}
                   >
-                    <>
-                      <TableRow className="cursor-pointer hover:bg-muted/50">
-                        <TableCell>
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              className="h-6 w-6 p-0"
-                              onClick={() => toggleRow(log.id)}
-                              size="sm"
-                              variant="ghost"
-                            >
-                              {expandedRows.has(log.id) ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </CollapsibleTrigger>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={getLogLevelColor(log.level)}
-                            variant="outline"
+                    <TableRow className="cursor-pointer hover:bg-muted/50">
+                      <TableCell>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            className="h-6 w-6 p-0"
+                            onClick={() => toggleRow(log.id)}
+                            size="sm"
+                            variant="ghost"
                           >
-                            {log.level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{log.stage}</Badge>
-                        </TableCell>
-                        <TableCell className="max-w-md truncate">
-                          {log.message}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDuration(log.duration)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {new Date(log.createdAt).toLocaleString("ru")}
+                            {expandedRows.has(log.id) ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={getLogLevelColor(log.level)}
+                          variant="outline"
+                        >
+                          {log.level}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{log.stage}</Badge>
+                      </TableCell>
+                      <TableCell className="max-w-md truncate">
+                        {log.message}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDuration(log.duration)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {new Date(log.createdAt).toLocaleString("ru")}
+                      </TableCell>
+                    </TableRow>
+                    <CollapsibleContent asChild>
+                      <TableRow className="bg-muted/30">
+                        <TableCell className="p-4" colSpan={6}>
+                          <div className="space-y-2">
+                            <div>
+                              <span className="font-medium">Reel ID:</span>{" "}
+                              <code className="rounded bg-muted px-1 text-xs">
+                                {log.reelId}
+                              </code>
+                            </div>
+                            <div>
+                              <span className="font-medium">Сообщение:</span>{" "}
+                              {log.message}
+                            </div>
+                            {log.metadata &&
+                              Object.keys(log.metadata).length > 0 && (
+                                <div>
+                                  <span className="font-medium">
+                                    Метаданные:
+                                  </span>
+                                  <div className="mt-1 flex flex-wrap gap-2">
+                                    {Object.entries(log.metadata).map(
+                                      ([key, value]) => (
+                                        <span
+                                          className="rounded bg-muted px-2 py-1 text-xs"
+                                          key={key}
+                                        >
+                                          <span className="text-muted-foreground">
+                                            {key}:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {typeof value === "object"
+                                              ? JSON.stringify(value)
+                                              : String(value)}
+                                          </span>
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                          </div>
                         </TableCell>
                       </TableRow>
-                      <CollapsibleContent asChild>
-                        <TableRow className="bg-muted/30">
-                          <TableCell className="p-4" colSpan={6}>
-                            <div className="space-y-2">
-                              <div>
-                                <span className="font-medium">Reel ID:</span>{" "}
-                                <code className="rounded bg-muted px-1 text-xs">
-                                  {log.reelId}
-                                </code>
-                              </div>
-                              <div>
-                                <span className="font-medium">Сообщение:</span>{" "}
-                                {log.message}
-                              </div>
-                              {log.metadata &&
-                                Object.keys(log.metadata).length > 0 && (
-                                  <div>
-                                    <span className="font-medium">
-                                      Метаданные:
-                                    </span>
-                                    <div className="mt-1 flex flex-wrap gap-2">
-                                      {Object.entries(log.metadata).map(
-                                        ([key, value]) => (
-                                          <span
-                                            className="rounded bg-muted px-2 py-1 text-xs"
-                                            key={key}
-                                          >
-                                            <span className="text-muted-foreground">
-                                              {key}:
-                                            </span>{" "}
-                                            <span className="font-medium">
-                                              {typeof value === "object"
-                                                ? JSON.stringify(value)
-                                                : String(value)}
-                                            </span>
-                                          </span>
-                                        )
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      </CollapsibleContent>
-                    </>
+                    </CollapsibleContent>
                   </Collapsible>
                 ))}
                 {filteredLogs.length === 0 && (
