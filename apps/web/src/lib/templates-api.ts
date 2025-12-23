@@ -12,30 +12,20 @@ export type TemplateReel = {
 
 // Remix option for element transformation
 export type RemixOption = {
-  id: string; // "opt-1", "opt-2", etc.
-  label: string; // "Cyberpunk Robot"
-  icon: string; // emoji
-  prompt: string; // "Transform the [element] into..."
-};
-
-// Detectable element in video for context-aware remix
-export type DetectableElement = {
-  id: string; // "char-1", "obj-1", "bg-1" or "scene0-char-1" for scene-based
-  type: "character" | "object" | "background";
-  label: string; // "Young Woman", "Coffee Cup", "Kitchen"
-  description: string; // Detailed description
-  remixOptions: RemixOption[]; // 4 transformation options
+  id: string;
+  label: string;
+  icon: string;
+  prompt: string;
 };
 
 // Element appearance in a scene
 export type ElementAppearance = {
-  sceneId: string;
   sceneIndex: number;
   startTime: number;
   endTime: number;
 };
 
-// Video element with scene appearances (new unified model)
+// Video element with scene appearances
 export type VideoElement = {
   id: string;
   type: "character" | "object" | "background";
@@ -46,7 +36,7 @@ export type VideoElement = {
   thumbnailUrl?: string | null;
 };
 
-// Scene detected by PySceneDetect with its own elements
+// Scene detected by PySceneDetect
 export type VideoScene = {
   id: string;
   index: number;
@@ -55,8 +45,7 @@ export type VideoScene = {
   duration: number;
   thumbnailUrl: string | null;
   thumbnailS3Key: string | null;
-  elements: DetectableElement[]; // Legacy: per-scene elements
-  elementIds?: string[]; // New: references to VideoElement IDs
+  elementIds: string[];
   generationStatus:
     | "none"
     | "pending"
@@ -65,52 +54,23 @@ export type VideoScene = {
     | "original";
 };
 
-export type AnalysisType = "standard" | "frames" | "enchanting" | "scenes";
+export type AnalysisType = "standard" | "frames" | "scenes";
 
-// Analysis type - focused on elements for remix
-// Legacy fields are kept for backward compatibility with old analyses
+// Analysis result with unified elements
 export type TemplateAnalysis = {
   id: string;
   analysisType: AnalysisType;
   createdAt?: string;
   duration: number | null;
   aspectRatio: string;
-  // Main data - Smart Remix Elements (legacy)
-  elements?: DetectableElement[];
-  // New unified elements with appearances
+  style?: string;
+  klingPrompt?: string;
+  tags?: string[];
+  // Unified elements with scene appearances
   videoElements?: VideoElement[];
-  // Scene-based analysis data
-  hasScenes?: boolean;
+  // Scene data
   scenesCount?: number;
   videoScenes?: VideoScene[];
-  // Legacy fields (optional, for backward compatibility)
-  subject?: string;
-  action?: string;
-  environment?: string;
-  cameraStyle?: string;
-  mood?: string;
-  colorPalette?: string;
-  style?: string;
-  lighting?: string;
-  klingPrompt?: string;
-  veo3Prompt?: string;
-  tags?: string[];
-  scenes?: { timestamp: string; description: string; action: string }[];
-  characters?: {
-    id: string;
-    age: string;
-    gender: string;
-    appearance: string;
-    clothing: string;
-    actions: string;
-  }[];
-  cameraMovements?: {
-    type: string;
-    direction: string;
-    speed: string;
-    startTime: string;
-    endTime: string;
-  }[];
 };
 
 export type Template = {

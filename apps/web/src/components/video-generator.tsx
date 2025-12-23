@@ -3,9 +3,10 @@
 import { Clock, Film, Loader2, Settings2, Sparkles, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FlatElementList } from "@/components/flat-element-list";
-import { type ElementSelection, RemixEditor } from "@/components/remix-editor";
-import { SceneElements } from "@/components/scene-elements";
+import {
+  type ElementSelection,
+  FlatElementList,
+} from "@/components/flat-element-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,26 +172,9 @@ export function VideoGenerator({
     }
   }, [currentAnalysis]);
 
-  // Collect all elements (from scenes if available, otherwise from analysis)
-  const allElements = useMemo(() => {
-    // Prefer new videoElements if available
-    if (
-      currentAnalysis?.videoElements &&
-      currentAnalysis.videoElements.length > 0
-    ) {
-      return currentAnalysis.videoElements;
-    }
-    if (currentAnalysis?.hasScenes && currentAnalysis?.videoScenes) {
-      return currentAnalysis.videoScenes.flatMap((s) => s.elements || []);
-    }
-    return currentAnalysis?.elements || [];
-  }, [currentAnalysis]);
-
-  // Check if we have new unified videoElements
-  const hasUnifiedElements = useMemo(
-    () =>
-      currentAnalysis?.videoElements &&
-      currentAnalysis.videoElements.length > 0,
+  // Collect all elements from videoElements
+  const allElements = useMemo(
+    () => currentAnalysis?.videoElements || [],
     [currentAnalysis]
   );
 
@@ -326,74 +310,37 @@ export function VideoGenerator({
                     {/* Analysis Results */}
                     <AnalysisResults analysis={analysis} />
 
-                    {/* Remix Editor, FlatElementList or Scene Elements */}
-                    <div className="space-y-2">
-                      <Label className="font-medium text-sm">
-                        Элементы для замены
-                      </Label>
-                      {/* New: FlatElementList for unified videoElements */}
-                      {hasUnifiedElements &&
-                      analysis.videoElements &&
-                      analysis.videoScenes ? (
-                        <FlatElementList
-                          disabled={isGenerating}
-                          elements={analysis.videoElements}
-                          key={`flat-${analysis.id}`}
-                          onSelectionsChange={handleSelectionsChange}
-                          scenes={analysis.videoScenes}
-                        />
-                      ) : /* Legacy: SceneElements for scene-based analysis */
-                      analysis.hasScenes &&
-                        analysis.videoScenes &&
-                        analysis.videoScenes.length > 0 ? (
-                        <SceneElements
-                          disabled={isGenerating}
-                          key={analysis.id}
-                          onSelectionsChange={handleSelectionsChange}
-                          scenes={analysis.videoScenes}
-                        />
-                      ) : (
-                        <RemixEditor
-                          analysis={analysis}
-                          disabled={isGenerating}
-                          key={analysis.id}
-                          onSelectionsChange={handleSelectionsChange}
-                        />
-                      )}
-                    </div>
-
-                    {/* Prompt Preview - only for non-scene mode */}
-                    {canGenerateNow &&
-                      !(
-                        analysis.hasScenes &&
-                        analysis.videoScenes &&
-                        analysis.videoScenes.length > 0
-                      ) && (
+                    {/* Element List */}
+                    {analysis.videoElements &&
+                      analysis.videoElements.length > 0 &&
+                      analysis.videoScenes && (
                         <div className="space-y-2">
                           <Label className="font-medium text-sm">
-                            Сгенерированный промпт
+                            Элементы для замены
                           </Label>
-                          <div className="rounded-lg border bg-surface-1 p-3">
-                            <p className="font-mono text-sm text-violet-200">
-                              {generatedPrompt}
-                            </p>
-                          </div>
+                          <FlatElementList
+                            disabled={isGenerating}
+                            elements={analysis.videoElements}
+                            key={analysis.id}
+                            onSelectionsChange={handleSelectionsChange}
+                            scenes={analysis.videoScenes}
+                          />
                         </div>
                       )}
 
-                    {/* Scene-based info */}
-                    {analysis.hasScenes &&
-                      analysis.videoScenes &&
-                      analysis.videoScenes.length > 0 &&
-                      canGenerateNow && (
-                        <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3">
-                          <p className="text-sm text-violet-200">
-                            <Sparkles className="mr-1 inline h-4 w-4" />
-                            Каждая сцена будет сгенерирована со своим промптом.
-                            Промпты показаны внутри каждой сцены выше.
+                    {/* Prompt Preview */}
+                    {canGenerateNow && (
+                      <div className="space-y-2">
+                        <Label className="font-medium text-sm">
+                          Сгенерированный промпт
+                        </Label>
+                        <div className="rounded-lg border bg-surface-1 p-3">
+                          <p className="font-mono text-sm text-violet-200">
+                            {generatedPrompt}
                           </p>
                         </div>
-                      )}
+                      </div>
+                    )}
 
                     {/* Generation Options */}
                     <div className="flex flex-wrap items-center gap-4">
@@ -493,14 +440,7 @@ export function VideoGenerator({
 }
 
 function AnalysisResults({ analysis }: { analysis: TemplateAnalysis }) {
-  // Count total elements (from scenes if available)
-  const totalElements =
-    analysis.hasScenes && analysis.videoScenes
-      ? analysis.videoScenes.reduce(
-          (sum, s) => sum + (s.elements?.length || 0),
-          0
-        )
-      : analysis.elements?.length || 0;
+  const totalElements = analysis.videoElements?.length || 0;
 
   return (
     <div className="space-y-3 rounded-lg border bg-surface-1/50 p-3">
@@ -519,7 +459,7 @@ function AnalysisResults({ analysis }: { analysis: TemplateAnalysis }) {
           </Badge>
         )}
         <Badge variant="outline">{analysis.aspectRatio}</Badge>
-        {analysis.hasScenes && analysis.scenesCount && (
+        {analysis.scenesCount && analysis.scenesCount > 0 && (
           <Badge variant="outline">{analysis.scenesCount} сцен</Badge>
         )}
         {totalElements > 0 && (

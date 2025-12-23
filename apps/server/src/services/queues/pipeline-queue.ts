@@ -101,28 +101,39 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
         }
 
         case "analyze-enchanting": {
+          // Redirect to unified analysis (scenes + ChatGPT options)
+          const { analyzeReelUnified } = await import(
+            "../analysis/scene-analysis.service"
+          );
+
           await updateProgress(
             job,
             "analyze",
             20,
-            "Starting enchanting analysis (Gemini + ChatGPT)..."
+            "Starting unified analysis (PySceneDetect + Gemini + ChatGPT)..."
           );
 
-          const analysisEnchanting =
-            await reelPipeline.analyzeReelEnchanting(reelId);
-          await job.updateProgress(70);
-
-          await updateProgress(job, "template", 80, "Creating template...");
-          const templateEnchanting = await reelPipeline.createTemplate(
+          const analysisUnified = await analyzeReelUnified(
             reelId,
-            analysisEnchanting.id
+            {
+              updateStatus: reelPipeline.updateStatus.bind(reelPipeline),
+              updateProgress: reelPipeline.updateProgress.bind(reelPipeline),
+            },
+            options as { threshold?: number; minSceneLen?: number }
+          );
+          await job.updateProgress(90);
+
+          await updateProgress(job, "template", 95, "Creating template...");
+          const templateUnified = await reelPipeline.createTemplate(
+            reelId,
+            analysisUnified.id
           );
 
           await job.updateProgress(100);
           return {
             reelId,
-            analysisId: analysisEnchanting.id,
-            templateId: templateEnchanting.id,
+            analysisId: analysisUnified.id,
+            templateId: templateUnified.id,
           };
         }
 
@@ -145,7 +156,8 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
         }
 
         case "analyze-scenes": {
-          const { sceneAnalysisService } = await import(
+          // Use unified analysis
+          const { analyzeReelUnified } = await import(
             "../analysis/scene-analysis.service"
           );
 
@@ -153,18 +165,17 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
             job,
             "analyze",
             20,
-            "Starting scene-based analysis (PySceneDetect + Gemini)..."
+            "Starting unified analysis (PySceneDetect + Gemini + ChatGPT)..."
           );
 
-          const analysisScenes =
-            await sceneAnalysisService.analyzeReelWithScenes(
-              reelId,
-              {
-                updateStatus: reelPipeline.updateStatus.bind(reelPipeline),
-                updateProgress: reelPipeline.updateProgress.bind(reelPipeline),
-              },
-              options as { threshold?: number; minSceneLen?: number }
-            );
+          const analysisScenes = await analyzeReelUnified(
+            reelId,
+            {
+              updateStatus: reelPipeline.updateStatus.bind(reelPipeline),
+              updateProgress: reelPipeline.updateProgress.bind(reelPipeline),
+            },
+            options as { threshold?: number; minSceneLen?: number }
+          );
 
           await job.updateProgress(90);
 

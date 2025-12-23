@@ -180,33 +180,28 @@ app.openapi(generateRoute, async (c) => {
         }),
       ]);
 
-      // Helper to get elements for a specific scene
-      const getElementsForScene = (sceneIndex: number) => {
-        if (videoElements.length > 0) {
-          // Use new unified VideoElements with appearances
-          return videoElements
-            .filter((el) => {
-              const appearances = el.appearances as Array<{
-                sceneIndex: number;
-                startTime: number;
-                endTime: number;
-              }>;
-              return appearances.some((a) => a.sceneIndex === sceneIndex);
-            })
-            .map((el) => ({
-              id: el.id,
-              type: el.type,
-              label: el.label,
-              description: el.description,
-              remixOptions: el.remixOptions as Array<{
-                id: string;
-                label: string;
-                prompt: string;
-              }>,
-            }));
-        }
-        return null; // Fallback to legacy scene.elements
-      };
+      // Helper to get VideoElements for a specific scene
+      const getElementsForScene = (sceneIndex: number) =>
+        videoElements
+          .filter((el) => {
+            const appearances = el.appearances as Array<{
+              sceneIndex: number;
+              startTime: number;
+              endTime: number;
+            }>;
+            return appearances.some((a) => a.sceneIndex === sceneIndex);
+          })
+          .map((el) => ({
+            id: el.id,
+            type: el.type,
+            label: el.label,
+            description: el.description,
+            remixOptions: el.remixOptions as Array<{
+              id: string;
+              label: string;
+              prompt: string;
+            }>,
+          }));
 
       // Build scene configs and start generation for each modified scene
       const sceneConfigs: Array<{
@@ -235,38 +230,24 @@ app.openapi(generateRoute, async (c) => {
           let scenePrompt = finalPrompt;
           let sceneImageUrls = configData.referenceImages;
 
-          // If scene has its own elementSelections, build prompt from them
+          // If scene has element selections, build prompt from VideoElements
           if (
             selection.elementSelections &&
             selection.elementSelections.length > 0
           ) {
-            // Try to get unified VideoElements for this scene first
-            const unifiedElements = getElementsForScene(scene.index);
+            const sceneElements = getElementsForScene(scene.index);
 
-            // Fallback to legacy scene.elements if no unified elements
-            const sceneElements =
-              unifiedElements ??
-              (scene.elements as Array<{
-                id: string;
-                type: string;
-                label: string;
-                description: string;
-                remixOptions: Array<{
-                  id: string;
-                  label: string;
-                  prompt: string;
-                }>;
-              }>);
+            if (sceneElements && sceneElements.length > 0) {
+              const { prompt: builtPrompt, imageUrls } =
+                buildPromptFromSelections(
+                  sceneElements,
+                  selection.elementSelections
+                );
 
-            const { prompt: builtPrompt, imageUrls } =
-              buildPromptFromSelections(
-                sceneElements,
-                selection.elementSelections
-              );
-
-            if (builtPrompt) {
-              scenePrompt = builtPrompt;
-              sceneImageUrls = imageUrls;
+              if (builtPrompt) {
+                scenePrompt = builtPrompt;
+                sceneImageUrls = imageUrls;
+              }
             }
           }
 

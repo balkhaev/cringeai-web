@@ -2,6 +2,8 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import prisma from "@trender/db";
 import {
   ErrorResponseSchema,
+  ExtendedPersonalMediaQuerySchema,
+  ExtendedPersonalMediaResponseSchema,
   MediaUploadResponseSchema,
   NotFoundResponseSchema,
   StockMediaQuerySchema,

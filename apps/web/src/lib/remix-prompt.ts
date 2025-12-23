@@ -3,8 +3,8 @@
  * Generates Kling AI prompts from element selections
  */
 
-import type { ElementSelection } from "@/components/element-remix-selector";
-import type { DetectableElement } from "./templates-api";
+import type { ElementSelection } from "@/components/flat-element-list";
+import type { VideoElement } from "./templates-api";
 
 // Re-export for convenience
 export type { ElementSelection };
@@ -20,7 +20,7 @@ export type KlingImageElement = {
  * Returns prompt string and element references for Kling API
  */
 export function buildElementPrompt(
-  elements: DetectableElement[],
+  elements: VideoElement[],
   selections: ElementSelection[]
 ): { prompt: string; elementRefs: KlingImageElement[] } {
   const promptParts: string[] = [];
