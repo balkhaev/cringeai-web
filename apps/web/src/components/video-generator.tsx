@@ -26,29 +26,24 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildElementPrompt, canGenerate } from "@/lib/remix-prompt";
 import type {
-  AnalysisType,
   KlingGenerationOptions,
   TemplateAnalysis,
 } from "@/lib/templates-api";
 
+// Только standard и frames показываем в UI (enchanting встроен в оба)
 const ANALYSIS_TYPE_CONFIG: Record<
-  AnalysisType,
+  "standard" | "frames",
   { label: string; description: string; icon: React.ElementType }
 > = {
   standard: {
     label: "Анализ",
-    description: "Полное видео загружается в Gemini",
+    description: "Gemini + ChatGPT для вариантов",
     icon: Sparkles,
   },
   frames: {
     label: "По кадрам",
-    description: "Быстрый анализ по кадрам",
+    description: "Быстрый анализ + ChatGPT варианты",
     icon: Film,
-  },
-  enchanting: {
-    label: "Enchanting",
-    description: "Gemini + ChatGPT для креативных вариантов",
-    icon: Wand2,
   },
 };
 
@@ -62,11 +57,9 @@ type VideoGeneratorProps = {
   ) => Promise<void>;
   onAnalyze: () => void;
   onAnalyzeFrames: () => void;
-  onAnalyzeEnchanting?: () => void;
   isGenerating?: boolean;
   isAnalyzing?: boolean;
   isAnalyzingFrames?: boolean;
-  isAnalyzingEnchanting?: boolean;
   canAnalyze?: boolean;
 };
 
@@ -76,25 +69,27 @@ export function VideoGenerator({
   onGenerate,
   onAnalyze,
   onAnalyzeFrames,
-  onAnalyzeEnchanting,
   isGenerating = false,
   isAnalyzing = false,
   isAnalyzingFrames = false,
-  isAnalyzingEnchanting = false,
   canAnalyze = true,
 }: VideoGeneratorProps) {
-  // Group analyses by type
+  // Group analyses by type (only standard and frames)
   const analysesByType = useMemo(() => {
-    const byType: Record<AnalysisType, TemplateAnalysis | null> = {
+    const byType: Record<"standard" | "frames", TemplateAnalysis | null> = {
       standard: null,
       frames: null,
-      enchanting: null,
     };
 
     for (const analysis of analyses) {
       const type = analysis.analysisType || "standard";
-      if (!byType[type]) {
-        byType[type] = analysis;
+      // Map enchanting to standard for display purposes
+      const displayType = type === "enchanting" ? "standard" : type;
+      if (
+        (displayType === "standard" || displayType === "frames") &&
+        !byType[displayType]
+      ) {
+        byType[displayType] = analysis;
       }
     }
 
@@ -102,15 +97,16 @@ export function VideoGenerator({
   }, [analyses]);
 
   // Determine active tab based on available analyses
+  type DisplayAnalysisType = "standard" | "frames";
   const availableTypes = useMemo(
     () =>
-      (Object.keys(analysesByType) as AnalysisType[]).filter(
+      (Object.keys(analysesByType) as DisplayAnalysisType[]).filter(
         (type) => analysesByType[type] !== null
       ),
     [analysesByType]
   );
 
-  const [activeTab, setActiveTab] = useState<AnalysisType>(() => {
+  const [activeTab, setActiveTab] = useState<DisplayAnalysisType>(() => {
     if (availableTypes.length > 0) {
       return availableTypes[0];
     }
@@ -230,8 +226,7 @@ export function VideoGenerator({
     onGenerate,
   ]);
 
-  const isAnyAnalyzing =
-    isAnalyzing || isAnalyzingFrames || isAnalyzingEnchanting;
+  const isAnyAnalyzing = isAnalyzing || isAnalyzingFrames;
 
   return (
     <Card className="border-violet-500/20 bg-linear-to-br from-violet-500/5 to-transparent">
@@ -247,12 +242,12 @@ export function VideoGenerator({
       <CardContent className="space-y-4">
         {/* Analysis Tabs */}
         <Tabs
-          onValueChange={(v) => setActiveTab(v as AnalysisType)}
+          onValueChange={(v) => setActiveTab(v as DisplayAnalysisType)}
           value={activeTab}
         >
           <div className="flex items-center gap-2">
             <TabsList className="flex-1">
-              {(["standard", "frames", "enchanting"] as const).map((type) => {
+              {(["standard", "frames"] as const).map((type) => {
                 const config = ANALYSIS_TYPE_CONFIG[type];
                 const Icon = config.icon;
                 const hasAnalysis = analysesByType[type] !== null;
@@ -276,34 +271,25 @@ export function VideoGenerator({
 
             {/* Analyze Button */}
             <Button
-              disabled={
-                !canAnalyze ||
-                isAnyAnalyzing ||
-                (activeTab === "enchanting" && !onAnalyzeEnchanting)
-              }
-              onClick={
-                activeTab === "frames"
-                  ? onAnalyzeFrames
-                  : activeTab === "enchanting"
-                    ? onAnalyzeEnchanting
-                    : onAnalyze
-              }
+              disabled={!canAnalyze || isAnyAnalyzing}
+              onClick={activeTab === "frames" ? onAnalyzeFrames : onAnalyze}
               size="sm"
               variant="outline"
             >
               {(activeTab === "standard" && isAnalyzing) ||
-              (activeTab === "frames" && isAnalyzingFrames) ||
-              (activeTab === "enchanting" && isAnalyzingEnchanting) ? (
+              (activeTab === "frames" && isAnalyzingFrames) ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
                 <Sparkles className="mr-1 h-3 w-3" />
               )}
-              {analysesByType[activeTab] ? "Переанализ" : "Анализ"}
+              {analysesByType[activeTab as "standard" | "frames"]
+                ? "Переанализ"
+                : "Анализ"}
             </Button>
           </div>
 
           {/* Tab Content */}
-          {(["standard", "frames", "enchanting"] as const).map((type) => {
+          {(["standard", "frames"] as const).map((type) => {
             const analysis = analysesByType[type];
             const config = ANALYSIS_TYPE_CONFIG[type];
 

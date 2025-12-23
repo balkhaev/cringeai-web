@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { paths } from "../../config";
 import { playwrightClient } from "../playwright-client";
 import {
   type Cookie,
@@ -10,8 +11,7 @@ import {
 } from "./credentials";
 import type { Reel, ScraperConfig } from "./types";
 
-const DATA_DIR = process.env.DATA_DIR || join(import.meta.dir, "../../../data");
-const COOKIES_PATH = join(DATA_DIR, "cookies.json");
+const COOKIES_PATH = join(paths.dataDir, "cookies.json");
 
 export type ProgressUpdate = {
   scanned: number;
@@ -134,5 +134,5 @@ export function getCookiesPath(): string {
 }
 
 export function getSessionPath(): string {
-  return join(DATA_DIR, "playwright", "state.json");
+  return join(paths.dataDir, "playwright", "state.json");
 }

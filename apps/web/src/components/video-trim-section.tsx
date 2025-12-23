@@ -4,7 +4,6 @@ import { Download, Scissors } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +14,11 @@ import {
 import { useTrimVideoByUrl } from "@/lib/hooks/use-trim";
 import { VideoTrimEditor } from "./video-trim-editor";
 
-type VideoTrimSectionProps = {
+type VideoTrimButtonProps = {
   videoUrl: string;
 };
 
-export function VideoTrimSection({ videoUrl }: VideoTrimSectionProps) {
+export function VideoTrimButton({ videoUrl }: VideoTrimButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [trimmedVideo, setTrimmedVideo] = useState<Blob | null>(null);
   const { mutate: trimVideo, isPending } = useTrimVideoByUrl();
@@ -60,55 +59,48 @@ export function VideoTrimSection({ videoUrl }: VideoTrimSectionProps) {
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Scissors className="h-4 w-4" />
-          Обрезка видео
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Dialog onOpenChange={setIsOpen} open={isOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full" variant="outline">
-              <Scissors className="mr-2 h-4 w-4" />
-              Обрезать видео
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Обрезка видео</DialogTitle>
-            </DialogHeader>
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
+      <DialogTrigger asChild>
+        <Button
+          className="w-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          variant="outline"
+        >
+          <Scissors className="mr-2 h-4 w-4" />
+          Обрезать видео
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Обрезка видео</DialogTitle>
+        </DialogHeader>
 
-            {trimmedVideo ? (
-              <div className="space-y-4">
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-                  <video
-                    className="h-full w-full object-contain"
-                    controls
-                    src={URL.createObjectURL(trimmedVideo)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={handleDownload}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Скачать
-                  </Button>
-                  <Button onClick={handleReset} variant="outline">
-                    Обрезать снова
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <VideoTrimEditor
-                isLoading={isPending}
-                onTrim={handleTrim}
-                videoUrl={videoUrl}
+        {trimmedVideo ? (
+          <div className="space-y-4">
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+              <video
+                className="h-full w-full object-contain"
+                controls
+                src={URL.createObjectURL(trimmedVideo)}
               />
-            )}
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" />
+                Скачать
+              </Button>
+              <Button onClick={handleReset} variant="outline">
+                Обрезать снова
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <VideoTrimEditor
+            isLoading={isPending}
+            onTrim={handleTrim}
+            videoUrl={videoUrl}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

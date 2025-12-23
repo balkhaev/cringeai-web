@@ -38,6 +38,7 @@ export function DebugLogsTable() {
   const [stage, setStage] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [hideDebug, setHideDebug] = useState(true);
 
   const { data, isLoading } = useDebugLogs({
     level: level === "all" ? undefined : level,
@@ -45,6 +46,11 @@ export function DebugLogsTable() {
     search: search || undefined,
     limit: 100,
   });
+
+  const filteredLogs =
+    hideDebug && level === "all"
+      ? (data?.logs.filter((log) => log.level !== "debug") ?? [])
+      : (data?.logs ?? []);
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -100,9 +106,18 @@ export function DebugLogsTable() {
               <SelectItem value="generate">Generate</SelectItem>
             </SelectContent>
           </Select>
+          {level === "all" && (
+            <Button
+              onClick={() => setHideDebug(!hideDebug)}
+              size="sm"
+              variant="ghost"
+            >
+              {hideDebug ? "Показать debug" : "Скрыть debug"}
+            </Button>
+          )}
           {data && (
             <div className="ml-auto flex items-center text-muted-foreground text-sm">
-              Найдено: {data.total}
+              Показано: {filteredLogs.length} / {data.total}
             </div>
           )}
         </div>
@@ -126,7 +141,7 @@ export function DebugLogsTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <Collapsible
                     asChild
                     key={log.id}
@@ -191,9 +206,25 @@ export function DebugLogsTable() {
                                     <span className="font-medium">
                                       Метаданные:
                                     </span>
-                                    <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-xs">
-                                      {JSON.stringify(log.metadata, null, 2)}
-                                    </pre>
+                                    <div className="mt-1 flex flex-wrap gap-2">
+                                      {Object.entries(log.metadata).map(
+                                        ([key, value]) => (
+                                          <span
+                                            className="rounded bg-muted px-2 py-1 text-xs"
+                                            key={key}
+                                          >
+                                            <span className="text-muted-foreground">
+                                              {key}:
+                                            </span>{" "}
+                                            <span className="font-medium">
+                                              {typeof value === "object"
+                                                ? JSON.stringify(value)
+                                                : String(value)}
+                                            </span>
+                                          </span>
+                                        )
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                             </div>
@@ -203,7 +234,7 @@ export function DebugLogsTable() {
                     </>
                   </Collapsible>
                 ))}
-                {data?.logs.length === 0 && (
+                {filteredLogs.length === 0 && (
                   <TableRow>
                     <TableCell
                       className="py-8 text-center text-muted-foreground"

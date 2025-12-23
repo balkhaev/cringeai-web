@@ -66,17 +66,12 @@ class AILogger {
       },
     });
 
-    const prefix = `[AI:${options.provider}]`;
-    console.log(
-      `${prefix} Started: ${options.operation}${options.model ? ` (${options.model})` : ""}`
-    );
-
     return {
       success: async (result?: AILogResult) => {
         const completedAt = new Date();
         const duration = completedAt.getTime() - startedAt.getTime();
 
-        const updated = await prisma.aILog.update({
+        return prisma.aILog.update({
           where: { id: log.id },
           data: {
             status: "success",
@@ -92,17 +87,16 @@ class AILogger {
               | undefined,
           },
         });
-
-        console.log(
-          `${prefix} Completed: ${options.operation} (${duration}ms)`
-        );
-        return updated;
       },
       fail: async (error: Error, result?: AILogResult) => {
         const completedAt = new Date();
         const duration = completedAt.getTime() - startedAt.getTime();
 
-        const updated = await prisma.aILog.update({
+        console.error(
+          `[AI:${options.provider}] ${options.operation}: ${error.message}`
+        );
+
+        return prisma.aILog.update({
           where: { id: log.id },
           data: {
             status: "error",
@@ -119,11 +113,6 @@ class AILogger {
               | undefined,
           },
         });
-
-        console.error(
-          `${prefix} Failed: ${options.operation} - ${error.message} (${duration}ms)`
-        );
-        return updated;
       },
     };
   }

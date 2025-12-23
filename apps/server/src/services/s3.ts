@@ -5,18 +5,10 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { s3 as s3Config } from "../config";
 
-// S3/MinIO configuration
-const S3_ENDPOINT = process.env.S3_ENDPOINT || "http://localhost:9000";
-const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || "";
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || "";
-const S3_BUCKET = process.env.S3_BUCKET || "trender";
-const S3_REGION = process.env.S3_REGION || "us-east-1";
-
-// Check if S3 is configured
-export function isS3Configured(): boolean {
-  return !!(S3_ACCESS_KEY && S3_SECRET_KEY && S3_ENDPOINT);
-}
+// Re-export isConfigured for backwards compatibility
+export const isS3Configured = s3Config.isConfigured;
 
 // Create S3 client (lazy initialization)
 let s3Client: S3Client | null = null;
@@ -24,11 +16,11 @@ let s3Client: S3Client | null = null;
 function getS3Client(): S3Client {
   if (!s3Client) {
     s3Client = new S3Client({
-      endpoint: S3_ENDPOINT,
-      region: S3_REGION,
+      endpoint: s3Config.endpoint,
+      region: s3Config.region,
       credentials: {
-        accessKeyId: S3_ACCESS_KEY,
-        secretAccessKey: S3_SECRET_KEY,
+        accessKeyId: s3Config.accessKey,
+        secretAccessKey: s3Config.secretKey,
       },
       forcePathStyle: true, // Required for MinIO
     });
@@ -90,7 +82,7 @@ class S3Service {
     const client = getS3Client();
 
     const command = new PutObjectCommand({
-      Bucket: S3_BUCKET,
+      Bucket: s3Config.bucket,
       Key: key,
       Body: body,
       ContentType: contentType,
@@ -108,7 +100,7 @@ class S3Service {
 
     try {
       const command = new GetObjectCommand({
-        Bucket: S3_BUCKET,
+        Bucket: s3Config.bucket,
         Key: key,
       });
 
@@ -137,7 +129,7 @@ class S3Service {
     const client = getS3Client();
 
     const command = new DeleteObjectCommand({
-      Bucket: S3_BUCKET,
+      Bucket: s3Config.bucket,
       Key: key,
     });
 
@@ -153,7 +145,7 @@ class S3Service {
 
     try {
       const command = new HeadObjectCommand({
-        Bucket: S3_BUCKET,
+        Bucket: s3Config.bucket,
         Key: key,
       });
 
@@ -175,7 +167,7 @@ class S3Service {
 
     try {
       const command = new HeadObjectCommand({
-        Bucket: S3_BUCKET,
+        Bucket: s3Config.bucket,
         Key: key,
       });
 
@@ -204,7 +196,7 @@ class S3Service {
 
     try {
       const command = new GetObjectCommand({
-        Bucket: S3_BUCKET,
+        Bucket: s3Config.bucket,
         Key: key,
       });
 
@@ -246,18 +238,19 @@ class S3Service {
 export const s3Service = new S3Service();
 
 /**
- * Get video URL for a reel (for internal API use)
- * Returns API endpoint path, not a public URL
+ * Get video URL for a reel
+ * Returns full public URL for API endpoint
  */
 export function getReelVideoUrl(reel: {
   id: string;
   s3Key?: string | null;
   videoUrl?: string | null;
 }): string | null {
-  // If S3 key is available, construct the S3 URL
+  // If S3 key is available, return public URL
   if (reel.s3Key && isS3Configured()) {
-    // Return the API endpoint that serves the video
-    return `/api/files/reels/${reel.id}`;
+    // Import dynamically to avoid circular dependency issues
+    const { getReelVideoPublicUrl } = require("./url-builder");
+    return getReelVideoPublicUrl(reel.id);
   }
 
   // Fall back to direct video URL
@@ -273,7 +266,7 @@ export function getReelVideoUrl(reel: {
  */
 export function getS3PublicUrl(key: string): string {
   // For MinIO/S3, construct direct URL
-  return `${S3_ENDPOINT}/${S3_BUCKET}/${key}`;
+  return `${s3Config.endpoint}/${s3Config.bucket}/${key}`;
 }
 
 /**

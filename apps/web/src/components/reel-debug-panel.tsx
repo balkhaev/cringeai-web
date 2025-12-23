@@ -36,23 +36,12 @@ import {
 } from "@/lib/hooks/use-templates";
 import { hasVideo } from "@/lib/reels-api";
 import type {
+  AILogDetail,
   ReelDebugInfo,
   ReelLog,
   StageStats,
   VideoGeneration,
 } from "@/lib/templates-api";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-
-function resolveVideoUrl(url: string | null): string | null {
-  if (!url) {
-    return null;
-  }
-  if (url.startsWith("/api/")) {
-    return `${API_URL}${url}`;
-  }
-  return url;
-}
 
 type ReelDebugPanelProps = {
   reelId: string;
@@ -125,7 +114,7 @@ function GenerationsSection({
 }
 
 function GenerationRow({ gen }: { gen: VideoGeneration }) {
-  const href = resolveVideoUrl(gen.videoUrl);
+  const href = gen.videoUrl;
   const variant = getGenerationBadgeVariant(gen.status);
 
   return (
@@ -282,25 +271,48 @@ type LogsTabProps = {
 };
 
 function LogsTab({ logs, expandedLogs, onToggle }: LogsTabProps) {
+  const [showDebug, setShowDebug] = useState(false);
+
+  const filteredLogs = showDebug
+    ? logs
+    : logs.filter((log) => log.level !== "debug");
+
+  const debugCount = logs.filter((log) => log.level === "debug").length;
+
   return (
-    <ScrollArea className="h-[400px]">
-      <div className="space-y-2 pr-4">
-        {logs.length === 0 ? (
-          <p className="py-8 text-center text-muted-foreground text-sm">
-            Логов пока нет
-          </p>
-        ) : (
-          logs.map((log) => (
-            <LogItem
-              expanded={expandedLogs.has(log.id)}
-              key={log.id}
-              log={log}
-              onToggle={() => onToggle(log.id)}
-            />
-          ))
-        )}
-      </div>
-    </ScrollArea>
+    <div className="space-y-2">
+      {debugCount > 0 && (
+        <div className="flex items-center justify-between">
+          <Button
+            onClick={() => setShowDebug(!showDebug)}
+            size="sm"
+            variant="ghost"
+          >
+            {showDebug
+              ? `Скрыть debug (${debugCount})`
+              : `Показать debug (${debugCount})`}
+          </Button>
+        </div>
+      )}
+      <ScrollArea className="h-[400px]">
+        <div className="space-y-2 pr-4">
+          {filteredLogs.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground text-sm">
+              Логов пока нет
+            </p>
+          ) : (
+            filteredLogs.map((log) => (
+              <LogItem
+                expanded={expandedLogs.has(log.id)}
+                key={log.id}
+                log={log}
+                onToggle={() => onToggle(log.id)}
+              />
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
 
@@ -337,6 +349,138 @@ function StatsTab({ stageStats, recentErrors }: StatsTabProps) {
               <p className="mt-1">{err.message}</p>
             </div>
           ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type AILogsTabProps = {
+  aiLogs: AILogDetail[];
+  expandedLogs: Set<string>;
+  onToggle: (logId: string) => void;
+};
+
+function AILogsTab({ aiLogs, expandedLogs, onToggle }: AILogsTabProps) {
+  if (!aiLogs || aiLogs.length === 0) {
+    return (
+      <p className="py-8 text-center text-muted-foreground text-sm">
+        AI логов пока нет
+      </p>
+    );
+  }
+
+  return (
+    <ScrollArea className="h-[400px]">
+      <div className="space-y-3 pr-4">
+        {aiLogs.map((log) => (
+          <AILogItem
+            expanded={expandedLogs.has(log.id)}
+            key={log.id}
+            log={log}
+            onToggle={() => onToggle(log.id)}
+          />
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
+function AILogItem({
+  log,
+  expanded,
+  onToggle,
+}: {
+  log: AILogDetail;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isSuccess = log.status === "success";
+  const imageUrls = (log.inputMeta?.imageUrls as string[] | undefined) ?? [];
+
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <Badge variant={isSuccess ? "default" : "destructive"}>
+              {log.provider}
+            </Badge>
+            <span className="text-muted-foreground text-sm">
+              {log.operation}
+            </span>
+            {log.duration ? (
+              <span className="text-muted-foreground text-xs">
+                {(log.duration / 1000).toFixed(1)}s
+              </span>
+            ) : null}
+          </div>
+          {log.error ? (
+            <p className="mt-1 text-red-500 text-sm">{log.error}</p>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">
+            {new Date(log.createdAt).toLocaleTimeString("ru-RU")}
+          </span>
+          <Button onClick={onToggle} size="icon" variant="ghost">
+            {expanded ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="mt-3 space-y-3 border-t pt-3">
+          {log.inputMeta ? (
+            <div>
+              <h5 className="mb-2 font-medium text-sm">Request</h5>
+              <div className="overflow-auto rounded bg-muted p-2 font-mono text-xs">
+                <pre className="whitespace-pre-wrap">
+                  {JSON.stringify(log.inputMeta, null, 2)}
+                </pre>
+              </div>
+            </div>
+          ) : null}
+
+          {log.outputMeta ? (
+            <div>
+              <h5 className="mb-2 font-medium text-sm">Response</h5>
+              <div className="overflow-auto rounded bg-muted p-2 font-mono text-xs">
+                <pre className="whitespace-pre-wrap">
+                  {JSON.stringify(log.outputMeta, null, 2)}
+                </pre>
+              </div>
+            </div>
+          ) : null}
+
+          {imageUrls.length > 0 ? (
+            <div>
+              <h5 className="mb-2 font-medium text-sm">
+                Images ({imageUrls.length})
+              </h5>
+              <div className="flex flex-wrap gap-2">
+                {imageUrls.map((url, i) => (
+                  <a
+                    className="block"
+                    href={url}
+                    key={url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <img
+                      alt={`Reference ${i + 1}`}
+                      className="h-16 w-16 rounded border object-cover"
+                      src={url}
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -461,6 +605,9 @@ export function ReelDebugPanel({ reelId, onClose }: ReelDebugPanelProps) {
           <TabsList className="mb-4">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
             <TabsTrigger value="logs">Логи ({data.logs.length})</TabsTrigger>
+            <TabsTrigger value="ai-logs">
+              AI Logs ({data.aiLogs?.length ?? 0})
+            </TabsTrigger>
             <TabsTrigger value="stats">Статистика</TabsTrigger>
           </TabsList>
 
@@ -490,6 +637,14 @@ export function ReelDebugPanel({ reelId, onClose }: ReelDebugPanelProps) {
             <StatsTab
               recentErrors={data.recentErrors}
               stageStats={data.stageStats}
+            />
+          </TabsContent>
+
+          <TabsContent value="ai-logs">
+            <AILogsTab
+              aiLogs={data.aiLogs ?? []}
+              expandedLogs={expandedLogs}
+              onToggle={toggleLogExpand}
             />
           </TabsContent>
         </Tabs>
@@ -556,9 +711,18 @@ function LogItem({
       </div>
 
       {showMetadata ? (
-        <pre className="mt-2 overflow-auto rounded bg-muted p-2 font-mono text-xs">
-          {JSON.stringify(log.metadata, null, 2)}
-        </pre>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          {Object.entries(log.metadata ?? {}).map(([key, value]) => (
+            <span className="rounded bg-muted px-2 py-1" key={key}>
+              <span className="text-muted-foreground">{key}:</span>{" "}
+              <span className="font-medium">
+                {typeof value === "object"
+                  ? JSON.stringify(value)
+                  : String(value)}
+              </span>
+            </span>
+          ))}
+        </div>
       ) : null}
     </div>
   );

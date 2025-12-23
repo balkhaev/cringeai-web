@@ -1,16 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import prisma from "@trender/db";
 import type { ReelStatus } from "@trender/db/enums";
-import {
-  type VideoAnalysis as GeminiAnalysis,
-  type GeminiProgressCallback,
-  getGeminiService,
-} from "./gemini";
-import { getDownloadsPath } from "./instagram/downloader";
-import { getOpenAIService, isOpenAIConfigured } from "./openai";
 import { pipelineLogger } from "./pipeline-logger";
-import { getS3Key, isS3Configured, s3Service } from "./s3";
 
 // Prisma model types inferred from client
 type Reel = NonNullable<Awaited<ReturnType<typeof prisma.reel.findFirst>>>;
@@ -23,18 +13,6 @@ type Template = NonNullable<
 type VideoAnalysis = NonNullable<
   Awaited<ReturnType<typeof prisma.videoAnalysis.findFirst>>
 >;
-
-const INSTALOADER_SERVICE_URL =
-  process.env.SCRAPPER_SERVICE_URL ||
-  process.env.INSTALOADER_SERVICE_URL ||
-  "http://localhost:8001";
-
-const VIDEO_FRAMES_SERVICE_URL =
-  process.env.VIDEO_FRAMES_SERVICE_URL || "http://localhost:8002";
-
-const FRAME_INTERVAL_SEC = Number.parseFloat(
-  process.env.FRAME_INTERVAL_SEC || "2.0"
-);
 
 export type ProcessOptions = {
   skipDownload?: boolean;
@@ -98,665 +76,60 @@ class ReelPipeline {
         lastActivityAt: new Date(),
       },
     });
-
-    await pipelineLogger.debug({
-      reelId,
-      stage: stage as "scrape" | "download" | "analyze" | "generate",
-      message: `Progress: ${percent}% - ${message}`,
-    });
-  }
-
-  /**
-   * Создать callback для обновления прогресса рила
-   */
-  private createProgressCallback(reelId: string): GeminiProgressCallback {
-    return async (stage: string, percent: number, message: string) => {
-      await this.updateProgress(reelId, stage, percent, message);
-    };
   }
 
   /**
    * Скачать видео для рила
+   * Делегирует работу VideoDownloadService
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex download workflow with S3/local fallback and progress updates
   async downloadReel(reelId: string): Promise<string> {
-    const reel = await prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) {
-      throw new Error(`Reel ${reelId} not found`);
-    }
+    const { videoDownloadService } = await import("./video");
 
-    // Обновляем статус и прогресс
-    await this.updateStatus(reelId, "downloading");
-    await this.updateProgress(
-      reelId,
-      "download",
-      0,
-      "Начало загрузки видео..."
-    );
+    const result = await videoDownloadService.downloadReel(reelId, {
+      updateStatus: this.updateStatus.bind(this),
+      updateProgress: this.updateProgress.bind(this),
+    });
 
-    const timer = pipelineLogger.startTimer(
-      reelId,
-      "download",
-      "Downloading video"
-    );
-
-    try {
-      // Используем hashtag если есть, иначе source - должно совпадать с URL на фронте
-      const folder = reel.hashtag || reel.source;
-      const outputDir = getDownloadsPath(folder);
-      const filename = `${reelId}.mp4`;
-      const filepath = join(outputDir, filename);
-
-      // Получаем метаданные рила
-      await this.updateProgress(
-        reelId,
-        "download",
-        5,
-        "Получение метаданных..."
-      );
-
-      try {
-        const metadataResponse = await fetch(
-          `${INSTALOADER_SERVICE_URL}/metadata`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ shortcode: reelId }),
-          }
-        );
-
-        if (metadataResponse.ok) {
-          const metadata = (await metadataResponse.json()) as {
-            success: boolean;
-            caption?: string;
-            commentCount?: number;
-            likeCount?: number;
-            viewCount?: number;
-            author?: string;
-            thumbnailUrl?: string;
-          };
-
-          if (metadata.success) {
-            await prisma.reel.update({
-              where: { id: reelId },
-              data: {
-                caption: metadata.caption ?? null,
-                commentCount: metadata.commentCount ?? null,
-                likeCount: metadata.likeCount ?? null,
-                viewCount: metadata.viewCount ?? null,
-                author: metadata.author ?? null,
-                thumbnailUrl: metadata.thumbnailUrl ?? null,
-              },
-            });
-
-            await pipelineLogger.debug({
-              reelId,
-              stage: "download",
-              message: "Metadata fetched and saved",
-              metadata: {
-                likeCount: metadata.likeCount,
-                viewCount: metadata.viewCount,
-                author: metadata.author,
-              },
-            });
-          }
-        }
-      } catch (metaError) {
-        // Метаданные не критичны, продолжаем скачивание
-        console.warn(`Failed to fetch metadata for ${reelId}:`, metaError);
-      }
-
-      // Скачиваем через instaloader service
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120_000); // 2min timeout
-
-      await this.updateProgress(reelId, "download", 15, "Скачивание видео...");
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "download",
-        message: "Calling instaloader service",
-        metadata: { url: INSTALOADER_SERVICE_URL },
-      });
-
-      const response = await fetch(`${INSTALOADER_SERVICE_URL}/download`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shortcode: reelId }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      const contentType = response.headers.get("content-type") || "";
-
-      if (!contentType.includes("video/mp4")) {
-        const errorData = (await response.json()) as { error?: string };
-        throw new Error(
-          errorData.error || `Download failed: ${response.status}`
-        );
-      }
-
-      await this.updateProgress(reelId, "download", 50, "Получение видео...");
-
-      const videoBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(videoBuffer);
-      const s3Key = getS3Key("reels", reelId);
-
-      await this.updateProgress(
-        reelId,
-        "download",
-        70,
-        `Видео загружено (${(videoBuffer.byteLength / 1024 / 1024).toFixed(1)} MB)`
-      );
-
-      // Upload to S3 if configured
-      if (isS3Configured()) {
-        try {
-          await this.updateProgress(
-            reelId,
-            "uploading",
-            80,
-            "Загрузка в облачное хранилище..."
-          );
-
-          await s3Service.uploadFile(s3Key, buffer, "video/mp4");
-
-          // Update database with s3Key
-          await prisma.reel.update({
-            where: { id: reelId },
-            data: {
-              status: "downloaded",
-              s3Key,
-              localPath: null,
-              progress: 100,
-              progressStage: "download",
-              progressMessage: "Загрузка завершена",
-              lastActivityAt: new Date(),
-            },
-          });
-
-          await timer.stop("Video downloaded and uploaded to S3", {
-            fileSize: videoBuffer.byteLength,
-            s3Key,
-          });
-
-          return s3Key;
-        } catch (s3Error) {
-          console.error(`S3 upload failed for ${reelId}:`, s3Error);
-          // Fall through to local storage
-        }
-      }
-
-      // Fall back to local storage
-      await this.updateProgress(
-        reelId,
-        "download",
-        90,
-        "Сохранение на диск..."
-      );
-
-      await mkdir(outputDir, { recursive: true });
-      await writeFile(filepath, buffer);
-
-      await prisma.reel.update({
-        where: { id: reelId },
-        data: {
-          status: "downloaded",
-          localPath: filepath,
-          progress: 100,
-          progressStage: "download",
-          progressMessage: "Загрузка завершена",
-          lastActivityAt: new Date(),
-        },
-      });
-
-      await timer.stop("Video downloaded successfully", {
-        fileSize: videoBuffer.byteLength,
-        filePath: filepath,
-      });
-
-      return filepath;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      await this.updateProgress(
-        reelId,
-        "download",
-        0,
-        `Ошибка: ${err.message}`
-      );
-      await timer.fail(err);
-      await this.updateStatus(reelId, "failed", err.message);
-      throw err;
-    }
+    return result.path;
   }
 
   /**
    * Анализировать видео рила
+   * Делегирует работу VideoAnalysisService
    */
   async analyzeReel(reelId: string): Promise<VideoAnalysis> {
-    const reel = await prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) {
-      throw new Error(`Reel ${reelId} not found`);
-    }
+    const { videoAnalysisService } = await import("./analysis");
 
-    if (!(reel.s3Key || reel.localPath)) {
-      throw new Error(
-        `Reel ${reelId} has no video file (neither S3 nor local). Download first.`
-      );
-    }
-
-    // Обновляем статус и прогресс
-    await this.updateStatus(reelId, "analyzing");
-    await this.updateProgress(reelId, "analyze", 0, "Начало анализа...");
-
-    const timer = pipelineLogger.startTimer(
-      reelId,
-      "analyze",
-      "Analyzing video with Gemini"
-    );
-
-    // Создаём callback для обновления прогресса
-    const onProgress = this.createProgressCallback(reelId);
-
-    try {
-      // Читаем файл из S3 или локально
-      let buffer: Buffer;
-
-      await onProgress("analyze", 2, "Загрузка видеофайла...");
-
-      if (reel.s3Key) {
-        await pipelineLogger.debug({
-          reelId,
-          stage: "analyze",
-          message: "Downloading video from S3",
-          metadata: { s3Key: reel.s3Key },
-        });
-
-        const s3Buffer = await s3Service.downloadFile(reel.s3Key);
-        if (!s3Buffer) {
-          throw new Error(`Failed to download video from S3: ${reel.s3Key}`);
-        }
-        buffer = s3Buffer;
-      } else if (reel.localPath) {
-        buffer = await readFile(reel.localPath);
-      } else {
-        throw new Error("No video file available");
-      }
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Uploading video to Gemini",
-        metadata: { fileSize: buffer.length },
-      });
-
-      // Анализируем через Gemini с callback для прогресса
-      const geminiService = getGeminiService();
-      const analysis: GeminiAnalysis = await geminiService.processVideo(
-        buffer,
-        "video/mp4",
-        `${reelId}.mp4`,
-        onProgress
-      );
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Analysis received",
-        metadata: { elementsCount: analysis.elements.length },
-      });
-
-      await onProgress("analyze", 95, "Сохранение результатов анализа...");
-
-      // Сохраняем в БД - только необходимые поля
-      const savedAnalysis = await prisma.videoAnalysis.create({
-        data: {
-          sourceType: "reel",
-          sourceId: reelId,
-          fileName: `${reelId}.mp4`,
-          analysisType: "standard",
-          duration: analysis.duration,
-          aspectRatio: analysis.aspectRatio,
-          elements: analysis.elements,
-        },
-      });
-
-      await onProgress("analyze", 100, "Анализ завершён");
-      await timer.stop("Video analyzed successfully (standard)");
-
-      return savedAnalysis;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      await this.updateProgress(reelId, "analyze", 0, `Ошибка: ${err.message}`);
-      await timer.fail(err);
-      await this.updateStatus(reelId, "failed", err.message);
-      throw err;
-    }
+    return videoAnalysisService.analyzeReel(reelId, {
+      updateStatus: this.updateStatus.bind(this),
+      updateProgress: this.updateProgress.bind(this),
+    });
   }
 
   /**
    * Анализировать видео рила по кадрам
-   * Извлекает кадры через video-frames сервис и анализирует их через Gemini
+   * Делегирует работу VideoAnalysisService
    */
   async analyzeReelByFrames(reelId: string): Promise<VideoAnalysis> {
-    const reel = await prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) {
-      throw new Error(`Reel ${reelId} not found`);
-    }
+    const { videoAnalysisService } = await import("./analysis");
 
-    if (!(reel.s3Key || reel.localPath)) {
-      throw new Error(
-        `Reel ${reelId} has no video file (neither S3 nor local). Download first.`
-      );
-    }
-
-    // Обновляем статус и прогресс
-    await this.updateStatus(reelId, "analyzing");
-    await this.updateProgress(
-      reelId,
-      "analyze",
-      0,
-      "Начало анализа по кадрам..."
-    );
-
-    const timer = pipelineLogger.startTimer(
-      reelId,
-      "analyze",
-      "Analyzing video by frames with Gemini"
-    );
-
-    // Создаём callback для обновления прогресса
-    const onProgress = this.createProgressCallback(reelId);
-
-    try {
-      // Читаем файл из S3 или локально
-      let buffer: Buffer;
-
-      await onProgress("analyze", 2, "Загрузка видеофайла...");
-
-      if (reel.s3Key) {
-        await pipelineLogger.debug({
-          reelId,
-          stage: "analyze",
-          message: "Downloading video from S3 for frame extraction",
-          metadata: { s3Key: reel.s3Key },
-        });
-
-        const s3Buffer = await s3Service.downloadFile(reel.s3Key);
-        if (!s3Buffer) {
-          throw new Error(`Failed to download video from S3: ${reel.s3Key}`);
-        }
-        buffer = s3Buffer;
-      } else if (reel.localPath) {
-        buffer = await readFile(reel.localPath);
-      } else {
-        throw new Error("No video file available");
-      }
-
-      await onProgress("processing", 5, "Извлечение кадров из видео...");
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Extracting frames via video-frames service",
-        metadata: {
-          fileSize: buffer.length,
-          serviceUrl: VIDEO_FRAMES_SERVICE_URL,
-          intervalSec: FRAME_INTERVAL_SEC,
-        },
-      });
-
-      // Извлекаем кадры через video-frames сервис
-      const formData = new FormData();
-      formData.append(
-        "video",
-        new Blob([new Uint8Array(buffer)], { type: "video/mp4" }),
-        `${reelId}.mp4`
-      );
-      formData.append("interval_sec", FRAME_INTERVAL_SEC.toString());
-
-      const framesResponse = await fetch(
-        `${VIDEO_FRAMES_SERVICE_URL}/extract-frames`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!framesResponse.ok) {
-        const errorText = await framesResponse.text();
-        throw new Error(`Failed to extract frames: ${errorText}`);
-      }
-
-      const framesData = (await framesResponse.json()) as {
-        success: boolean;
-        frames: string[];
-        count: number;
-        duration_sec: number | null;
-        error?: string;
-      };
-
-      if (!framesData.success || framesData.frames.length === 0) {
-        throw new Error(framesData.error || "No frames extracted from video");
-      }
-
-      await onProgress(
-        "processing",
-        40,
-        `Извлечено ${framesData.count} кадров, начинаем анализ...`
-      );
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Frames extracted, analyzing with Gemini",
-        metadata: {
-          frameCount: framesData.count,
-          durationSec: framesData.duration_sec,
-        },
-      });
-
-      // Анализируем кадры через Gemini с callback для прогресса
-      const geminiService = getGeminiService();
-      const analysis: GeminiAnalysis = await geminiService.analyzeFrames(
-        framesData.frames,
-        onProgress
-      );
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Frame analysis received",
-        metadata: {
-          elementsCount: analysis.elements.length,
-          frameCount: framesData.count,
-        },
-      });
-
-      await onProgress("analyze", 95, "Сохранение результатов анализа...");
-
-      // Сохраняем в БД - только необходимые поля
-      const savedAnalysis = await prisma.videoAnalysis.create({
-        data: {
-          sourceType: "reel",
-          sourceId: reelId,
-          fileName: `${reelId}.mp4`,
-          analysisType: "frames",
-          duration: analysis.duration,
-          aspectRatio: analysis.aspectRatio,
-          elements: analysis.elements,
-        },
-      });
-
-      await onProgress("analyze", 100, "Анализ по кадрам завершён");
-      await timer.stop("Video analyzed by frames successfully", {
-        frameCount: framesData.count,
-      });
-
-      return savedAnalysis;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      await this.updateProgress(reelId, "analyze", 0, `Ошибка: ${err.message}`);
-      await timer.fail(err);
-      await this.updateStatus(reelId, "failed", err.message);
-      throw err;
-    }
+    return videoAnalysisService.analyzeReelByFrames(reelId, {
+      updateStatus: this.updateStatus.bind(this),
+      updateProgress: this.updateProgress.bind(this),
+    });
   }
 
   /**
    * Анализировать видео рила в режиме Enchanting
-   * Gemini определяет элементы, ChatGPT генерирует креативные варианты замены
+   * Делегирует работу VideoAnalysisService
    */
   async analyzeReelEnchanting(reelId: string): Promise<VideoAnalysis> {
-    const reel = await prisma.reel.findUnique({ where: { id: reelId } });
-    if (!reel) {
-      throw new Error(`Reel ${reelId} not found`);
-    }
+    const { videoAnalysisService } = await import("./analysis");
 
-    if (!(reel.s3Key || reel.localPath)) {
-      throw new Error(
-        `Reel ${reelId} has no video file (neither S3 nor local). Download first.`
-      );
-    }
-
-    // Проверяем что OpenAI настроен
-    if (!isOpenAIConfigured()) {
-      throw new Error(
-        "OpenAI API is not configured. Set OPENAI_API_KEY environment variable."
-      );
-    }
-
-    // Обновляем статус и прогресс
-    await this.updateStatus(reelId, "analyzing");
-    await this.updateProgress(
-      reelId,
-      "analyze",
-      0,
-      "Начало enchanting анализа (Gemini + ChatGPT)..."
-    );
-
-    const timer = pipelineLogger.startTimer(
-      reelId,
-      "analyze",
-      "Analyzing video with Gemini + ChatGPT (enchanting)"
-    );
-
-    // Создаём callback для обновления прогресса
-    const onProgress = this.createProgressCallback(reelId);
-
-    try {
-      // Читаем файл из S3 или локально
-      let buffer: Buffer;
-
-      await onProgress("analyze", 2, "Загрузка видеофайла...");
-
-      if (reel.s3Key) {
-        await pipelineLogger.debug({
-          reelId,
-          stage: "analyze",
-          message: "Downloading video from S3 for enchanting analysis",
-          metadata: { s3Key: reel.s3Key },
-        });
-
-        const s3Buffer = await s3Service.downloadFile(reel.s3Key);
-        if (!s3Buffer) {
-          throw new Error(`Failed to download video from S3: ${reel.s3Key}`);
-        }
-        buffer = s3Buffer;
-      } else if (reel.localPath) {
-        buffer = await readFile(reel.localPath);
-      } else {
-        throw new Error("No video file available");
-      }
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Uploading video to Gemini for element detection",
-        metadata: { fileSize: buffer.length },
-      });
-
-      // Шаг 1: Gemini анализирует видео и возвращает только элементы (без вариантов)
-      await onProgress("analyze", 10, "Gemini определяет элементы видео...");
-      const geminiService = getGeminiService();
-      const elementsAnalysis = await geminiService.processVideoElementsOnly(
-        buffer,
-        "video/mp4",
-        `${reelId}.mp4`,
-        onProgress
-      );
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Elements detected by Gemini",
-        metadata: { elementsCount: elementsAnalysis.elements.length },
-      });
-
-      // Шаг 2: ChatGPT генерирует креативные варианты замены
-      await onProgress(
-        "analyze",
-        60,
-        `ChatGPT генерирует варианты для ${elementsAnalysis.elements.length} элементов...`
-      );
-      const openaiService = getOpenAIService();
-      const enchantingResults = await openaiService.generateEnchantingOptions(
-        elementsAnalysis.elements
-      );
-
-      await pipelineLogger.debug({
-        reelId,
-        stage: "analyze",
-        message: "Variants generated by ChatGPT",
-        metadata: {
-          elementsCount: elementsAnalysis.elements.length,
-          variantsGenerated: enchantingResults.length,
-        },
-      });
-
-      // Объединяем элементы с вариантами
-      const elementsWithOptions = elementsAnalysis.elements.map((element) => {
-        const enchantingResult = enchantingResults.find(
-          (r) => r.id === element.id
-        );
-        return {
-          id: element.id,
-          type: element.type,
-          label: element.label,
-          description: element.description,
-          remixOptions: enchantingResult?.remixOptions || [],
-        };
-      });
-
-      await onProgress("analyze", 90, "Сохранение результатов анализа...");
-
-      // Сохраняем в БД
-      const savedAnalysis = await prisma.videoAnalysis.create({
-        data: {
-          sourceType: "reel",
-          sourceId: reelId,
-          fileName: `${reelId}.mp4`,
-          analysisType: "enchanting",
-          duration: elementsAnalysis.duration,
-          aspectRatio: elementsAnalysis.aspectRatio,
-          elements: elementsWithOptions,
-        },
-      });
-
-      await onProgress("analyze", 100, "Enchanting анализ завершён");
-      await timer.stop("Video analyzed with enchanting mode successfully", {
-        elementsCount: elementsWithOptions.length,
-      });
-
-      return savedAnalysis;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      await this.updateProgress(reelId, "analyze", 0, `Ошибка: ${err.message}`);
-      await timer.fail(err);
-      await this.updateStatus(reelId, "failed", err.message);
-      throw err;
-    }
+    return videoAnalysisService.analyzeReelEnchanting(reelId, {
+      updateStatus: this.updateStatus.bind(this),
+      updateProgress: this.updateProgress.bind(this),
+    });
   }
 
   /**

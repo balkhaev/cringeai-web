@@ -258,3 +258,56 @@ export function useBatchRefreshDuration() {
     },
   });
 }
+
+export function useBatchResizeAll() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+      // Получаем все рилы с видео
+      const reelsResponse = await fetch(
+        `${API_URL}/api/reels/saved?limit=100`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!reelsResponse.ok) {
+        throw new Error("Failed to get reels");
+      }
+
+      const data = await reelsResponse.json();
+      const reelIds = data.reels
+        .filter(
+          (r: { localPath: string | null; s3Key: string | null }) =>
+            r.localPath || r.s3Key
+        )
+        .map((r: { id: string }) => r.id);
+
+      if (reelIds.length === 0) {
+        return { processed: 0, resized: 0, failed: 0, alreadyValid: 0 };
+      }
+
+      // Отправляем на батч-ресайз
+      const resizeResponse = await fetch(`${API_URL}/api/reels/batch-resize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reelIds }),
+        credentials: "include",
+      });
+
+      if (!resizeResponse.ok) {
+        throw new Error("Failed to batch resize");
+      }
+
+      return resizeResponse.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reels"] });
+      queryClient.invalidateQueries({ queryKey: ["reelStats"] });
+    },
+  });
+}

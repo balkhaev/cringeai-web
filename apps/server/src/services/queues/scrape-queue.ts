@@ -1,3 +1,4 @@
+import prisma from "@trender/db";
 import { type Job as BullJob, Queue, Worker } from "bullmq";
 import type {
   Job,
@@ -13,13 +14,6 @@ import type {
   ScrapeJobProgress,
   ScrapeJobResult,
 } from "./types";
-
-// Redis keys for storing job state that survives restarts
-const REDIS_KEY_PREFIX = "scrape:state:";
-
-function getRedisKey(jobId: string): string {
-  return `${REDIS_KEY_PREFIX}${jobId}`;
-}
 
 // Create scrape queue
 export const scrapeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(
@@ -61,24 +55,25 @@ registerWorker(scrapeWorker);
 // Worker events
 scrapeWorker.on("failed", async (job, error) => {
   if (job?.id) {
-    // Store error in Redis
-    const stateKey = getRedisKey(job.id);
-    await redis.hset(stateKey, "error", error.message);
+    // Update error in Prisma
+    await prisma.scrapeJob.updateMany({
+      where: { jobId: job.id },
+      data: {
+        status: "failed",
+        error: error.message,
+      },
+    });
     console.error(`[ScrapeQueue] Job ${job.id} failed:`, error.message);
   }
 });
 
-scrapeWorker.on("completed", async (job, result) => {
+scrapeWorker.on("completed", async (job) => {
   console.log(`[ScrapeQueue] Job ${job.id} completed`);
-  // Store result in Redis for retrieval
-  if (job.id && result) {
-    const stateKey = getRedisKey(job.id);
-    await redis.hset(stateKey, {
-      reels: JSON.stringify(result.reels),
-      downloadedFiles: JSON.stringify(result.downloadedFiles),
+  if (job.id) {
+    await prisma.scrapeJob.updateMany({
+      where: { jobId: job.id },
+      data: { status: "completed" },
     });
-    // Set TTL for completed jobs (24 hours)
-    await redis.expire(stateKey, 86_400);
   }
 });
 
@@ -93,7 +88,7 @@ class ScrapeJobQueue {
     minLikes: number
   ): Promise<Job> {
     const now = new Date();
-    const jobId = crypto.randomUUID();
+    const jobId = `scrape-${crypto.randomUUID()}`;
 
     const bullJob = await scrapeQueue.add(
       "scrape",
@@ -103,27 +98,19 @@ class ScrapeJobQueue {
 
     const id = bullJob.id ?? jobId;
 
-    // Initialize state in Redis (survives restarts)
-    const stateKey = getRedisKey(id);
-    const initialProgress: ScrapeJobProgress = {
-      scraped: 0,
-      downloaded: 0,
-      total: limit,
-      scanned: 0,
-      found: 0,
-      reels: [],
-      downloadedFiles: [],
-    };
-
-    await redis.hset(stateKey, {
-      progress: JSON.stringify(initialProgress),
-      reels: JSON.stringify([]),
-      downloadedFiles: JSON.stringify([]),
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
+    // Create record in Prisma
+    await prisma.scrapeJob.create({
+      data: {
+        jobId: id,
+        status: "pending",
+        sortMode,
+        limit,
+        minLikes,
+        scanned: 0,
+        found: 0,
+        downloaded: 0,
+      },
     });
-    // Set TTL (7 days for pending jobs)
-    await redis.expire(stateKey, 604_800);
 
     return {
       id,
@@ -150,67 +137,73 @@ class ScrapeJobQueue {
    */
   async getJob(id: string): Promise<Job | undefined> {
     const bullJob = await scrapeQueue.getJob(id);
-    if (!bullJob) {
+
+    // Try to find in Prisma by jobId
+    const dbJob = await prisma.scrapeJob.findFirst({
+      where: { jobId: id },
+    });
+
+    if (!(dbJob || bullJob)) {
       return;
     }
 
-    const stateKey = getRedisKey(id);
-    const state = await redis.hgetall(stateKey);
+    let status: JobStatus = "pending";
+    let sortMode: SortMode = "top";
+    let limit = 100;
+    let minLikes = 100_000;
+    let scanned = 0;
+    let found = 0;
+    let downloaded = 0;
+    let error: string | undefined;
+    let createdAt = new Date();
+    let updatedAt = new Date();
 
-    if (!state || Object.keys(state).length === 0) {
-      return;
+    if (bullJob) {
+      const bullState = await bullJob.getState();
+      status = this.mapBullState(bullState);
+      sortMode = bullJob.data.sortMode;
+      limit = bullJob.data.limit;
+      minLikes = bullJob.data.minLikes;
     }
 
-    const bullState = await bullJob.getState();
-    const status = this.mapBullState(bullState);
+    if (dbJob) {
+      // Prefer DB data for progress
+      scanned = dbJob.scanned;
+      found = dbJob.found;
+      downloaded = dbJob.downloaded;
+      error = dbJob.error ?? undefined;
+      createdAt = dbJob.createdAt;
+      updatedAt = dbJob.updatedAt;
 
-    // Parse stored data
-    let progress: JobProgress = {
-      scraped: 0,
-      downloaded: 0,
-      total: bullJob.data.limit,
-      scanned: 0,
-      found: 0,
+      // If bullJob not found but dbJob exists, use DB status
+      if (!bullJob) {
+        status = dbJob.status as JobStatus;
+        sortMode = dbJob.sortMode as SortMode;
+        limit = dbJob.limit;
+        minLikes = dbJob.minLikes;
+      }
+    }
+
+    const progress: JobProgress = {
+      scraped: found,
+      downloaded,
+      total: limit,
+      scanned,
+      found,
     };
-    let reels: Reel[] = [];
-    let downloadedFiles: string[] = [];
-
-    try {
-      if (state.progress) {
-        const parsed = JSON.parse(state.progress) as ScrapeJobProgress;
-        progress = {
-          scraped: parsed.scraped,
-          downloaded: parsed.downloaded,
-          total: parsed.total,
-          scanned: parsed.scanned,
-          found: parsed.found,
-          currentReelId: parsed.currentReelId,
-          currentLikes: parsed.currentLikes,
-          lastFoundReel: parsed.lastFoundReel,
-        };
-      }
-      if (state.reels) {
-        reels = JSON.parse(state.reels) as Reel[];
-      }
-      if (state.downloadedFiles) {
-        downloadedFiles = JSON.parse(state.downloadedFiles) as string[];
-      }
-    } catch {
-      // Keep defaults on parse error
-    }
 
     return {
       id,
       status,
-      sortMode: bullJob.data.sortMode,
-      limit: bullJob.data.limit,
-      minLikes: bullJob.data.minLikes,
+      sortMode,
+      limit,
+      minLikes,
       progress,
-      reels,
-      downloadedFiles,
-      error: state.error,
-      createdAt: new Date(state.createdAt ?? Date.now()),
-      updatedAt: new Date(state.updatedAt ?? Date.now()),
+      reels: [], // Reels are stored separately in Reel table
+      downloadedFiles: [], // Can be retrieved from Reel.localPath if needed
+      error,
+      createdAt,
+      updatedAt,
     };
   }
 
@@ -218,180 +211,152 @@ class ScrapeJobQueue {
    * Get all jobs
    */
   async getAllJobs(): Promise<Job[]> {
-    const jobs = await scrapeQueue.getJobs([
-      "waiting",
-      "active",
-      "completed",
-      "failed",
-    ]);
+    // Get all jobs from Prisma (it's the source of truth now)
+    const dbJobs = await prisma.scrapeJob.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
 
     const result: Job[] = [];
-    for (const bullJob of jobs) {
-      if (bullJob.id) {
-        const job = await this.getJob(bullJob.id);
-        if (job) {
-          result.push(job);
-        }
+
+    for (const dbJob of dbJobs) {
+      const jobId = dbJob.jobId ?? dbJob.id;
+      const bullJob = dbJob.jobId
+        ? await scrapeQueue.getJob(dbJob.jobId)
+        : null;
+
+      let status: JobStatus = dbJob.status as JobStatus;
+
+      // If job is in BullMQ, use its state
+      if (bullJob) {
+        const bullState = await bullJob.getState();
+        status = this.mapBullState(bullState);
       }
+
+      const progress: JobProgress = {
+        scraped: dbJob.found,
+        downloaded: dbJob.downloaded,
+        total: dbJob.limit,
+        scanned: dbJob.scanned,
+        found: dbJob.found,
+      };
+
+      result.push({
+        id: jobId,
+        status,
+        sortMode: dbJob.sortMode as SortMode,
+        limit: dbJob.limit,
+        minLikes: dbJob.minLikes,
+        progress,
+        reels: [],
+        downloadedFiles: [],
+        error: dbJob.error ?? undefined,
+        createdAt: dbJob.createdAt,
+        updatedAt: dbJob.updatedAt,
+      });
     }
 
-    return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return result;
   }
 
   /**
    * Update job status
    */
-  async updateJobStatus(id: string, _status: JobStatus): Promise<void> {
-    const stateKey = getRedisKey(id);
-    await redis.hset(stateKey, "updatedAt", new Date().toISOString());
+  async updateJobStatus(id: string, status: JobStatus): Promise<void> {
+    await prisma.scrapeJob.updateMany({
+      where: { jobId: id },
+      data: { status },
+    });
   }
 
   /**
-   * Update job progress (stored in Redis)
+   * Update job progress
    */
   async updateJobProgress(
     id: string,
     progressUpdate: Partial<ScrapeJobProgress>
   ): Promise<void> {
-    const stateKey = getRedisKey(id);
-    const state = await redis.hgetall(stateKey);
+    const updateData: Record<string, number> = {};
 
-    if (!state) {
-      return;
+    if (progressUpdate.scanned !== undefined) {
+      updateData.scanned = progressUpdate.scanned;
+    }
+    if (progressUpdate.found !== undefined) {
+      updateData.found = progressUpdate.found;
+    }
+    if (progressUpdate.downloaded !== undefined) {
+      updateData.downloaded = progressUpdate.downloaded;
     }
 
-    let currentProgress: ScrapeJobProgress = {
-      scraped: 0,
-      downloaded: 0,
-      total: 0,
-      scanned: 0,
-      found: 0,
-      reels: [],
-      downloadedFiles: [],
-    };
-
-    try {
-      if (state.progress) {
-        currentProgress = JSON.parse(state.progress) as ScrapeJobProgress;
-      }
-    } catch {
-      // Keep defaults
+    if (Object.keys(updateData).length > 0) {
+      await prisma.scrapeJob.updateMany({
+        where: { jobId: id },
+        data: updateData,
+      });
     }
-
-    const newProgress = { ...currentProgress, ...progressUpdate };
-
-    await redis.hset(stateKey, {
-      progress: JSON.stringify(newProgress),
-      updatedAt: new Date().toISOString(),
-    });
 
     // Also update BullMQ job progress (percentage)
     const bullJob = await scrapeQueue.getJob(id);
     if (bullJob) {
-      const percent =
-        newProgress.total > 0
-          ? Math.round((newProgress.found / newProgress.total) * 100)
-          : 0;
-      await bullJob.updateProgress(percent);
+      const dbJob = await prisma.scrapeJob.findFirst({
+        where: { jobId: id },
+      });
+
+      if (dbJob) {
+        const percent =
+          dbJob.limit > 0 ? Math.round((dbJob.found / dbJob.limit) * 100) : 0;
+        await bullJob.updateProgress(percent);
+      }
     }
   }
 
   /**
    * Add scraped reels to job
+   * Note: Reels are stored directly in Reel table, this just updates count
    */
   async addReels(id: string, reels: Reel[]): Promise<void> {
-    const stateKey = getRedisKey(id);
-    const state = await redis.hgetall(stateKey);
-
-    if (!state) {
-      return;
-    }
-
-    let existingReels: Reel[] = [];
-    let progress: ScrapeJobProgress = {
-      scraped: 0,
-      downloaded: 0,
-      total: 0,
-      scanned: 0,
-      found: 0,
-      reels: [],
-      downloadedFiles: [],
-    };
-
-    try {
-      if (state.reels) {
-        existingReels = JSON.parse(state.reels) as Reel[];
-      }
-      if (state.progress) {
-        progress = JSON.parse(state.progress) as ScrapeJobProgress;
-      }
-    } catch {
-      // Keep defaults
-    }
-
-    existingReels.push(...reels);
-    progress.scraped = existingReels.length;
-    progress.reels = existingReels;
-
-    await redis.hset(stateKey, {
-      reels: JSON.stringify(existingReels),
-      progress: JSON.stringify(progress),
-      updatedAt: new Date().toISOString(),
+    const dbJob = await prisma.scrapeJob.findFirst({
+      where: { jobId: id },
     });
+
+    if (dbJob) {
+      await prisma.scrapeJob.update({
+        where: { id: dbJob.id },
+        data: {
+          found: dbJob.found + reels.length,
+        },
+      });
+    }
   }
 
   /**
    * Add downloaded file to job
    */
-  async addDownloadedFile(id: string, filename: string): Promise<void> {
-    const stateKey = getRedisKey(id);
-    const state = await redis.hgetall(stateKey);
-
-    if (!state) {
-      return;
-    }
-
-    let downloadedFiles: string[] = [];
-    let progress: ScrapeJobProgress = {
-      scraped: 0,
-      downloaded: 0,
-      total: 0,
-      scanned: 0,
-      found: 0,
-      reels: [],
-      downloadedFiles: [],
-    };
-
-    try {
-      if (state.downloadedFiles) {
-        downloadedFiles = JSON.parse(state.downloadedFiles) as string[];
-      }
-      if (state.progress) {
-        progress = JSON.parse(state.progress) as ScrapeJobProgress;
-      }
-    } catch {
-      // Keep defaults
-    }
-
-    downloadedFiles.push(filename);
-    progress.downloaded = downloadedFiles.length;
-    progress.downloadedFiles = downloadedFiles;
-
-    await redis.hset(stateKey, {
-      downloadedFiles: JSON.stringify(downloadedFiles),
-      progress: JSON.stringify(progress),
-      updatedAt: new Date().toISOString(),
+  async addDownloadedFile(id: string, _filename: string): Promise<void> {
+    const dbJob = await prisma.scrapeJob.findFirst({
+      where: { jobId: id },
     });
+
+    if (dbJob) {
+      await prisma.scrapeJob.update({
+        where: { id: dbJob.id },
+        data: {
+          downloaded: dbJob.downloaded + 1,
+        },
+      });
+    }
   }
 
   /**
    * Set job error
    */
   async setJobError(id: string, error: string): Promise<void> {
-    const stateKey = getRedisKey(id);
-    await redis.hset(stateKey, {
-      error,
-      updatedAt: new Date().toISOString(),
+    await prisma.scrapeJob.updateMany({
+      where: { jobId: id },
+      data: {
+        error,
+        status: "failed",
+      },
     });
   }
 
@@ -399,10 +364,10 @@ class ScrapeJobQueue {
    * Mark job as completed
    */
   async completeJob(id: string): Promise<void> {
-    const stateKey = getRedisKey(id);
-    await redis.hset(stateKey, "updatedAt", new Date().toISOString());
-    // Reduce TTL for completed jobs (24 hours)
-    await redis.expire(stateKey, 86_400);
+    await prisma.scrapeJob.updateMany({
+      where: { jobId: id },
+      data: { status: "completed" },
+    });
   }
 
   /**
@@ -412,10 +377,13 @@ class ScrapeJobQueue {
     const bullJob = await scrapeQueue.getJob(id);
     if (bullJob) {
       await bullJob.remove();
-      await redis.del(getRedisKey(id));
-      return true;
     }
-    return false;
+
+    const result = await prisma.scrapeJob.deleteMany({
+      where: { jobId: id },
+    });
+
+    return result.count > 0 || !!bullJob;
   }
 
   /**

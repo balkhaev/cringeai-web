@@ -3,20 +3,17 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import prisma from "@trender/db";
+import { paths, services } from "../../config";
 import { getS3Key, isS3Configured, s3Service } from "../s3";
 import type { Reel } from "./types";
 
 const execAsync = promisify(exec);
 
-// В Docker используем DATA_DIR, локально - относительный путь
-const DATA_DIR = process.env.DATA_DIR || join(import.meta.dir, "../../../data");
-const DOWNLOADS_DIR = join(DATA_DIR, "downloads");
+// Paths from config
+const DOWNLOADS_DIR = paths.downloadsDir;
 
 // Python instaloader service URL
-const INSTALOADER_SERVICE_URL =
-  process.env.SCRAPPER_SERVICE_URL ||
-  process.env.INSTALOADER_SERVICE_URL ||
-  "http://localhost:8001";
+const INSTALOADER_SERVICE_URL = services.scrapper;
 
 // Rate limiting configuration
 const DOWNLOAD_DELAY_MS = 5000; // 5 seconds between downloads

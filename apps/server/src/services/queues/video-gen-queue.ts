@@ -2,9 +2,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import prisma from "@trender/db";
 import { type Job as BullJob, Queue, Worker } from "bullmq";
+import { paths } from "../../config";
 import { getKlingService } from "../kling";
 import { redis } from "../redis";
 import { getS3Key, isS3Configured, s3Service } from "../s3";
+import {
+  getGenerationLocalVideoPublicUrl,
+  getGenerationVideoPublicUrl,
+} from "../url-builder";
 import { registerQueue, registerWorker } from "./manager";
 import type {
   VideoGenJobData,
@@ -13,8 +18,7 @@ import type {
 } from "./types";
 
 // Video generation output directory
-const DATA_DIR = process.env.DATA_DIR || join(import.meta.dir, "../../../data");
-const GENERATIONS_DIR = join(DATA_DIR, "generations");
+const GENERATIONS_DIR = join(paths.dataDir, "generations");
 
 async function ensureGenerationsDir(): Promise<void> {
   await mkdir(GENERATIONS_DIR, { recursive: true });
@@ -72,21 +76,16 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
         );
       }
 
-      // Convert local API path to public URL for Kling API
-      let publicVideoUrl = sourceVideoUrl;
-      const publicBaseUrl = process.env.PUBLIC_URL || "";
-
-      // If it's a local API path, prepend the public base URL
-      if (sourceVideoUrl.startsWith("/api/files/reels/")) {
-        if (!publicBaseUrl) {
-          throw new Error(
-            "PUBLIC_URL environment variable is required for Kling API. " +
-              "Set it to your server's public URL (e.g., https://srv-trender.balkhaev.com)"
-          );
-        }
-        publicVideoUrl = `${publicBaseUrl}${sourceVideoUrl}`;
-        console.log(`[VideoGenQueue] Using public URL: ${publicVideoUrl}`);
+      // URL should already be a full public URL (from buildReelVideoUrl)
+      // Validate that it's not a relative path
+      if (sourceVideoUrl.startsWith("/api/")) {
+        throw new Error(
+          "Source video URL must be a full public URL, not a relative path. " +
+            "Check that PUBLIC_URL is configured and buildReelVideoUrl is used."
+        );
       }
+      const publicVideoUrl = sourceVideoUrl;
+      console.log(`[VideoGenQueue] Using video URL: ${publicVideoUrl}`);
 
       const startTime = Date.now();
       const kling = getKlingService();
@@ -157,9 +156,9 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
 
           if (downloadResult.s3Key) {
             s3Key = downloadResult.s3Key;
-            videoUrl = `/api/files/generations/${generationId}`;
+            videoUrl = getGenerationVideoPublicUrl(generationId);
           } else if (downloadResult.localPath) {
-            videoUrl = `/api/video/generation/${generationId}/download`;
+            videoUrl = getGenerationLocalVideoPublicUrl(generationId);
           }
         }
 
@@ -387,6 +386,7 @@ export const videoGenJobQueue = {
       },
     });
 
+    const jobId = `video-gen-${generation.id}`;
     console.log(`[VideoGenQueue] Created generation record ${generation.id}`);
 
     // Add job to queue
@@ -400,8 +400,14 @@ export const videoGenJobQueue = {
         sourceVideoUrl,
         options,
       },
-      { jobId: `gen-${generation.id}` }
+      { jobId }
     );
+
+    // Save jobId in generation record
+    await prisma.videoGeneration.update({
+      where: { id: generation.id },
+      data: { jobId: job.id },
+    });
 
     console.log(`[VideoGenQueue] Added job ${job.id} to queue`);
 
@@ -445,7 +451,14 @@ export const videoGenJobQueue = {
    * Retry a failed generation
    */
   async retryGeneration(generationId: string): Promise<boolean> {
-    const job = await videoGenQueue.getJob(`gen-${generationId}`);
+    // Try new format first
+    let job = await videoGenQueue.getJob(`video-gen-${generationId}`);
+
+    // Fallback to old format for backwards compatibility
+    if (!job) {
+      job = await videoGenQueue.getJob(`gen-${generationId}`);
+    }
+
     if (job) {
       await job.retry();
       return true;

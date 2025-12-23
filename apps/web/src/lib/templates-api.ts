@@ -399,6 +399,23 @@ export type StageStats = {
   errors: number;
 };
 
+export type AILogDetail = {
+  id: string;
+  reelId: string | null;
+  generationId: string | null;
+  provider: "gemini" | "openai" | "kling";
+  operation: string;
+  model: string | null;
+  status: string;
+  error: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  duration: number | null;
+  inputMeta: Record<string, unknown> | null;
+  outputMeta: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 export type ReelDebugInfo = {
   reel: {
     id: string;
@@ -434,6 +451,8 @@ export type ReelDebugInfo = {
   // Source video URL for generation
   videoUrl: string | null;
   generations: VideoGeneration[];
+  // AI logs for debugging API requests/responses
+  aiLogs?: AILogDetail[];
 };
 
 export async function getReelDebug(reelId: string): Promise<ReelDebugInfo> {
@@ -496,6 +515,60 @@ export async function downloadReel(reelId: string): Promise<void> {
   if (!response.ok) {
     throw new Error("Failed to start download");
   }
+}
+
+export type ResizeResult = {
+  success: boolean;
+  resized: boolean;
+  originalWidth: number;
+  newWidth?: number;
+  message: string;
+};
+
+export async function resizeReel(reelId: string): Promise<ResizeResult> {
+  const response = await fetch(`${API_URL}/api/reels/${reelId}/resize`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to resize video");
+  }
+
+  return response.json();
+}
+
+export type BatchResizeResult = {
+  success: boolean;
+  processed: number;
+  resized: number;
+  alreadyValid: number;
+  failed: number;
+  results: Array<{
+    id: string;
+    success: boolean;
+    resized?: boolean;
+    error?: string;
+  }>;
+};
+
+export async function batchResizeReels(
+  reelIds: string[]
+): Promise<BatchResizeResult> {
+  const response = await fetch(`${API_URL}/api/reels/batch-resize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reelIds }),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to batch resize");
+  }
+
+  return response.json();
 }
 
 export async function analyzeReel(reelId: string): Promise<void> {

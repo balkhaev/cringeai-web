@@ -15,7 +15,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { VideoPreview } from "@/components/video-preview";
-import { hasVideo, type ReelStatus, type SavedReel } from "@/lib/reels-api";
+import {
+  getReelVideoUrl,
+  hasVideo,
+  type ReelStatus,
+  type SavedReel,
+} from "@/lib/reels-api";
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) {
@@ -85,15 +90,12 @@ type ReelPreviewProps = {
 };
 
 function ReelPreview({ reel }: ReelPreviewProps) {
+  const videoUrl = getReelVideoUrl(reel);
+
   return (
     <div className="relative">
-      {hasVideo(reel) ? (
-        <VideoPreview
-          className="aspect-[9/16] w-full"
-          reelId={reel.id}
-          s3Key={reel.s3Key}
-          source={reel.source || "reels"}
-        />
+      {hasVideo(reel) && videoUrl ? (
+        <VideoPreview className="aspect-[9/16] w-full" videoUrl={videoUrl} />
       ) : (
         <div className="flex aspect-[9/16] w-full items-center justify-center bg-muted">
           <Play className="h-12 w-12 text-muted-foreground/50" />

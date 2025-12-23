@@ -8,6 +8,7 @@ import {
   Heart,
   Link2,
   Loader2,
+  Maximize,
   Play,
   Search,
   Upload,
@@ -17,7 +18,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +26,7 @@ import {
   useAddReel,
   useAuthStatus,
   useBatchRefreshDuration,
+  useBatchResizeAll,
   useScrapeJobs,
   useStartScrape,
   useUploadPipelineVideo,
@@ -93,6 +95,7 @@ export function ScraperPanel() {
   const addReel = useAddReel();
   const uploadVideo = useUploadPipelineVideo();
   const batchRefreshDuration = useBatchRefreshDuration();
+  const batchResizeAll = useBatchResizeAll();
 
   const isAuthenticated = authStatus?.isConfigured ?? false;
 
@@ -162,9 +165,6 @@ export function ScraperPanel() {
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Скрапер</CardTitle>
-      </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <div className="flex flex-col gap-4">
           {/* Instagram Auth */}
@@ -317,6 +317,38 @@ export function ScraperPanel() {
             </Button>
             <p className="text-center text-[10px] text-muted-foreground">
               Запросить длительность для рилов без duration
+            </p>
+
+            <Button
+              className="w-full"
+              disabled={batchResizeAll.isPending}
+              onClick={() => {
+                batchResizeAll.mutate(undefined, {
+                  onSuccess: (data) => {
+                    if (data.processed === 0) {
+                      toast.info("Нет видео для ресайза");
+                    } else {
+                      toast.success(
+                        `Обработано: ${data.processed}, увеличено: ${data.resized}, уже OK: ${data.alreadyValid}`
+                      );
+                    }
+                  },
+                  onError: (err) => {
+                    toast.error(`Ошибка: ${err.message}`);
+                  },
+                });
+              }}
+              variant="outline"
+            >
+              {batchResizeAll.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Maximize className="mr-2 h-4 w-4" />
+              )}
+              Увеличить для Kling
+            </Button>
+            <p className="text-center text-[10px] text-muted-foreground">
+              Апскейл видео &lt;720px для Kling API
             </p>
           </div>
 

@@ -5,7 +5,10 @@ import {
   HarmCategory,
 } from "@google/generative-ai";
 import { FileState, GoogleAIFileManager } from "@google/generative-ai/server";
+import { ai } from "../config";
 import { aiLogger } from "./ai-logger";
+
+const geminiConfig = ai.gemini;
 
 // Scene in the video with timestamp
 export type VideoScene = {
@@ -84,6 +87,7 @@ export type DetectableElement = {
 export type VideoAnalysis = {
   duration: number | null;
   aspectRatio: string;
+  tags: string[];
   elements: DetectableElement[];
 };
 
@@ -94,235 +98,168 @@ export type ElementWithoutOptions = Omit<DetectableElement, "remixOptions">;
 export type VideoAnalysisWithoutOptions = {
   duration: number | null;
   aspectRatio: string;
+  tags: string[];
   elements: ElementWithoutOptions[];
 };
 
-const ANALYSIS_PROMPT = `You are an expert at identifying key visual elements in videos for AI video remix generation.
+const ANALYSIS_PROMPT = `Identify key visual elements in this video for AI remix.
 
-Your task: Identify the KEY ELEMENTS in this video that can be transformed/replaced while keeping the same motion and composition.
-
-Respond in JSON format:
-
+Return JSON:
 {
   "duration": 5,
   "aspectRatio": "9:16",
-
+  "tags": ["lifestyle", "morning", "cozy"],
   "elements": [
     {
       "id": "char-1",
       "type": "character",
       "label": "Young Woman",
-      "description": "A woman in her late 20s with long dark wavy hair, wearing a cream linen dress, holding a coffee cup",
+      "description": "Woman in late 20s, long dark wavy hair, cream linen dress, holding coffee cup",
       "remixOptions": [
-        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Transform the young woman into a cyberpunk android with glowing blue circuitry patterns on metallic silver skin, neon LED eyes, and chrome mechanical joints"},
-        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Transform the young woman into an ethereal elf princess with pointed ears, flowing silver hair, glowing golden eyes, and delicate elvish robes"},
-        {"id": "opt-3", "label": "Anime Character", "icon": "🎌", "prompt": "Transform the young woman into an anime style character with large expressive eyes, vibrant pink hair, and exaggerated cute expressions"},
-        {"id": "opt-4", "label": "Victorian Lady", "icon": "👗", "prompt": "Transform the young woman into a Victorian era aristocrat with elaborate updo hairstyle, pearl jewelry, and ornate period dress with lace details"}
+        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Cyberpunk android with glowing blue circuitry on metallic silver skin, neon LED eyes, chrome joints"},
+        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Ethereal elf with pointed ears, silver hair, golden eyes, elvish robes"},
+        {"id": "opt-3", "label": "Anime Girl", "icon": "🎌", "prompt": "Anime style with large eyes, pink hair, cute expressions"}
       ]
     },
     {
       "id": "obj-1",
       "type": "object",
       "label": "Coffee Cup",
-      "description": "Large ceramic mug with matte gray finish, steam rising",
+      "description": "Large ceramic mug, matte gray, steam rising",
       "remixOptions": [
-        {"id": "opt-1", "label": "Magic Potion", "icon": "🧪", "prompt": "Transform the coffee cup into a bubbling magic potion in a crystal vial with swirling purple mist and glowing runes"},
-        {"id": "opt-2", "label": "Alien Device", "icon": "👽", "prompt": "Transform the coffee cup into a sleek alien technology device with holographic display and floating energy orbs"},
-        {"id": "opt-3", "label": "Golden Chalice", "icon": "🏆", "prompt": "Transform the coffee cup into an ornate golden chalice encrusted with rubies and emeralds, medieval royal style"},
-        {"id": "opt-4", "label": "Living Plant", "icon": "🌱", "prompt": "Transform the coffee cup into a living plant creature with vine tendrils, flower eyes, and leaves forming a cup shape"}
+        {"id": "opt-1", "label": "Magic Potion", "icon": "🧪", "prompt": "Bubbling potion in crystal vial with purple mist and glowing runes"},
+        {"id": "opt-2", "label": "Alien Device", "icon": "👽", "prompt": "Alien tech with holographic display and floating energy orbs"},
+        {"id": "opt-3", "label": "Golden Chalice", "icon": "🏆", "prompt": "Ornate golden chalice with rubies and emeralds"}
       ]
     },
     {
       "id": "bg-1",
       "type": "background",
       "label": "Kitchen",
-      "description": "Modern minimalist kitchen with white marble counters, morning sunlight through large windows",
+      "description": "Modern minimalist kitchen, white marble counters, morning sunlight",
       "remixOptions": [
-        {"id": "opt-1", "label": "Spaceship Interior", "icon": "🚀", "prompt": "Transform the kitchen into a futuristic spaceship command center with holographic displays, chrome surfaces, and stars visible through viewport windows"},
-        {"id": "opt-2", "label": "Medieval Castle", "icon": "🏰", "prompt": "Transform the kitchen into a medieval castle great hall with stone walls, torch lighting, tapestries, and a massive fireplace"},
-        {"id": "opt-3", "label": "Underwater Palace", "icon": "🐠", "prompt": "Transform the kitchen into an underwater palace with coral walls, bioluminescent lighting, floating bubbles, and fish swimming past windows"},
-        {"id": "opt-4", "label": "Enchanted Forest", "icon": "🌲", "prompt": "Transform the kitchen into a magical forest clearing with giant mushrooms, glowing fireflies, mystical fog, and ancient trees"}
+        {"id": "opt-1", "label": "Spaceship", "icon": "🚀", "prompt": "Futuristic spaceship command center with holographic displays and stars through windows"},
+        {"id": "opt-2", "label": "Medieval Castle", "icon": "🏰", "prompt": "Castle great hall with stone walls, torches, tapestries"},
+        {"id": "opt-3", "label": "Underwater Palace", "icon": "🐠", "prompt": "Underwater palace with coral walls, bioluminescent lighting, fish"}
       ]
     }
   ]
 }
 
-CRITICAL RULES:
+RULES:
 
-1. **Identify ALL significant elements** in the video:
-   - Characters (type: "character"): People, animals, creatures - use ids like "char-1", "char-2", etc.
-   - Objects (type: "object"): Important items, props, tools - use ids like "obj-1", "obj-2", etc.
-   - Backgrounds (type: "background"): Environments, settings - use ids like "bg-1", "bg-2", etc.
-   - Include EVERY distinct element that could be transformed (no limit on count)
+1. **tags**: 3-5 short tags describing video theme/style/mood (lowercase, english)
 
-2. **ALWAYS return EXACTLY 4 remixOptions per element**:
-   - Each with unique id: "opt-1", "opt-2", "opt-3", "opt-4"
-   - Diverse styles: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi, Horror, Cartoon, Steampunk
-   - TRANSFORMATIVE changes, not subtle modifications
+2. **elements**: Identify ALL significant elements:
+   - Characters: "char-1", "char-2" (people, animals)
+   - Objects: "obj-1", "obj-2" (important items)
+   - Backgrounds: "bg-1" (environments)
 
-3. **Label**: 2-3 words, creative name
-4. **Icon**: Single emoji representing the transformation
-5. **Prompt**: Detailed transformation description with specific visual details (materials, colors, textures, lighting effects)
+3. **remixOptions**: 3 to 6 per element, RANKED by visual impact:
+   - First options = most dramatic/viral transformations
+   - Last options = subtle but interesting changes
+   - Diverse styles: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi, Horror
 
-6. **Quality requirements**:
-   - Be SPECIFIC: "glowing neon blue circuitry on chrome skin" not just "futuristic"
-   - Each option must be visually DISTINCT from others
-   - Transformations must be compatible with the original motion/composition
-   - Identify multiple characters if present (each person/animal gets own element)
-   - Identify multiple objects if they are visually significant`;
+4. **label**: 2-3 words | **icon**: single emoji | **prompt**: specific visual details`;
 
 // Промпт для анализа БЕЗ генерации вариантов (для enchanting режима)
-const ELEMENTS_ONLY_PROMPT = `You are an expert at identifying key visual elements in videos for AI video remix generation.
+const ELEMENTS_ONLY_PROMPT = `Identify key visual elements in this video for AI remix. NO remixOptions.
 
-Your task: Identify the KEY ELEMENTS in this video that can be transformed/replaced while keeping the same motion and composition.
-
-DO NOT generate remixOptions - only identify and describe the elements.
-
-Respond in JSON format:
-
+Return JSON:
 {
   "duration": 5,
   "aspectRatio": "9:16",
-
+  "tags": ["lifestyle", "morning", "cozy"],
   "elements": [
     {
       "id": "char-1",
       "type": "character",
       "label": "Young Woman",
-      "description": "A woman in her late 20s with long dark wavy hair, wearing a cream linen dress, holding a coffee cup"
+      "description": "Woman in late 20s, long dark wavy hair, cream linen dress, holding coffee cup"
     },
     {
       "id": "obj-1",
       "type": "object",
       "label": "Coffee Cup",
-      "description": "Large ceramic mug with matte gray finish, steam rising"
+      "description": "Large ceramic mug, matte gray, steam rising"
     },
     {
       "id": "bg-1",
       "type": "background",
       "label": "Kitchen",
-      "description": "Modern minimalist kitchen with white marble counters, morning sunlight through large windows"
+      "description": "Modern minimalist kitchen, white marble counters, morning sunlight"
     }
   ]
 }
 
-CRITICAL RULES:
+RULES:
+1. **tags**: 3-5 short tags describing video theme/style/mood (lowercase, english)
+2. **elements**: Characters (char-1), Objects (obj-1), Backgrounds (bg-1)
+3. **NO remixOptions** - they will be generated separately
+4. **description**: Specific visual details (materials, colors, clothing)`;
 
-1. **Identify ALL significant elements** in the video:
-   - Characters (type: "character"): People, animals, creatures - use ids like "char-1", "char-2", etc.
-   - Objects (type: "object"): Important items, props, tools - use ids like "obj-1", "obj-2", etc.
-   - Backgrounds (type: "background"): Environments, settings - use ids like "bg-1", "bg-2", etc.
-   - Include EVERY distinct element that could be transformed (no limit on count)
+const FRAMES_ELEMENTS_ONLY_PROMPT = `Identify key visual elements in these video frames. NO remixOptions.
 
-2. **DO NOT include remixOptions** - leave them out entirely
-
-3. **Label**: 2-3 words, descriptive name
-4. **Description**: Detailed description with specific visual details (materials, colors, textures, clothing, pose, etc.)
-
-5. **Quality requirements**:
-   - Be SPECIFIC in descriptions: "A woman in her late 20s with long dark wavy hair" not just "a woman"
-   - Describe clothing, accessories, pose, expression for characters
-   - Describe material, color, size, condition for objects
-   - Describe lighting, style, key features for backgrounds`;
-
-const FRAMES_ELEMENTS_ONLY_PROMPT = `You are an expert at identifying key visual elements in video frames for AI video remix generation.
-
-You are given a sequence of frames from a video. Identify the KEY ELEMENTS that can be transformed/replaced.
-
-DO NOT generate remixOptions - only identify and describe the elements.
-
-Respond in JSON format:
-
+Return JSON:
 {
   "duration": 5,
   "aspectRatio": "9:16",
+  "tags": ["lifestyle", "morning", "cozy"],
+  "elements": [
+    {"id": "char-1", "type": "character", "label": "Main Subject", "description": "Detailed description"},
+    {"id": "obj-1", "type": "object", "label": "Key Object", "description": "Most prominent object"},
+    {"id": "bg-1", "type": "background", "label": "Environment", "description": "Setting/background"}
+  ]
+}
 
+RULES:
+1. **tags**: 3-5 short tags (lowercase, english)
+2. **elements**: Characters (char-1), Objects (obj-1), Backgrounds (bg-1)
+3. **NO remixOptions**
+4. Analyze ALL frames together`;
+
+const FRAMES_ANALYSIS_PROMPT = `Identify key visual elements in these video frames for AI remix.
+
+Return JSON:
+{
+  "duration": 5,
+  "aspectRatio": "9:16",
+  "tags": ["lifestyle", "morning", "cozy"],
   "elements": [
     {
       "id": "char-1",
       "type": "character",
       "label": "Main Subject",
-      "description": "Detailed description of the main person/animal/subject visible across frames"
-    },
-    {
-      "id": "obj-1",
-      "type": "object",
-      "label": "Key Object",
-      "description": "Most prominent object visible in frames"
-    },
-    {
-      "id": "bg-1",
-      "type": "background",
-      "label": "Environment",
-      "description": "The setting/background visible across frames"
-    }
-  ]
-}
-
-CRITICAL RULES:
-
-1. **Identify ALL significant elements** visible in frames:
-   - Characters (type: "character"): People, animals, creatures - ids: "char-1", "char-2", etc.
-   - Objects (type: "object"): Important items, props - ids: "obj-1", "obj-2", etc.
-   - Backgrounds (type: "background"): Environments - ids: "bg-1", "bg-2", etc.
-   - No limit on element count - include EVERY distinct transformable element
-2. **DO NOT include remixOptions**
-3. **Analyze ALL frames together** to understand the complete scene
-4. **Be SPECIFIC** in descriptions: include materials, colors, textures, clothing, poses
-5. **Include multiple characters** if present - each person/animal gets own element`;
-
-const FRAMES_ANALYSIS_PROMPT = `You are an expert at identifying key visual elements in video frames for AI video remix generation.
-
-You are given a sequence of frames from a video. Identify the KEY ELEMENTS that can be transformed/replaced while keeping the same motion and composition.
-
-Respond in JSON format:
-
-{
-  "duration": 5,
-  "aspectRatio": "9:16",
-
-  "elements": [
-    {
-      "id": "char-1",
-      "type": "character",
-      "label": "Main Subject",
-      "description": "Detailed description of the main person/animal/subject visible across frames",
+      "description": "Detailed description of person/animal visible across frames",
       "remixOptions": [
-        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Transform into cyberpunk android with glowing circuitry..."},
-        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Transform into ethereal elf with pointed ears..."},
-        {"id": "opt-3", "label": "Anime Character", "icon": "🎌", "prompt": "Transform into anime style with large eyes..."},
-        {"id": "opt-4", "label": "Victorian Style", "icon": "👗", "prompt": "Transform into Victorian era aesthetic..."}
+        {"id": "opt-1", "label": "Cyberpunk Android", "icon": "🤖", "prompt": "Cyberpunk android with glowing circuitry"},
+        {"id": "opt-2", "label": "Fantasy Elf", "icon": "🧝", "prompt": "Ethereal elf with pointed ears"},
+        {"id": "opt-3", "label": "Anime Character", "icon": "🎌", "prompt": "Anime style with large eyes"}
       ]
     },
     {
       "id": "obj-1",
       "type": "object",
       "label": "Key Object",
-      "description": "Most prominent object visible in frames",
+      "description": "Most prominent object",
       "remixOptions": [...]
     },
     {
       "id": "bg-1",
       "type": "background",
       "label": "Environment",
-      "description": "The setting/background visible across frames",
+      "description": "Setting/background",
       "remixOptions": [...]
     }
   ]
 }
 
-CRITICAL RULES:
-
-1. **Identify ALL significant elements** visible in frames:
-   - Characters (type: "character"): People, animals, creatures - ids: "char-1", "char-2", etc.
-   - Objects (type: "object"): Important items, props - ids: "obj-1", "obj-2", etc.
-   - Backgrounds (type: "background"): Environments - ids: "bg-1", "bg-2", etc.
-   - No limit on element count - include EVERY distinct transformable element
-2. **ALWAYS return EXACTLY 4 remixOptions per element** with ids: opt-1, opt-2, opt-3, opt-4
-3. **Analyze ALL frames together** to understand the complete scene
-4. **Be SPECIFIC** in transformation prompts: include materials, colors, textures, lighting effects
-5. **Diverse styles**: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi, Horror, Cartoon, Steampunk
-6. **Include multiple characters** if present - each person/animal gets own element`;
+RULES:
+1. **tags**: 3-5 short tags (lowercase, english)
+2. **elements**: Characters (char-1), Objects (obj-1), Backgrounds (bg-1)
+3. **remixOptions**: 3 to 6 per element, RANKED by visual impact
+4. Analyze ALL frames together
+5. Diverse styles: Cyberpunk, Fantasy, Anime, Historical, Sci-Fi`;
 
 const JSON_REGEX = /\{[\s\S]*\}/;
 
@@ -416,6 +353,7 @@ export type GeminiProgressCallback = (
 type GeminiRawAnalysis = {
   duration?: number | string | null;
   aspectRatio?: string;
+  tags?: string[];
   elements?: DetectableElement[];
 };
 
@@ -428,6 +366,7 @@ function parseRawAnalysis(raw: GeminiRawAnalysis): VideoAnalysis {
   return {
     duration,
     aspectRatio: raw.aspectRatio || "9:16",
+    tags: raw.tags || [],
     elements: raw.elements || [],
   };
 }
@@ -757,6 +696,7 @@ export class GeminiService {
       const raw = JSON.parse(jsonMatch[0]) as {
         duration?: number | string | null;
         aspectRatio?: string;
+        tags?: string[];
         elements?: ElementWithoutOptions[];
       };
 
@@ -770,11 +710,15 @@ export class GeminiService {
       const result2 = {
         duration,
         aspectRatio: raw.aspectRatio || "9:16",
+        tags: raw.tags || [],
         elements: raw.elements || [],
       };
 
       await logHandle.success({
-        outputMeta: { elementsCount: result2.elements.length },
+        outputMeta: {
+          elementsCount: result2.elements.length,
+          tags: result2.tags,
+        },
       });
 
       return result2;
@@ -860,6 +804,7 @@ export class GeminiService {
       const raw = JSON.parse(jsonMatch[0]) as {
         duration?: number | string | null;
         aspectRatio?: string;
+        tags?: string[];
         elements?: ElementWithoutOptions[];
       };
 
@@ -873,12 +818,16 @@ export class GeminiService {
       const result2 = {
         duration,
         aspectRatio: raw.aspectRatio || "9:16",
+        tags: raw.tags || [],
         elements: raw.elements || [],
       };
 
       await logHandle.success({
         inputMeta: { framesCount: frames.length },
-        outputMeta: { elementsCount: result2.elements.length },
+        outputMeta: {
+          elementsCount: result2.elements.length,
+          tags: result2.tags,
+        },
       });
 
       return result2;
@@ -944,11 +893,12 @@ let geminiServiceInstance: GeminiService | null = null;
 
 export function getGeminiService(): GeminiService {
   if (!geminiServiceInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!geminiConfig.isConfigured()) {
       throw new Error("GEMINI_API_KEY environment variable is required");
     }
-    geminiServiceInstance = new GeminiService(apiKey);
+    geminiServiceInstance = new GeminiService(geminiConfig.apiKey);
   }
   return geminiServiceInstance;
 }
+
+export const isGeminiConfigured = geminiConfig.isConfigured;

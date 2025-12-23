@@ -9,6 +9,7 @@ import { isKlingConfigured } from "../services/kling";
 import { getOpenAIService, isOpenAIConfigured } from "../services/openai";
 import { getVideoGenerationsPath, videoGenJobQueue } from "../services/queues";
 import { getS3Key, isS3Configured, s3Service } from "../services/s3";
+import { getReferenceImagePublicUrl } from "../services/url-builder";
 
 declare const Bun: {
   file(path: string): Blob;
@@ -193,6 +194,7 @@ video.post("/analyze-enchanting", async (c) => {
     const analysis: VideoAnalysis = {
       duration: elementsAnalysis.duration,
       aspectRatio: elementsAnalysis.aspectRatio,
+      tags: elementsAnalysis.tags,
       elements: elementsWithOptions,
     };
 
@@ -204,6 +206,7 @@ video.post("/analyze-enchanting", async (c) => {
         fileName: file.name,
         duration: analysis.duration,
         aspectRatio: analysis.aspectRatio,
+        tags: analysis.tags,
         elements: analysis.elements,
       },
     });
@@ -832,9 +835,8 @@ video.post("/upload-reference", async (c) => {
     const buffer = Buffer.from(await file.arrayBuffer());
     await s3Service.uploadFile(s3Key, buffer, file.type);
 
-    // Return the URL that can be used in Kling API
-    // For now, we return the internal API path that can serve the file
-    const url = `/api/files/references/${imageId}.${extension}`;
+    // Return the full public URL that can be used in Kling API
+    const url = getReferenceImagePublicUrl(imageId, extension);
 
     return c.json({
       success: true,

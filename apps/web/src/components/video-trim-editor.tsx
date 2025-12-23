@@ -30,6 +30,7 @@ export function VideoTrimEditor({
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [trimRange, setTrimRange] = useState<[number, number]>([0, 0]);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   const blobUrl = useMemo(
     () => (videoFile ? URL.createObjectURL(videoFile) : null),
@@ -53,7 +54,12 @@ export function VideoTrimEditor({
       const dur = videoRef.current.duration;
       setDuration(dur);
       setTrimRange([0, dur]);
+      setVideoError(null);
     }
+  }, []);
+
+  const handleVideoError = useCallback(() => {
+    setVideoError("Не удалось загрузить видео. Файл недоступен или повреждён.");
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
@@ -67,7 +73,9 @@ export function VideoTrimEditor({
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {
+          setVideoError("Не удалось воспроизвести видео");
+        });
       }
       setIsPlaying(!isPlaying);
     }
@@ -101,21 +109,29 @@ export function VideoTrimEditor({
     <div className="space-y-4">
       {/* Video Player */}
       <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-        <video
-          className="h-full w-full object-contain"
-          onEnded={() => setIsPlaying(false)}
-          onLoadedMetadata={handleLoadedMetadata}
-          onPause={() => setIsPlaying(false)}
-          onPlay={() => setIsPlaying(true)}
-          onTimeUpdate={handleTimeUpdate}
-          ref={videoRef}
-          src={videoUrl}
-        />
+        {videoError ? (
+          <div className="flex h-full items-center justify-center text-center text-red-400">
+            <p>{videoError}</p>
+          </div>
+        ) : (
+          <video
+            className="h-full w-full object-contain"
+            onEnded={() => setIsPlaying(false)}
+            onError={handleVideoError}
+            onLoadedMetadata={handleLoadedMetadata}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            onTimeUpdate={handleTimeUpdate}
+            ref={videoRef}
+            src={videoUrl}
+          />
+        )}
       </div>
 
       {/* Playback Controls */}
       <div className="flex items-center justify-center gap-2">
         <Button
+          disabled={!!videoError}
           onClick={handleSeekToStart}
           size="icon"
           title="К началу выделения"
@@ -124,6 +140,7 @@ export function VideoTrimEditor({
           <SkipBack className="h-4 w-4" />
         </Button>
         <Button
+          disabled={!!videoError}
           onClick={handlePlayPause}
           size="icon"
           title={isPlaying ? "Пауза" : "Воспроизвести"}
@@ -136,6 +153,7 @@ export function VideoTrimEditor({
           )}
         </Button>
         <Button
+          disabled={!!videoError}
           onClick={handleSeekToEnd}
           size="icon"
           title="К концу выделения"
@@ -171,7 +189,7 @@ export function VideoTrimEditor({
       {/* Trim Button */}
       <Button
         className="w-full"
-        disabled={isLoading || trimDuration <= 0}
+        disabled={isLoading || trimDuration <= 0 || !!videoError}
         onClick={handleTrim}
       >
         <Scissors className="mr-2 h-4 w-4" />

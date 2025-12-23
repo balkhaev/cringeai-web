@@ -31,7 +31,8 @@ export type PipelineJobData = {
     | "download"
     | "analyze"
     | "analyze-frames"
-    | "analyze-enchanting";
+    | "analyze-enchanting"
+    | "refresh-duration";
   options?: {
     skipDownload?: boolean;
     skipAnalysis?: boolean;

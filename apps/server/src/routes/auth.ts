@@ -1,8 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import jwt from "jsonwebtoken";
+import { server } from "../config";
 import { UnauthorizedResponseSchema } from "../schemas/openapi";
 
-const JWT_SECRET = process.env.BETTER_AUTH_SECRET || "fallback-secret-for-dev";
+const JWT_SECRET = server.jwtSecret;
 
 // --- Schemas ---
 

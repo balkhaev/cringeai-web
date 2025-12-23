@@ -1,7 +1,7 @@
 import { Hono } from "hono";
+import { services } from "../config";
 
-const VIDEO_FRAMES_URL =
-  process.env.VIDEO_FRAMES_URL || "http://localhost:8002";
+const VIDEO_FRAMES_URL = services.videoFrames;
 
 const trimRouter = new Hono();
 

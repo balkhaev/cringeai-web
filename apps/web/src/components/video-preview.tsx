@@ -11,9 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type VideoPreviewProps = {
-  reelId: string;
-  source: string;
-  s3Key?: string | null;
+  videoUrl: string;
   poster?: string;
   className?: string;
 };
@@ -66,8 +64,6 @@ function ProgressBar({ progress, onSeek }: ProgressBarProps) {
     </div>
   );
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 type PlayOverlayProps = {
   isPlaying: boolean;
@@ -127,9 +123,7 @@ function LoadingIndicator() {
 }
 
 export function VideoPreview({
-  reelId,
-  source,
-  s3Key,
+  videoUrl,
   poster,
   className,
 }: VideoPreviewProps) {
@@ -139,11 +133,6 @@ export function VideoPreview({
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [progress, setProgress] = useState(0);
-
-  // Use S3 endpoint if s3Key exists, otherwise fall back to old download endpoint
-  const videoUrl = s3Key
-    ? `${API_URL}/api/files/reels/${reelId}`
-    : `${API_URL}/api/reels/downloads/${source}/${reelId}.mp4`;
 
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {

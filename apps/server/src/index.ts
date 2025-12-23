@@ -3,12 +3,14 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { apiReference } from "@scalar/hono-api-reference";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { server } from "./config";
 import { authRouter } from "./routes/auth";
 import { debugRouter } from "./routes/debug";
 import { filesRouter } from "./routes/files";
+import { jobsRouter } from "./routes/jobs";
 import { pipelineRouter } from "./routes/pipeline";
 import { queuesRouter } from "./routes/queues";
-import { reelsRouter } from "./routes/reels";
+import { reelsRouter } from "./routes/reels/index";
 import { templatesRouter } from "./routes/templates";
 import { trendsRouter } from "./routes/trends";
 import { trimRouter } from "./routes/trim";
@@ -21,7 +23,7 @@ app.use(logger());
 app.use(
   "/*",
   cors({
-    origin: process.env.CORS_ORIGIN || "",
+    origin: server.corsOrigin,
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     credentials: true,
@@ -68,6 +70,7 @@ app.route("/api/trends", trendsRouter);
 app.route("/api/files", filesRouter);
 app.route("/api/queues", queuesRouter);
 app.route("/api/pipeline", pipelineRouter);
+app.route("/api/jobs", jobsRouter);
 app.route("/api/trim", trimRouter);
 app.route("/api/debug", debugRouter);
 app.route("/api/v1/auth", authRouter);

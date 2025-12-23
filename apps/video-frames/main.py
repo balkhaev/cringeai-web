@@ -82,6 +82,72 @@ def get_video_duration(video_path: str) -> Optional[float]:
         return None
 
 
+def get_video_dimensions(video_path: str) -> Optional[tuple[int, int]]:
+    """Get video width and height using ffprobe"""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "csv=s=x:p=0",
+                video_path
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        parts = result.stdout.strip().split("x")
+        if len(parts) == 2:
+            return int(parts[0]), int(parts[1])
+        return None
+    except Exception:
+        return None
+
+
+def resize_video_ffmpeg(
+    video_path: str,
+    output_path: str,
+    target_width: int
+) -> bool:
+    """
+    Resize video to target width while maintaining aspect ratio
+
+    Args:
+        video_path: Path to input video file
+        output_path: Path for output resized video
+        target_width: Target width in pixels (height calculated automatically)
+
+    Returns:
+        True if successful
+    """
+    # scale=WIDTH:-2 maintains aspect ratio and ensures even height
+    cmd = [
+        "ffmpeg",
+        "-i", video_path,
+        "-vf", f"scale={target_width}:-2",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        output_path,
+        "-y"
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=300  # 5 minute timeout
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg resize failed: {result.stderr}")
+
+    return True
+
+
 def extract_frames_ffmpeg(
     video_path: str,
     output_dir: str,
@@ -431,6 +497,114 @@ async def trim_video(
                 headers={
                     "Content-Disposition": "attachment; filename=trimmed_video.mp4",
                     "X-Video-Duration": str(trimmed_duration) if trimmed_duration else "",
+                }
+            )
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Video processing timed out")
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+
+@app.post("/resize")
+async def resize_video(
+    video: UploadFile = File(...),
+    min_width: int = Form(default=720),
+    target_width: int = Form(default=1080)
+):
+    """
+    Resize video to meet minimum width requirements (for Kling API compatibility)
+
+    Strategy:
+    - If width < min_width: upscale to min_width
+    - If width between min_width and target_width: upscale to target_width
+    - If width >= target_width: return original video
+
+    - **video**: Video file (mp4, webm, etc.)
+    - **min_width**: Minimum width required (default: 720)
+    - **target_width**: Target width for upscaling (default: 1080)
+
+    Returns resized video as streaming response with X-Original-Width and X-New-Width headers
+    """
+    if min_width <= 0:
+        raise HTTPException(status_code=400, detail="min_width must be positive")
+
+    if target_width < min_width:
+        raise HTTPException(status_code=400, detail="target_width must be >= min_width")
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = os.path.join(tmpdir, "input_video.mp4")
+            output_path = os.path.join(tmpdir, "output_resized.mp4")
+
+            # Write uploaded video to temp file
+            content = await video.read()
+            with open(input_path, "wb") as f:
+                f.write(content)
+
+            # Get video dimensions
+            dimensions = get_video_dimensions(input_path)
+            if not dimensions:
+                raise HTTPException(status_code=400, detail="Could not determine video dimensions")
+
+            original_width, original_height = dimensions
+            new_width = original_width
+
+            # Determine if resize is needed
+            if original_width < min_width:
+                # Upscale to min_width
+                new_width = min_width
+            elif original_width < target_width:
+                # Upscale to target_width
+                new_width = target_width
+            else:
+                # No resize needed, return original
+                def iterfile():
+                    yield content
+
+                return StreamingResponse(
+                    iterfile(),
+                    media_type="video/mp4",
+                    headers={
+                        "Content-Disposition": "attachment; filename=video.mp4",
+                        "X-Original-Width": str(original_width),
+                        "X-Original-Height": str(original_height),
+                        "X-New-Width": str(original_width),
+                        "X-Resized": "false",
+                    }
+                )
+
+            # Resize the video
+            resize_video_ffmpeg(input_path, output_path, new_width)
+
+            # Check output exists
+            if not os.path.exists(output_path):
+                raise HTTPException(status_code=500, detail="Failed to create resized video")
+
+            # Get new dimensions
+            new_dimensions = get_video_dimensions(output_path)
+            new_height = new_dimensions[1] if new_dimensions else 0
+
+            # Read the output file
+            with open(output_path, "rb") as f:
+                video_bytes = f.read()
+
+            # Return as streaming response
+            def iterfile():
+                yield video_bytes
+
+            return StreamingResponse(
+                iterfile(),
+                media_type="video/mp4",
+                headers={
+                    "Content-Disposition": "attachment; filename=resized_video.mp4",
+                    "X-Original-Width": str(original_width),
+                    "X-Original-Height": str(original_height),
+                    "X-New-Width": str(new_width),
+                    "X-New-Height": str(new_height),
+                    "X-Resized": "true",
                 }
             )
 

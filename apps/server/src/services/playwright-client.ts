@@ -1,9 +1,7 @@
-/**
- * HTTP client for the Playwright microservice.
- * Replaces direct Playwright usage in the server for Docker optimization.
- */
-
+import { services } from "../config";
 import type { Cookie, StorageState } from "./instagram/credentials";
+
+const PLAYWRIGHT_SERVICE_URL = services.playwright;
 
 type SortMode = "top" | "recent";
 
@@ -34,9 +32,6 @@ type ScrapeResponse = {
   storageState?: StorageState;
   error?: string;
 };
-
-const PLAYWRIGHT_SERVICE_URL =
-  process.env.PLAYWRIGHT_SERVICE_URL || "http://localhost:3002";
 
 export class PlaywrightClient {
   private readonly baseUrl: string;

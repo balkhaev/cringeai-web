@@ -1,15 +1,18 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Download,
   ExternalLink,
   Eye,
   Heart,
   Loader2,
+  Maximize,
   MessageCircle,
   Play,
   RefreshCw,
@@ -17,23 +20,6 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-
-/**
- * Преобразует относительные API URL в абсолютные
- */
-function resolveVideoUrl(url: string | null): string | null {
-  if (!url) {
-    return null;
-  }
-  if (url.startsWith("/api/")) {
-    return `${API_URL}${url}`;
-  }
-  return url;
-}
-
-import { useMutation } from "@tanstack/react-query";
 import NextImage from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -53,20 +39,25 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VideoGenerator } from "@/components/video-generator";
 import { VideoPreview } from "@/components/video-preview";
-import { VideoTrimSection } from "@/components/video-trim-section";
+import { VideoTrimButton } from "@/components/video-trim-section";
 import { useDeleteReel } from "@/lib/hooks/use-dashboard";
 import {
   useAnalyzeReel,
   useAnalyzeReelByFrames,
-  useAnalyzeReelEnchanting,
   useDownloadReel,
   useGenerateVideo,
   useReelDebug,
+  useResizeReel,
 } from "@/lib/hooks/use-templates";
 import { hasVideo, refreshReelMetadata } from "@/lib/reels-api";
 import type {
@@ -112,11 +103,30 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const LOG_LEVEL_CONFIG: Record<string, { color: string; bgColor: string }> = {
-  debug: { color: "text-muted-foreground", bgColor: "bg-surface-1" },
-  info: { color: "text-blue-300", bgColor: "bg-blue-500/10" },
-  warn: { color: "text-amber-300", bgColor: "bg-amber-500/10" },
-  error: { color: "text-red-300", bgColor: "bg-red-500/10" },
+const LOG_LEVEL_CONFIG: Record<
+  string,
+  { color: string; bgColor: string; borderColor: string }
+> = {
+  debug: {
+    color: "text-muted-foreground",
+    bgColor: "bg-surface-1",
+    borderColor: "before:bg-muted-foreground/50",
+  },
+  info: {
+    color: "text-blue-300",
+    bgColor: "bg-blue-500/10",
+    borderColor: "before:bg-blue-500",
+  },
+  warn: {
+    color: "text-amber-300",
+    bgColor: "bg-amber-500/10",
+    borderColor: "before:bg-amber-500",
+  },
+  error: {
+    color: "text-red-300",
+    bgColor: "bg-red-500/10",
+    borderColor: "before:bg-red-500",
+  },
 };
 
 function formatNumber(num: number): string {
@@ -161,11 +171,10 @@ export default function ReelDetailPage() {
   const { mutate: analyzeReel, isPending: isAnalyzing } = useAnalyzeReel();
   const { mutate: analyzeReelByFrames, isPending: isAnalyzingFrames } =
     useAnalyzeReelByFrames();
-  const { mutate: analyzeReelEnchanting, isPending: isAnalyzingEnchanting } =
-    useAnalyzeReelEnchanting();
   const { mutate: generateVideo, isPending: isGenerating } = useGenerateVideo();
   const { mutateAsync: deleteReelAsync, isPending: isDeleting } =
     useDeleteReel();
+  const { mutate: resizeReel, isPending: isResizing } = useResizeReel();
   const { mutate: refreshMetadata, isPending: isRefreshingMetadata } =
     useMutation({
       mutationFn: () => refreshReelMetadata(reelId),
@@ -175,6 +184,20 @@ export default function ReelDetailPage() {
       },
       onError: (err: Error) => toast.error(err.message),
     });
+
+  const handleResize = useCallback(() => {
+    resizeReel(reelId, {
+      onSuccess: (result) => {
+        if (result.resized) {
+          toast.success(result.message);
+        } else {
+          toast.info(result.message);
+        }
+        refetch();
+      },
+      onError: (err: Error) => toast.error(err.message),
+    });
+  }, [reelId, resizeReel, refetch]);
 
   const handleDownload = useCallback(() => {
     downloadReel(reelId, {
@@ -196,14 +219,6 @@ export default function ReelDetailPage() {
       onError: (err: Error) => toast.error(err.message),
     });
   }, [reelId, analyzeReelByFrames]);
-
-  const handleAnalyzeEnchanting = useCallback(() => {
-    analyzeReelEnchanting(reelId, {
-      onSuccess: () =>
-        toast.success("Enchanting анализ запущен (Gemini + ChatGPT)"),
-      onError: (err: Error) => toast.error(err.message),
-    });
-  }, [reelId, analyzeReelEnchanting]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -283,118 +298,112 @@ export default function ReelDetailPage() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 lg:p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button asChild size="icon" variant="ghost">
-              <Link href="/">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div>
-              <h1 className="flex items-center gap-2 font-semibold text-xl">
-                <code className="font-mono">{reelId}</code>
-                <Badge className={statusConfig.className} variant="secondary">
-                  <StatusIcon
-                    className={`mr-1 h-3 w-3 ${isStatusAnimated ? "animate-spin" : ""}`}
-                  />
-                  {statusConfig.label}
-                </Badge>
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {data.reel.source}
-                {data.reel.duration
-                  ? ` • ${formatDuration(data.reel.duration)}`
-                  : ""}
-                {data.reel.likeCount
-                  ? ` • ${formatNumber(data.reel.likeCount)} лайков`
-                  : ""}
-                {data.reel.viewCount
-                  ? ` • ${formatNumber(data.reel.viewCount)} просмотров`
-                  : ""}
-                {data.reel.commentCount
-                  ? ` • ${formatNumber(data.reel.commentCount)} комментов`
-                  : ""}
-              </p>
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col p-4 lg:p-6">
+        {/* Sticky Header */}
+        <header className="-mx-4 lg:-mx-6 sticky top-0 z-10 mb-6 border-glass-border border-b bg-background/80 px-4 py-4 backdrop-blur-xl lg:px-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                asChild
+                className="transition-transform duration-200 hover:scale-105"
+                size="icon"
+                variant="ghost"
+              >
+                <Link href="/">
+                  <ArrowLeft className="h-5 w-5" />
+                </Link>
+              </Button>
+              <div>
+                <h1 className="flex items-center gap-2 font-semibold text-xl">
+                  <code className="font-mono text-base">{reelId}</code>
+                  <Badge
+                    className={`${statusConfig.className} transition-all duration-300 ${isStatusAnimated ? "animate-glow-pulse" : ""}`}
+                    variant="secondary"
+                  >
+                    <StatusIcon
+                      className={`mr-1 h-3 w-3 ${isStatusAnimated ? "animate-spin" : ""}`}
+                    />
+                    {statusConfig.label}
+                  </Badge>
+                </h1>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={isLoading}
-              onClick={() => refetch()}
-              size="icon"
-              variant="outline"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-              />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                className="transition-all duration-200 hover:scale-105 active:scale-95"
+                disabled={isLoading}
+                onClick={() => refetch()}
+                size="icon"
+                variant="outline"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />
+              </Button>
 
-            <AlertDialog
-              onOpenChange={setDeleteDialogOpen}
-              open={deleteDialogOpen}
-            >
-              <AlertDialogTrigger asChild>
-                <Button disabled={isDeleting} size="icon" variant="outline">
-                  {isDeleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Удалить рил?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Это действие удалит рил, все связанные анализы, генерации и
-                    файлы. Это действие нельзя отменить.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Отмена</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={handleDelete}
+              <AlertDialog
+                onOpenChange={setDeleteDialogOpen}
+                open={deleteDialogOpen}
+              >
+                <AlertDialogTrigger asChild>
+                  <Button
+                    className="transition-all duration-200 hover:scale-105 active:scale-95"
+                    disabled={isDeleting}
+                    size="icon"
+                    variant="outline"
                   >
                     {isDeleting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Удалить
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить рил?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Это действие удалит рил, все связанные анализы, генерации
+                      и файлы. Это действие нельзя отменить.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDelete}
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Main content */}
-        <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-          {/* Video Player */}
-          <div className="space-y-4">
-            {hasVideo(data.reel) ? (
-              <VideoPreview
-                className="w-full"
-                reelId={reelId}
-                s3Key={data.reel.s3Key}
-                source={videoSource}
-              />
+        <div className="grid gap-6 lg:grid-cols-[minmax(320px,420px)_1fr]">
+          {/* Video Player - Sticky on desktop */}
+          <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            {hasVideo(data.reel) && data.reel.videoUrl ? (
+              <VideoPreview className="w-full" videoUrl={data.reel.videoUrl} />
             ) : (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex aspect-9/16 w-full items-center justify-center rounded-lg bg-surface-1">
-                    <div className="text-center text-muted-foreground">
-                      <Play className="mx-auto mb-2 h-12 w-12" />
-                      <p className="text-sm">Видео не загружено</p>
-                    </div>
+              <div className="flex aspect-9/16 w-full items-center justify-center rounded-2xl border border-glass-border bg-gradient-to-br from-surface-2 to-surface-1">
+                <div className="text-center text-muted-foreground">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-surface-3/50">
+                    <Play className="h-8 w-8" />
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="text-sm">Видео не загружено</p>
+                </div>
+              </div>
             )}
 
             {/* Actions */}
-            <Card className="gap-0">
+            <Card className="animate-delay-100 animate-fade-in-up gap-0">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Действия</CardTitle>
               </CardHeader>
@@ -403,6 +412,7 @@ export default function ReelDetailPage() {
                 {(data.reel.status === "scraped" ||
                   data.reel.status === "downloading") && (
                   <Button
+                    className="transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                     disabled={
                       isDownloading || data.reel.status === "downloading"
                     }
@@ -418,7 +428,11 @@ export default function ReelDetailPage() {
                   </Button>
                 )}
 
-                <Button asChild variant="secondary">
+                <Button
+                  asChild
+                  className="transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  variant="secondary"
+                >
                   <a
                     href={data.reel.url}
                     rel="noopener noreferrer"
@@ -428,76 +442,106 @@ export default function ReelDetailPage() {
                     Открыть в Instagram
                   </a>
                 </Button>
+
+                {/* Resize button - only show when video exists */}
+                {hasVideo(data.reel) && (
+                  <Button
+                    className="transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    disabled={isResizing}
+                    onClick={handleResize}
+                    variant="outline"
+                  >
+                    {isResizing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Maximize className="mr-2 h-4 w-4" />
+                    )}
+                    Увеличить для Kling
+                  </Button>
+                )}
+
+                {/* Video Trim Button */}
+                {hasVideo(data.reel) &&
+                  (data.videoUrl || data.reel.videoUrl) && (
+                    <VideoTrimButton
+                      videoUrl={data.videoUrl || data.reel.videoUrl || ""}
+                    />
+                  )}
               </CardContent>
             </Card>
-
-            {/* Video Trim Section */}
-            {hasVideo(data.reel) && (data.videoUrl || data.reel.videoUrl) && (
-              <VideoTrimSection
-                videoUrl={data.videoUrl || data.reel.videoUrl || ""}
-              />
-            )}
           </div>
 
           {/* Info and Debug */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Info cards with refresh button */}
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-muted-foreground text-sm">
-                Информация
-              </h3>
-              <Button
-                disabled={isRefreshingMetadata}
-                onClick={() => refreshMetadata()}
-                size="sm"
-                variant="ghost"
-              >
-                <RefreshCw
-                  className={`mr-2 h-4 w-4 ${isRefreshingMetadata ? "animate-spin" : ""}`}
+            <div className="animate-fade-in-up">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-medium text-muted-foreground text-sm">
+                  Информация
+                </h3>
+                <Button
+                  className="transition-all duration-200 hover:scale-105 active:scale-95"
+                  disabled={isRefreshingMetadata}
+                  onClick={() => refreshMetadata()}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <RefreshCw
+                    className={`mr-2 h-4 w-4 ${isRefreshingMetadata ? "animate-spin" : ""}`}
+                  />
+                  Обновить
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <InfoCard
+                  icon={<Heart className="h-5 w-5 text-pink-500" />}
+                  iconBg="from-pink-500/20 to-pink-500/5"
+                  label="Лайки"
+                  value={
+                    data.reel.likeCount
+                      ? formatNumber(data.reel.likeCount)
+                      : "—"
+                  }
                 />
-                Обновить
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <InfoCard
-                icon={<Heart className="h-4 w-4 text-pink-500" />}
-                label="Лайки"
-                value={
-                  data.reel.likeCount ? formatNumber(data.reel.likeCount) : "—"
-                }
-              />
-              <InfoCard
-                icon={<Eye className="h-4 w-4 text-blue-400" />}
-                label="Просмотры"
-                value={
-                  data.reel.viewCount ? formatNumber(data.reel.viewCount) : "—"
-                }
-              />
-              <InfoCard
-                icon={<MessageCircle className="h-4 w-4 text-amber-400" />}
-                label="Комменты"
-                value={
-                  data.reel.commentCount
-                    ? formatNumber(data.reel.commentCount)
-                    : "—"
-                }
-              />
-              <InfoCard
-                icon={<Clock className="h-4 w-4 text-emerald-400" />}
-                label="Длительность"
-                value={
-                  data.reel.duration ? formatDuration(data.reel.duration) : "—"
-                }
-              />
-              <InfoCard label="Источник" value={data.reel.source || "reels"} />
+                <InfoCard
+                  icon={<Eye className="h-5 w-5 text-blue-400" />}
+                  iconBg="from-blue-500/20 to-blue-500/5"
+                  label="Просмотры"
+                  value={
+                    data.reel.viewCount
+                      ? formatNumber(data.reel.viewCount)
+                      : "—"
+                  }
+                />
+                <InfoCard
+                  icon={<MessageCircle className="h-5 w-5 text-amber-400" />}
+                  iconBg="from-amber-500/20 to-amber-500/5"
+                  label="Комменты"
+                  value={
+                    data.reel.commentCount
+                      ? formatNumber(data.reel.commentCount)
+                      : "—"
+                  }
+                />
+                <InfoCard
+                  icon={<Clock className="h-5 w-5 text-emerald-400" />}
+                  iconBg="from-emerald-500/20 to-emerald-500/5"
+                  label="Длительность"
+                  value={
+                    data.reel.duration
+                      ? formatDuration(data.reel.duration)
+                      : "—"
+                  }
+                />
+              </div>
             </div>
 
             {data.reel.caption ? (
-              <Card>
+              <Card className="animate-delay-100 animate-fade-in-up">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Описание</CardTitle>
                 </CardHeader>
-                <CardContent className="text-sm">
+                <CardContent className="text-muted-foreground text-sm leading-relaxed">
                   {data.reel.caption}
                 </CardContent>
               </Card>
@@ -522,7 +566,10 @@ export default function ReelDetailPage() {
 
             {/* Video Generator (Kling) - показываем когда видео скачано */}
             {hasVideo(data.reel) && (
-              <div ref={generatorRef}>
+              <div
+                className="animate-delay-200 animate-fade-in-up"
+                ref={generatorRef}
+              >
                 <VideoGenerator
                   analyses={data.analyses || []}
                   canAnalyze={
@@ -531,11 +578,9 @@ export default function ReelDetailPage() {
                     data.reel.status !== "downloading"
                   }
                   isAnalyzing={isAnalyzing}
-                  isAnalyzingEnchanting={isAnalyzingEnchanting}
                   isAnalyzingFrames={isAnalyzingFrames}
                   isGenerating={isGenerating}
                   onAnalyze={handleAnalyze}
-                  onAnalyzeEnchanting={handleAnalyzeEnchanting}
                   onAnalyzeFrames={handleAnalyzeFrames}
                   onGenerate={handleGenerate}
                   sourceVideoUrl={data.videoUrl || data.reel.videoUrl || ""}
@@ -543,94 +588,115 @@ export default function ReelDetailPage() {
               </div>
             )}
 
-            {/* Debug Tabs */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Отладка</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="logs">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="logs">
-                      Логи ({data.logs.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="stats">Статистика</TabsTrigger>
-                    {data.generations.length > 0 ? (
-                      <TabsTrigger value="generations">
-                        Генерации ({data.generations.length})
-                      </TabsTrigger>
-                    ) : null}
-                  </TabsList>
-
-                  <TabsContent value="logs">
-                    <ScrollArea className="h-[400px]">
-                      <div className="space-y-2 pr-4">
-                        {data.logs.length === 0 ? (
-                          <p className="py-8 text-center text-muted-foreground text-sm">
-                            Логов пока нет
-                          </p>
-                        ) : (
-                          data.logs.map((log) => (
-                            <LogItem key={log.id} log={log} />
-                          ))
+            {/* Debug Tabs - Collapsible */}
+            <Collapsible className="animate-delay-300 animate-fade-in-up">
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer pb-2 transition-colors hover:bg-surface-2/50">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        Отладка
+                        {data.recentErrors?.length > 0 && (
+                          <Badge
+                            className="bg-red-500/20 text-red-300"
+                            variant="secondary"
+                          >
+                            {data.recentErrors.length} ошибок
+                          </Badge>
                         )}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
+                      </CardTitle>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    <Tabs defaultValue="logs">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="logs">
+                          Логи ({data.logs?.length ?? 0})
+                        </TabsTrigger>
+                        <TabsTrigger value="stats">Статистика</TabsTrigger>
+                        {data.generations?.length > 0 ? (
+                          <TabsTrigger value="generations">
+                            Генерации ({data.generations.length})
+                          </TabsTrigger>
+                        ) : null}
+                      </TabsList>
 
-                  <TabsContent value="stats">
-                    <div className="space-y-4">
-                      {data.stageStats.length === 0 ? (
-                        <p className="py-8 text-center text-muted-foreground text-sm">
-                          Статистики пока нет
-                        </p>
-                      ) : (
-                        data.stageStats.map((stat) => (
-                          <StageStatCard key={stat.stage} stat={stat} />
-                        ))
-                      )}
+                      <TabsContent value="logs">
+                        <ScrollArea className="h-[400px]">
+                          <div className="space-y-2 pr-4">
+                            {!data.logs || data.logs.length === 0 ? (
+                              <p className="py-8 text-center text-muted-foreground text-sm">
+                                Логов пока нет
+                              </p>
+                            ) : (
+                              data.logs.map((log) => (
+                                <LogItem key={log.id} log={log} />
+                              ))
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </TabsContent>
 
-                      {data.recentErrors.length > 0 ? (
-                        <>
-                          <Separator />
-                          <div className="space-y-2">
-                            <h4 className="font-medium text-red-500 text-sm">
-                              Последние ошибки
-                            </h4>
-                            {data.recentErrors.map((err) => (
-                              <div
-                                className="rounded-lg border border-red-500/20 bg-surface-1 p-3 text-red-300 text-sm"
-                                key={err.id}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <Badge variant="outline">{err.stage}</Badge>
-                                  <span className="text-muted-foreground text-xs">
-                                    {new Date(err.createdAt).toLocaleTimeString(
-                                      "ru-RU"
-                                    )}
-                                  </span>
-                                </div>
-                                <p className="mt-1">{err.message}</p>
+                      <TabsContent value="stats">
+                        <div className="space-y-4">
+                          {!data.stageStats || data.stageStats.length === 0 ? (
+                            <p className="py-8 text-center text-muted-foreground text-sm">
+                              Статистики пока нет
+                            </p>
+                          ) : (
+                            data.stageStats.map((stat) => (
+                              <StageStatCard key={stat.stage} stat={stat} />
+                            ))
+                          )}
+
+                          {data.recentErrors?.length > 0 ? (
+                            <>
+                              <Separator />
+                              <div className="space-y-2">
+                                <h4 className="font-medium text-red-500 text-sm">
+                                  Последние ошибки
+                                </h4>
+                                {data.recentErrors.map((err) => (
+                                  <div
+                                    className="rounded-lg border border-red-500/20 bg-surface-1 p-3 text-red-300 text-sm"
+                                    key={err.id}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <Badge variant="outline">
+                                        {err.stage}
+                                      </Badge>
+                                      <span className="text-muted-foreground text-xs">
+                                        {new Date(
+                                          err.createdAt
+                                        ).toLocaleTimeString("ru-RU")}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1">{err.message}</p>
+                                  </div>
+                                ))}
                               </div>
+                            </>
+                          ) : null}
+                        </div>
+                      </TabsContent>
+
+                      {data.generations?.length > 0 ? (
+                        <TabsContent value="generations">
+                          <div className="space-y-3">
+                            {data.generations.map((gen) => (
+                              <GenerationCard generation={gen} key={gen.id} />
                             ))}
                           </div>
-                        </>
+                        </TabsContent>
                       ) : null}
-                    </div>
-                  </TabsContent>
-
-                  {data.generations.length > 0 ? (
-                    <TabsContent value="generations">
-                      <div className="space-y-3">
-                        {data.generations.map((gen) => (
-                          <GenerationCard generation={gen} key={gen.id} />
-                        ))}
-                      </div>
-                    </TabsContent>
-                  ) : null}
-                </Tabs>
-              </CardContent>
-            </Card>
+                    </Tabs>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </div>
         </div>
       </div>
@@ -642,18 +708,26 @@ function InfoCard({
   label,
   value,
   icon,
+  iconBg = "from-primary/20 to-primary/5",
 }: {
   label: string;
   value: string;
   icon?: React.ReactNode;
+  iconBg?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 px-4 py-0">
-        {icon}
+    <Card className="group transition-all duration-200 hover:border-primary/20 hover:bg-surface-2/80">
+      <CardContent className="flex items-center gap-3 p-4">
+        {icon && (
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${iconBg} transition-transform duration-200 group-hover:scale-110`}
+          >
+            {icon}
+          </div>
+        )}
         <div>
           <p className="text-muted-foreground text-xs">{label}</p>
-          <p className="font-medium text-sm">{value}</p>
+          <p className="font-semibold text-lg tabular-nums">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -664,7 +738,9 @@ function LogItem({ log }: { log: ReelLog }) {
   const config = LOG_LEVEL_CONFIG[log.level] || LOG_LEVEL_CONFIG.info;
 
   return (
-    <div className={`rounded-lg p-3 ${config.bgColor}`}>
+    <div
+      className={`relative rounded-lg p-3 pl-5 transition-all duration-200 hover:bg-surface-2/50 ${config.bgColor} before:absolute before:top-2 before:bottom-2 before:left-0 before:w-1 before:rounded-full ${config.borderColor}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -682,7 +758,7 @@ function LogItem({ log }: { log: ReelLog }) {
           </div>
           <p className="mt-1 text-sm">{log.message}</p>
         </div>
-        <span className="text-muted-foreground text-xs">
+        <span className="shrink-0 text-muted-foreground text-xs">
           {new Date(log.createdAt).toLocaleTimeString("ru-RU")}
         </span>
       </div>
@@ -810,7 +886,7 @@ function GenerationCard({ generation }: { generation: VideoGeneration }) {
                 className="h-full rounded-lg"
                 controls
                 muted
-                src={resolveVideoUrl(generation.videoUrl) ?? undefined}
+                src={generation.videoUrl ?? undefined}
               />
             ) : null}
           </div>
@@ -874,22 +950,20 @@ function GenerationActions({
   show: boolean;
   videoUrl: string | null;
 }) {
-  const resolvedUrl = resolveVideoUrl(videoUrl);
-
-  if (!show || resolvedUrl === null) {
+  if (!show || videoUrl === null) {
     return null;
   }
 
   return (
     <div className="flex gap-2">
       <Button asChild className="flex-1" size="sm" variant="default">
-        <a href={resolvedUrl} rel="noopener" target="_blank">
+        <a href={videoUrl} rel="noopener" target="_blank">
           <ExternalLink className="mr-1 h-3 w-3" />
           Открыть видео
         </a>
       </Button>
       <Button asChild size="sm" variant="outline">
-        <a download href={resolvedUrl}>
+        <a download href={videoUrl}>
           <Download className="mr-1 h-3 w-3" />
           Скачать
         </a>

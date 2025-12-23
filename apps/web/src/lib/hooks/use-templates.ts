@@ -270,3 +270,30 @@ export function useAnalyzeReelEnchanting() {
     },
   });
 }
+
+// Resize Reel (for Kling API compatibility)
+export function useResizeReel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reelId: string) =>
+      import("../templates-api").then((m) => m.resizeReel(reelId)),
+    onSuccess: (_, reelId) => {
+      queryClient.invalidateQueries({ queryKey: ["reel-debug", reelId] });
+      queryClient.invalidateQueries({ queryKey: ["saved-reels"] });
+    },
+  });
+}
+
+// Batch Resize Reels
+export function useBatchResizeReels() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reelIds: string[]) =>
+      import("../templates-api").then((m) => m.batchResizeReels(reelIds)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-reels"] });
+    },
+  });
+}

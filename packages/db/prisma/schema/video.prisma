@@ -54,6 +54,7 @@ model VideoAnalysis {
 
 model VideoGeneration {
   id         String        @id @default(uuid())
+  jobId      String?       @unique  // BullMQ job ID для связи с очередью
   analysisId String
   analysis   VideoAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
 

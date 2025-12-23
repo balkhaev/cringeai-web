@@ -1,5 +1,6 @@
 import prisma from "@trender/db";
 import { type Job as BullJob, Queue, Worker } from "bullmq";
+import { services } from "../../config";
 import { redis } from "../redis";
 import { reelPipeline } from "../reel-pipeline";
 import { registerQueue, registerWorker } from "./manager";
@@ -8,6 +9,8 @@ import type {
   PipelineJobProgress,
   PipelineJobResult,
 } from "./types";
+
+const SCRAPPER_SERVICE_URL = services.scrapper;
 
 // Create pipeline queue
 export const pipelineQueue = new Queue<PipelineJobData, PipelineJobResult>(
@@ -134,6 +137,47 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
             templateId: template.id,
             analysisId: template.analysisId,
           };
+        }
+
+        case "refresh-duration": {
+          await job.updateProgress(20);
+
+          const metadataResponse = await fetch(
+            `${SCRAPPER_SERVICE_URL}/metadata`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ shortcode: reelId }),
+            }
+          );
+
+          if (!metadataResponse.ok) {
+            throw new Error("Failed to fetch metadata from scrapper");
+          }
+
+          const metadata = (await metadataResponse.json()) as {
+            success: boolean;
+            duration?: number;
+            error?: string;
+          };
+
+          if (!(metadata.success && metadata.duration)) {
+            throw new Error(metadata.error || "No duration in metadata");
+          }
+
+          await job.updateProgress(80);
+
+          await prisma.reel.update({
+            where: { id: reelId },
+            data: { duration: metadata.duration },
+          });
+
+          await job.updateProgress(100);
+          console.log(
+            `[PipelineQueue] Refreshed duration for reel ${reelId}: ${metadata.duration}s`
+          );
+
+          return { reelId };
         }
 
         default:
@@ -280,6 +324,37 @@ export const pipelineJobQueue = {
       { jobId: `analyze-enchanting-${reelId}-${Date.now()}` }
     );
     return job.id ?? "";
+  },
+
+  /**
+   * Add a refresh-duration job for single reel
+   */
+  async addRefreshDurationJob(reelId: string): Promise<string> {
+    const job = await pipelineQueue.add(
+      "refresh-duration",
+      { reelId, action: "refresh-duration" },
+      { jobId: `refresh-duration-${reelId}-${Date.now()}` }
+    );
+    return job.id ?? "";
+  },
+
+  /**
+   * Add refresh-duration jobs for multiple reels (batch)
+   */
+  async addBatchRefreshDurationJobs(
+    reelIds: string[]
+  ): Promise<{ jobIds: string[]; count: number }> {
+    const jobs = await pipelineQueue.addBulk(
+      reelIds.map((reelId) => ({
+        name: "refresh-duration",
+        data: { reelId, action: "refresh-duration" as const },
+        opts: { jobId: `refresh-duration-${reelId}-${Date.now()}` },
+      }))
+    );
+    return {
+      jobIds: jobs.map((j) => j.id ?? ""),
+      count: jobs.length,
+    };
   },
 
   /**

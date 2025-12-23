@@ -7,7 +7,12 @@
  */
 
 import jwt from "jsonwebtoken";
+import { ai, server } from "../config";
 import { aiLogger } from "./ai-logger";
+
+// Config aliases
+const klingConfig = ai.kling;
+const logLevel = server.logLevel;
 
 export type KlingGenerationResult = {
   success: boolean;
@@ -96,13 +101,6 @@ function normalizeStatus(apiStatus: KlingApiStatus): KlingTaskStatus {
   }
 }
 
-const STATUS_EMOJI: Record<KlingTaskStatus, string> = {
-  pending: "⏳",
-  processing: "🔄",
-  completed: "✅",
-  failed: "❌",
-};
-
 const STATUS_RU: Record<KlingTaskStatus, string> = {
   pending: "В очереди",
   processing: "Генерация",
@@ -147,10 +145,7 @@ export class KlingService {
     this.accessKey = accessKey;
     this.secretKey = secretKey;
     // Default to Singapore API endpoint with /v1 prefix
-    let url =
-      baseUrl ||
-      process.env.KLING_API_URL ||
-      "https://api-singapore.klingai.com";
+    let url = baseUrl || klingConfig.apiUrl;
     // Remove trailing slash if present
     url = url.replace(TRAILING_SLASH_REGEX, "");
     // Ensure /v1 prefix is present
@@ -169,13 +164,12 @@ export class KlingService {
     if (!this.jwtToken || now >= this.jwtExpiry - 60) {
       this.jwtToken = generateJwtToken(this.accessKey, this.secretKey);
       this.jwtExpiry = now + 1800;
-      this.log("🔑", "JWT token refreshed");
     }
     return this.jwtToken;
   }
 
   private log(
-    emoji: string,
+    level: "info" | "debug" | "error",
     message: string,
     data?: Record<
       string,
@@ -188,9 +182,13 @@ export class KlingService {
       | undefined
     >
   ) {
+    // Debug логи только если LOG_LEVEL=debug
+    if (level === "debug" && logLevel !== "debug") return;
+
     const timestamp = new Date().toISOString().slice(11, 19);
     const dataStr = data ? ` | ${JSON.stringify(data)}` : "";
-    console.log(`[${timestamp}] ${emoji} [Kling] ${message}${dataStr}`);
+    const logFn = level === "error" ? console.error : console.log;
+    logFn(`[${timestamp}] [Kling] ${message}${dataStr}`);
   }
 
   private async request<T>(
@@ -198,12 +196,8 @@ export class KlingService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const method = options.method ?? "GET";
-
-    this.log("📡", `${method} ${endpoint}`);
 
     const token = this.getAuthToken();
-    const startTime = Date.now();
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -213,22 +207,15 @@ export class KlingService {
       },
     });
 
-    const duration = Date.now() - startTime;
-
     if (!response.ok) {
       const error = await response.text();
-      this.log("❌", `Ошибка API: ${response.status}`, {
-        duration: `${duration}ms`,
-        error: error.slice(0, 500),
+      this.log("error", `Ошибка API: ${response.status}`, {
+        error: error.slice(0, 200),
       });
       throw new Error(`Kling API error ${response.status}: ${error}`);
     }
 
-    const data = await response.json();
-    this.log("📥", `Ответ ${response.status} (${duration}ms)`, {
-      data: JSON.stringify(data).slice(0, 300),
-    });
-    return data as T;
+    return (await response.json()) as T;
   }
 
   /**
@@ -236,7 +223,7 @@ export class KlingService {
    * Returns URL that can be used in generation
    */
   async uploadVideo(videoBuffer: Buffer): Promise<string> {
-    this.log("📤", "Загрузка видео для референса...");
+    this.log("debug", "Загрузка видео для референса...");
 
     const formData = new FormData();
     formData.append(
@@ -269,7 +256,7 @@ export class KlingService {
       throw new Error(data.message || "Failed to upload video");
     }
 
-    this.log("✅", "Видео загружено", { url: data.data.url.slice(0, 80) });
+    this.log("debug", "Видео загружено");
     return data.data.url;
   }
 
@@ -295,21 +282,13 @@ export class KlingService {
       reelId: options.reelId,
     });
 
-    this.log("🚀", "═══ НАЧАЛО ГЕНЕРАЦИИ KLING ═══");
-    this.log("📝", "Промпт", {
-      length: prompt.length,
-      text: prompt.slice(0, 150),
-    });
-    this.log("🎬", "Референс видео (полный URL)", { url: sourceVideoUrl });
-    console.log("[Kling] Full source video URL:", sourceVideoUrl);
-
-    // Log image references if present
-    if (options.imageUrls?.length) {
-      this.log("🖼️", "Image references", { count: options.imageUrls.length });
-    }
-    if (options.elements?.length) {
-      this.log("👤", "Element references", { count: options.elements.length });
-    }
+    this.log(
+      "info",
+      `Генерация: ${options.duration || 5}с, mode=${options.mode || "pro"}`,
+      {
+        prompt: prompt.slice(0, 80),
+      }
+    );
 
     try {
       // Convert @Video1 syntax to <<<video_1>>> per Kling API spec
@@ -362,14 +341,7 @@ export class KlingService {
       // Note: aspect_ratio is NOT needed for video editing (refer_type: "base")
       // The output uses the same aspect ratio as the input video
 
-      this.log("📤", "Отправка запроса на генерацию...", {
-        promptLength: fullPrompt.length,
-        promptPreview: fullPrompt.slice(0, 100),
-        referType: "base",
-        mode: requestBody.mode,
-        keepOriginalSound: options.keepAudio ? "yes" : "no",
-        hasImages: !!requestBody.image_list?.length,
-      });
+      this.log("debug", "Отправка запроса...");
 
       const createResponse = await this.request<KlingTaskCreateResponse>(
         "/videos/omni-video",
@@ -380,41 +352,71 @@ export class KlingService {
       );
 
       if (createResponse.code !== 0 || !createResponse.data?.task_id) {
+        const errorMsg =
+          createResponse.message || "Failed to create generation task";
+        await logHandle.fail(new Error(errorMsg), {
+          inputMeta: {
+            promptLength: prompt.length,
+            mode: options.mode || "pro",
+            referType: "base",
+            imageUrls: options.imageUrls ?? [],
+            sourceVideoUrl,
+            fullPrompt,
+            requestBody,
+          },
+          outputMeta: {
+            responseCode: createResponse.code,
+            responseMessage: createResponse.message,
+          },
+        });
         return {
           success: false,
-          error: createResponse.message || "Failed to create generation task",
+          error: errorMsg,
         };
       }
 
       const taskId = createResponse.data.task_id;
-      this.log("✨", "Задача создана", { taskId });
+      this.log("info", "Задача создана");
 
       // Poll for completion with optional progress callback
       const result = await this.pollForCompletion(taskId, options.onProgress);
 
       const totalTime = formatDuration((Date.now() - startTime) / 1000);
       if (result.success) {
-        this.log("🎉", `═══ ГЕНЕРАЦИЯ ЗАВЕРШЕНА (${totalTime}) ═══`, {
-          videoUrl: result.videoUrl?.slice(0, 80),
-        });
+        this.log("info", `Готово (${totalTime})`);
         await logHandle.success({
           inputMeta: {
             promptLength: prompt.length,
             mode: options.mode || "pro",
             referType: "base",
             hasImageRefs: !!options.imageUrls?.length,
+            imageUrls: options.imageUrls ?? [],
+            sourceVideoUrl,
+            fullPrompt,
+            requestBody,
           },
-          outputMeta: { taskId },
+          outputMeta: {
+            taskId,
+            responseCode: createResponse.code,
+            responseMessage: createResponse.message,
+            videoUrl: result.videoUrl,
+          },
         });
       } else {
-        this.log("❌", `═══ ГЕНЕРАЦИЯ ПРОВАЛИЛАСЬ (${totalTime}) ═══`, {
-          error: result.error,
-        });
+        this.log("error", `Ошибка (${totalTime}): ${result.error}`);
         await logHandle.fail(new Error(result.error || "Generation failed"), {
           inputMeta: {
             promptLength: prompt.length,
             mode: options.mode || "pro",
             referType: "base",
+            imageUrls: options.imageUrls ?? [],
+            sourceVideoUrl,
+            fullPrompt,
+            requestBody,
+          },
+          outputMeta: {
+            taskId,
+            error: result.error,
           },
         });
       }
@@ -422,7 +424,7 @@ export class KlingService {
       return { ...result, taskId };
     } catch (error) {
       const totalTime = formatDuration((Date.now() - startTime) / 1000);
-      this.log("💥", `═══ КРИТИЧЕСКАЯ ОШИБКА (${totalTime}) ═══`);
+      this.log("error", `Критическая ошибка (${totalTime})`);
       const err = error instanceof Error ? error : new Error(String(error));
       await logHandle.fail(err);
       return this.parseError(err);
@@ -445,12 +447,6 @@ export class KlingService {
     const startTime = Date.now();
     let lastStatus = "";
 
-    this.log("🔄", "Начало ожидания генерации", {
-      taskId,
-      maxWait: `${(maxAttempts * pollInterval) / 60_000} мин`,
-      interval: `${pollInterval / 1000}с`,
-    });
-
     // Initial progress callback
     await onProgress?.(
       "pending",
@@ -470,26 +466,17 @@ export class KlingService {
         );
 
         if (statusResponse.code !== 0 || !statusResponse.data) {
-          this.log("⚠️", `Ошибка статуса (попытка ${attempts})`, {
-            message: statusResponse.message,
-          });
           continue;
         }
 
         // Normalize API status to internal status
         const apiStatus = statusResponse.data.task_status;
         const status = normalizeStatus(apiStatus);
-        const emoji = STATUS_EMOJI[status] ?? "❓";
         const statusRu = STATUS_RU[status] ?? status;
 
-        // Log only on status change or every 5 attempts
-        if (status !== lastStatus || attempts % 5 === 0) {
-          this.log(emoji, `${statusRu}`, {
-            taskId: taskId.slice(0, 20),
-            attempt: `${attempts}/${maxAttempts}`,
-            elapsed: formatDuration(elapsed),
-            apiStatus,
-          });
+        // Log only on status change
+        if (status !== lastStatus) {
+          this.log("info", `${statusRu} (${formatDuration(elapsed)})`);
           lastStatus = status;
         }
 
@@ -501,7 +488,6 @@ export class KlingService {
         if (status === "completed") {
           const videoUrl = statusResponse.data.task_result?.videos?.[0]?.url;
           if (videoUrl) {
-            this.log("✅", `Генерация завершена за ${formatDuration(elapsed)}`);
             await onProgress?.(
               "completed",
               100,
@@ -515,26 +501,17 @@ export class KlingService {
         if (status === "failed") {
           const errorMsg =
             statusResponse.data.task_status_msg ?? "Generation failed";
-          this.log("❌", "Генерация провалилась", { error: errorMsg });
+          this.log("error", `Ошибка: ${errorMsg}`);
           await onProgress?.("failed", undefined, `Ошибка: ${errorMsg}`);
           return { success: false, error: errorMsg, taskId };
         }
-      } catch (pollError) {
-        const err =
-          pollError instanceof Error ? pollError : new Error(String(pollError));
-        this.log("⚠️", `Ошибка при проверке статуса (попытка ${attempts})`, {
-          error: err.message,
-        });
+      } catch {
         // Continue polling despite errors
       }
     }
 
     const totalTime = formatDuration((Date.now() - startTime) / 1000);
-    this.log("⏰", "Таймаут ожидания генерации", {
-      taskId,
-      attempts: maxAttempts,
-      totalTime,
-    });
+    this.log("error", `Таймаут (${totalTime})`);
     await onProgress?.(
       "failed",
       undefined,
@@ -572,8 +549,6 @@ export class KlingService {
    * Download generated video
    */
   async downloadVideo(videoUrl: string): Promise<Buffer> {
-    this.log("📥", "Скачивание видео...");
-
     const response = await fetch(videoUrl);
 
     if (!response.ok) {
@@ -581,10 +556,7 @@ export class KlingService {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    this.log(
-      "✅",
-      `Видео скачано: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`
-    );
+    this.log("info", `Скачано ${(buffer.length / 1024 / 1024).toFixed(1)} MB`);
     return buffer;
   }
 
@@ -597,12 +569,6 @@ export class KlingService {
     const accessKeyPreview = this.accessKey
       ? `${this.accessKey.slice(0, 8)}...${this.accessKey.slice(-4)}`
       : "not set";
-
-    this.log("❌", "Ошибка Kling", {
-      message: msg,
-      accessKey: accessKeyPreview,
-      stack: error.stack?.slice(0, 200),
-    });
 
     if (msg.includes("401") || msg.includes("unauthorized")) {
       return {
@@ -641,20 +607,19 @@ let klingServiceInstance: KlingService | null = null;
 
 export function getKlingService(): KlingService {
   // Always create new instance to pick up code changes in dev
-  const accessKey = process.env.KLING_ACCESS_KEY;
-  const secretKey = process.env.KLING_SECRET_KEY;
-  if (!(accessKey && secretKey)) {
+  if (!klingConfig.isConfigured()) {
     throw new Error(
       "KLING_ACCESS_KEY and KLING_SECRET_KEY environment variables are required"
     );
   }
-  klingServiceInstance = new KlingService(accessKey, secretKey);
+  klingServiceInstance = new KlingService(
+    klingConfig.accessKey,
+    klingConfig.secretKey
+  );
   return klingServiceInstance;
 }
 
 /**
  * Check if Kling API is configured
  */
-export function isKlingConfigured(): boolean {
-  return !!(process.env.KLING_ACCESS_KEY && process.env.KLING_SECRET_KEY);
-}
+export const isKlingConfigured = klingConfig.isConfigured;
