@@ -168,6 +168,11 @@ export const sceneGenWorker = new Worker<SceneGenJobData, SceneGenJobResult>(
         sceneGenerationId
       );
 
+      console.log(
+        "[SceneGenQueue] Trimmed video URL for Kling:",
+        trimmedVideoUrl
+      );
+
       await updateSceneProgress(job, {
         stage: "generating",
         percent: 20,
