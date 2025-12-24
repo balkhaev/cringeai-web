@@ -235,7 +235,14 @@ authRouter.openapi(googleAuthRoute, async (c) => {
     expiresIn: "7d",
   });
 
-  return c.json({ accessToken, refreshToken, expiresIn: 3600 }, 200);
+  return c.json(
+    {
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
+    },
+    200
+  );
 });
 
 authRouter.openapi(appleAuthRoute, async (c) => {
@@ -251,5 +258,12 @@ authRouter.openapi(appleAuthRoute, async (c) => {
     expiresIn: "7d",
   });
 
-  return c.json({ accessToken, refreshToken, expiresIn: 3600 }, 200);
+  return c.json(
+    {
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
+    },
+    200
+  );
 });

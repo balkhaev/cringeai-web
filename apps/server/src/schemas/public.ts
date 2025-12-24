@@ -7,7 +7,7 @@
  * - Media (library)
  * - Generate
  *
- * All fields use snake_case convention for REST API compatibility
+ * All fields use camelCase convention
  */
 
 import { z } from "@hono/zod-openapi";
@@ -32,15 +32,15 @@ export const RemixOptionSchema = z
 
 export const AuthResponseSchema = z
   .object({
-    access_token: z.string().openapi({
+    accessToken: z.string().openapi({
       description: "Short-lived JWT access token",
       example: "eyJhbG...",
     }),
-    refresh_token: z.string().openapi({
+    refreshToken: z.string().openapi({
       description: "Long-lived JWT refresh token",
       example: "eyJhbG...",
     }),
-    expires_in: z.number().openapi({
+    expiresIn: z.number().openapi({
       description: "Access token lifetime in seconds",
       example: 3600,
     }),
@@ -49,7 +49,7 @@ export const AuthResponseSchema = z
 
 export const RefreshTokenRequestSchema = z
   .object({
-    refresh_token: z.string().openapi({
+    refreshToken: z.string().openapi({
       description: "The refresh token obtained during initial authentication",
       example: "eyJhbG...",
     }),
@@ -58,11 +58,11 @@ export const RefreshTokenRequestSchema = z
 
 export const RefreshTokenResponseSchema = z
   .object({
-    access_token: z.string().openapi({
+    accessToken: z.string().openapi({
       description: "New short-lived JWT access token",
       example: "eyJhbG...",
     }),
-    expires_in: z.number().openapi({
+    expiresIn: z.number().openapi({
       description: "New access token lifetime in seconds",
       example: 3600,
     }),
@@ -71,7 +71,7 @@ export const RefreshTokenResponseSchema = z
 
 export const BasicTokenRequestSchema = z
   .object({
-    device_type: z
+    deviceType: z
       .string()
       .openapi({ description: "Mobile platform name", example: "Android" }),
     algorithm: z.string().openapi({
@@ -82,7 +82,7 @@ export const BasicTokenRequestSchema = z
       description: "Unix timestamp in milliseconds as string",
       example: "1625097600000",
     }),
-    installation_hash: z.string().openapi({
+    installationHash: z.string().openapi({
       description: "Unique client-side generated device identifier",
       example: "client_generated_hash",
     }),
@@ -102,7 +102,7 @@ export const DetectableElementSchema = z
       description: "Description",
       example: "A fluffy ginger cat...",
     }),
-    remix_options: z.array(RemixOptionSchema),
+    remixOptions: z.array(RemixOptionSchema),
   })
   .openapi("DetectableElement");
 
@@ -151,14 +151,14 @@ export const FeedTemplateItemSchema = z
     title: z.string().nullable(),
     tags: z.array(z.string()),
     category: z.string().nullable(),
-    thumbnail_url: z.string(),
-    preview_video_url: z.string().optional(),
-    generation_count: z.number(),
-    is_bookmarked: z.boolean().optional(),
+    thumbnailUrl: z.string(),
+    previewVideoUrl: z.string().optional(),
+    generationCount: z.number(),
+    isBookmarked: z.boolean().optional(),
     reel: z.object({
       id: z.string(),
       author: z.string().nullable(),
-      like_count: z.number().nullable(),
+      likeCount: z.number().nullable(),
     }),
     elements: z.array(
       z.object({
@@ -173,8 +173,8 @@ export const FeedTemplateItemSchema = z
 export const FeedResponseSchema = z
   .object({
     items: z.array(FeedTemplateItemSchema),
-    next_cursor: z.string().nullable(),
-    has_more: z.boolean(),
+    nextCursor: z.string().nullable(),
+    hasMore: z.boolean(),
   })
   .openapi("FeedResponse");
 
@@ -186,7 +186,7 @@ export const ContentFromUrlRequestSchema = z
       description: "Instagram Reel URL",
       example: "https://www.instagram.com/reel/ABC123/",
     }),
-    auto_process: z.boolean().default(true).openapi({
+    autoProcess: z.boolean().default(true).openapi({
       description: "Automatically start analysis after download",
     }),
   })
@@ -195,30 +195,30 @@ export const ContentFromUrlRequestSchema = z
 export const ContentFromUrlResponseSchema = z
   .object({
     success: z.boolean(),
-    content_id: z.string().openapi({ description: "Content ID (reelId)" }),
+    contentId: z.string().openapi({ description: "Content ID (reelId)" }),
     status: z.enum(["new", "existing", "processing"]),
-    existing_analysis: z
+    existingAnalysis: z
       .object({
-        analysis_id: z.string(),
-        template_id: z.string().optional(),
+        analysisId: z.string(),
+        templateId: z.string().optional(),
       })
       .optional(),
-    job_id: z.string().optional(),
+    jobId: z.string().optional(),
   })
   .openapi("ContentFromUrlResponse");
 
 export const ContentUploadResponseSchema = z
   .object({
     success: z.boolean(),
-    content_id: z.string().openapi({ description: "Content ID" }),
-    job_id: z.string(),
+    contentId: z.string().openapi({ description: "Content ID" }),
+    jobId: z.string(),
     status: z.literal("processing"),
   })
   .openapi("ContentUploadResponse");
 
 export const ContentStatusResponseSchema = z
   .object({
-    content_id: z.string(),
+    contentId: z.string(),
     status: z.enum(["pending", "downloading", "analyzing", "ready", "failed"]),
     progress: z.number().min(0).max(100),
     stage: z.string(),
@@ -227,24 +227,24 @@ export const ContentStatusResponseSchema = z
       .object({
         id: z.string(),
         duration: z.number().nullable(),
-        aspect_ratio: z.string(),
+        aspectRatio: z.string(),
         elements: z.array(DetectableElementSchema),
         scenes: z
           .array(
             z.object({
               id: z.string(),
               index: z.number(),
-              start_time: z.number(),
-              end_time: z.number(),
+              startTime: z.number(),
+              endTime: z.number(),
               duration: z.number(),
-              thumbnail_url: z.string().nullable(),
+              thumbnailUrl: z.string().nullable(),
               elements: z.array(DetectableElementSchema),
             })
           )
           .optional(),
       })
       .optional(),
-    template_id: z.string().optional(),
+    templateId: z.string().optional(),
     error: z.string().optional(),
   })
   .openapi("ContentStatusResponse");
@@ -256,14 +256,14 @@ export const MediaItemSchema = z
     id: z.string(),
     type: z.enum(["image", "video"]),
     url: z.string(),
-    thumbnail_url: z.string(),
+    thumbnailUrl: z.string(),
     filename: z.string(),
     size: z.number(),
     width: z.number().nullable(),
     height: z.number().nullable(),
     duration: z.number().nullable(),
-    mime_type: z.string().nullable(),
-    created_at: z.string(),
+    mimeType: z.string().nullable(),
+    createdAt: z.string(),
   })
   .openapi("MediaItem");
 
@@ -350,15 +350,15 @@ export const StockMediaResponseSchema = z
 
 export const ElementSelectionSchema = z
   .object({
-    element_id: z.string().openapi({
+    elementId: z.string().openapi({
       description: "ID элемента из analysis.videoElements",
       example: "char-1",
     }),
-    option_id: z.string().optional().openapi({
+    optionId: z.string().optional().openapi({
       description: "ID опции из element.remixOptions",
       example: "opt-1",
     }),
-    custom_image_url: z.string().url().optional().openapi({
+    customImageUrl: z.string().url().optional().openapi({
       description: "URL кастомного изображения для замены элемента",
       example: "https://storage.example.com/uploads/my-character.jpg",
     }),
@@ -369,7 +369,7 @@ export const ElementSelectionSchema = z
 
 export const GenerateRequestSchema = z
   .object({
-    analysis_id: z.string().openapi({
+    analysisId: z.string().openapi({
       description: "ID анализа видео (VideoAnalysis)",
       example: "550e8400-e29b-41d4-a716-446655440000",
     }),
@@ -377,7 +377,7 @@ export const GenerateRequestSchema = z
       description:
         "Какие элементы на что заменить. Если пусто - генерация без изменений",
     }),
-    keep_audio: z.boolean().default(false).openapi({
+    keepAudio: z.boolean().default(false).openapi({
       description: "Сохранить аудио из оригинального видео",
     }),
   })
@@ -385,25 +385,25 @@ export const GenerateRequestSchema = z
 
 export const GenerateResponseSchema = z
   .object({
-    generation_id: z.string().openapi({
+    generationId: z.string().openapi({
       description: "ID генерации для отслеживания статуса",
     }),
     status: z.literal("queued"),
-    status_url: z.string().openapi({
+    statusUrl: z.string().openapi({
       description: "URL для получения статуса генерации",
       example: "/api/generate/{id}/status",
     }),
     type: z.enum(["full", "composite"]).openapi({
       description: "Тип генерации: full (одно видео) или composite (по сценам)",
     }),
-    estimated_wait_time: z.number().optional(),
-    queue_position: z.number().optional(),
+    estimatedWaitTime: z.number().optional(),
+    queuePosition: z.number().optional(),
   })
   .openapi("GenerateResponse");
 
 export const GenerationStatusResponseSchema = z
   .object({
-    generation_id: z.string(),
+    generationId: z.string(),
     status: z.enum(["queued", "processing", "completed", "failed"]),
     progress: z.number(),
     stage: z
@@ -419,28 +419,28 @@ export const GenerationStatusResponseSchema = z
         description: "Current generation stage",
       }),
     message: z.string(),
-    provider_progress: z.number().optional(),
+    providerProgress: z.number().optional(),
     result: z
       .object({
-        video_url: z.string(),
-        thumbnail_url: z.string().nullable(),
+        videoUrl: z.string(),
+        thumbnailUrl: z.string().nullable(),
         duration: z.number().nullable(),
       })
       .optional(),
-    scene_statuses: z
+    sceneStatuses: z
       .array(
         z.object({
-          scene_id: z.string(),
+          sceneId: z.string(),
           status: z.string(),
           progress: z.number(),
-          video_url: z.string().optional(),
+          videoUrl: z.string().optional(),
         })
       )
       .optional(),
     error: z.string().optional(),
-    created_at: z.string(),
-    started_at: z.string().optional(),
-    completed_at: z.string().optional(),
+    createdAt: z.string(),
+    startedAt: z.string().optional(),
+    completedAt: z.string().optional(),
   })
   .openapi("GenerationStatusResponse");
 
@@ -450,15 +450,15 @@ export const GenerationItemSchema = z
     status: z.string(),
     progress: z.number(),
     prompt: z.string(),
-    thumbnail_url: z.string().nullable(),
-    video_url: z.string().nullable(),
-    created_at: z.string(),
-    completed_at: z.string().nullable(),
+    thumbnailUrl: z.string().nullable(),
+    videoUrl: z.string().nullable(),
+    createdAt: z.string(),
+    completedAt: z.string().nullable(),
     source: z.object({
       type: z.enum(["template", "upload", "url"]),
-      template_id: z.string().optional(),
-      template_title: z.string().optional(),
-      source_url: z.string().optional(),
+      templateId: z.string().optional(),
+      templateTitle: z.string().optional(),
+      sourceUrl: z.string().optional(),
     }),
   })
   .openapi("GenerationItem");
@@ -528,7 +528,7 @@ export const SearchResponseSchema = z
 export const BookmarkResponseSchema = z
   .object({
     bookmarked: z.boolean(),
-    template_id: z.string(),
+    templateId: z.string(),
   })
   .openapi("BookmarkResponse");
 
@@ -551,7 +551,7 @@ export const AssetGenerateRequestSchema = z
     category: AssetCategorySchema.openapi({
       description: "Категория ассета",
     }),
-    aspect_ratio: AssetAspectRatioSchema.default("1:1").openapi({
+    aspectRatio: AssetAspectRatioSchema.default("1:1").openapi({
       description: "Соотношение сторон",
     }),
     style: z.string().optional().openapi({
@@ -665,10 +665,10 @@ export const ExtendedPersonalMediaResponseSchema = z
 
 export const PublishGenerationRequestSchema = z
   .object({
-    is_shared: z.boolean().default(true).openapi({
+    isShared: z.boolean().default(true).openapi({
       description: "Whether to share the result with the community",
     }),
-    community_consent: z.boolean().openapi({
+    communityConsent: z.boolean().openapi({
       description: "User consent for community sharing",
     }),
     title: z.string().optional().openapi({
@@ -680,7 +680,7 @@ export const PublishGenerationRequestSchema = z
 export const PublishGenerationResponseSchema = z
   .object({
     success: z.boolean(),
-    template_id: z.string().optional().openapi({
+    templateId: z.string().optional().openapi({
       description: "ID of the created template if shared",
     }),
   })
@@ -697,7 +697,7 @@ export const SocialShareRequestSchema = z
 export const SocialShareResponseSchema = z
   .object({
     success: z.boolean(),
-    share_url: z.string().optional().openapi({
+    shareUrl: z.string().optional().openapi({
       description: "Deep link or share URL if applicable",
     }),
   })
@@ -707,13 +707,13 @@ export const SocialShareResponseSchema = z
 
 export const GoogleAuthRequestSchema = z
   .object({
-    id_token: z.string().openapi({ description: "Google ID Token" }),
+    idToken: z.string().openapi({ description: "Google ID Token" }),
   })
   .openapi("GoogleAuthRequest");
 
 export const AppleAuthRequestSchema = z
   .object({
-    identity_token: z.string().openapi({ description: "Apple Identity Token" }),
+    identityToken: z.string().openapi({ description: "Apple Identity Token" }),
     user: z
       .object({
         name: z.string().optional(),

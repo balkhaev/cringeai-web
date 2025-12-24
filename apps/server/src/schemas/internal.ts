@@ -72,13 +72,13 @@ export const ReelListQuerySchema = z.object({
     .min(0)
     .default(0)
     .openapi({ param: { name: "offset", in: "query" } }),
-  min_likes: z.coerce
+  minLikes: z.coerce
     .number()
     .int()
     .min(0)
     .default(0)
     .optional()
-    .openapi({ param: { name: "min_likes", in: "query" } }),
+    .openapi({ param: { name: "minLikes", in: "query" } }),
   hashtag: z
     .string()
     .optional()
@@ -115,7 +115,7 @@ export const AnalysisSchema = z
       .number()
       .nullable()
       .openapi({ description: "Video length in seconds", example: 15.5 }),
-    aspect_ratio: z
+    aspectRatio: z
       .string()
       .openapi({ description: "Screen ratio", example: "9:16" }),
     tags: z
@@ -129,7 +129,7 @@ export const AnalysisPreviewSchema = z
   .object({
     id: z.string().openapi({ description: "Analysis ID" }),
     tags: z.array(z.string()).openapi({ example: ["vlog", "coffee"] }),
-    elements_count: z.number().openapi({ description: "Number of elements" }),
+    elementsCount: z.number().openapi({ description: "Number of elements" }),
   })
   .openapi("AnalysisPreview");
 
@@ -137,23 +137,23 @@ export const AnalysisPreviewSchema = z
 export const GenerationRefSchema = z.object({
   id: z.string(),
   status: z.string(),
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 
 export const VideoAnalysisDbSchema = z
   .object({
     id: z.string(),
-    source_type: z.string(),
-    source_id: z.string().nullable(),
-    file_name: z.string().nullable(),
+    sourceType: z.string(),
+    sourceId: z.string().nullable(),
+    fileName: z.string().nullable(),
     duration: z.number().nullable(),
-    aspect_ratio: z.string().nullable(),
+    aspectRatio: z.string().nullable(),
     elements: z.array(DetectableElementSchema),
     tags: z.array(z.string()).nullable(),
-    analysis_type: z.string().nullable(),
-    has_scenes: z.boolean().optional(),
-    scenes_count: z.number().nullable().optional(),
-    created_at: z.string(),
+    analysisType: z.string().nullable(),
+    hasScenes: z.boolean().optional(),
+    scenesCount: z.number().nullable().optional(),
+    createdAt: z.string(),
     generations: z.array(GenerationRefSchema).optional(),
   })
   .openapi("VideoAnalysisDb");
@@ -164,11 +164,11 @@ export const ReelPreviewSchema = z
   .object({
     id: z.string().openapi({ description: "Reel ID" }),
     url: z.string().openapi({ description: "Reel URL" }),
-    thumbnail_url: z
+    thumbnailUrl: z
       .string()
       .nullable()
       .openapi({ description: "Reel thumbnail URL" }),
-    like_count: z
+    likeCount: z
       .number()
       .nullable()
       .openapi({ description: "Number of likes" }),
@@ -192,18 +192,18 @@ export const TemplateSchema = z
       .string()
       .nullable()
       .openapi({ description: "Content category", example: "Lifestyle" }),
-    generation_count: z.number().openapi({
+    generationCount: z.number().openapi({
       description: "Total videos generated using this template",
       example: 142,
     }),
-    is_published: z
+    isPublished: z
       .boolean()
       .openapi({ description: "Whether it's visible to public" }),
-    created_at: z.string().openapi({
+    createdAt: z.string().openapi({
       description: "ISO creation date",
       example: "2023-08-01T12:00:00Z",
     }),
-    updated_at: z.string().openapi({
+    updatedAt: z.string().openapi({
       description: "ISO last update date",
       example: "2023-08-01T12:30:00Z",
     }),
@@ -217,47 +217,44 @@ export const TemplateSchema = z
 export const VideoGenerationSchema = z
   .object({
     id: z.string().openapi({ description: "Generation ID" }),
-    analysis_id: z.string().openapi({ description: "Related analysis ID" }),
+    analysisId: z.string().openapi({ description: "Related analysis ID" }),
     status: z
       .enum(["pending", "processing", "completed", "failed"])
       .openapi({ description: "Generation status" }),
     progress: z.number().openapi({ description: "Progress percentage 0-100" }),
-    progress_stage: z
+    progressStage: z
       .string()
       .nullable()
       .openapi({ description: "Current stage name" }),
-    progress_message: z
+    progressMessage: z
       .string()
       .nullable()
       .openapi({ description: "Human-readable progress message" }),
-    kling_progress: z
+    klingProgress: z
       .number()
       .nullable()
       .openapi({ description: "Kling AI progress percentage" }),
-    kling_task_id: z
+    klingTaskId: z
       .string()
       .nullable()
       .openapi({ description: "Kling AI task ID" }),
-    video_url: z
+    videoUrl: z
       .string()
       .nullable()
       .openapi({ description: "Generated video URL" }),
-    s3_key: z.string().nullable().openapi({ description: "S3 storage key" }),
+    s3Key: z.string().nullable().openapi({ description: "S3 storage key" }),
     duration: z
       .number()
       .nullable()
       .openapi({ description: "Video duration in seconds" }),
-    aspect_ratio: z
-      .string()
-      .nullable()
-      .openapi({ description: "Aspect ratio" }),
-    created_at: z.string().openapi({ description: "Creation timestamp" }),
-    completed_at: z
+    aspectRatio: z.string().nullable().openapi({ description: "Aspect ratio" }),
+    createdAt: z.string().openapi({ description: "Creation timestamp" }),
+    completedAt: z
       .string()
       .nullable()
       .openapi({ description: "Completion timestamp" }),
     error: z.string().nullable().openapi({ description: "Error message" }),
-    last_activity_at: z
+    lastActivityAt: z
       .string()
       .nullable()
       .openapi({ description: "Last activity timestamp" }),
@@ -266,7 +263,7 @@ export const VideoGenerationSchema = z
 
 export const GenerateVideoRequestSchema = z
   .object({
-    analysis_id: z.string().openapi({
+    analysisId: z.string().openapi({
       description: "Analysis ID to use for generation",
       example: "550e8400-e29b-41d4-a716-446655440000",
     }),
@@ -275,7 +272,7 @@ export const GenerateVideoRequestSchema = z
       example:
         "Based on @Video1, transform the character into a cyberpunk robot",
     }),
-    source_video_url: z.string().openapi({
+    sourceVideoUrl: z.string().openapi({
       description: "Source video URL for video-to-video generation",
       example: "http://localhost:3000/api/files/reels/ABC123",
     }),
@@ -285,11 +282,11 @@ export const GenerateVideoRequestSchema = z
           .union([z.literal(5), z.literal(10)])
           .optional()
           .openapi({ description: "Video duration in seconds" }),
-        aspect_ratio: z
+        aspectRatio: z
           .enum(["16:9", "9:16", "1:1", "auto"])
           .optional()
           .openapi({ description: "Output aspect ratio" }),
-        keep_audio: z
+        keepAudio: z
           .boolean()
           .optional()
           .openapi({ description: "Whether to keep original audio" }),
@@ -314,7 +311,7 @@ export const AnalyzeDownloadedRequestSchema = z
 
 export const AnalyzeReelRequestSchema = z
   .object({
-    reel_id: z.string().openapi({
+    reelId: z.string().openapi({
       description: "Reel ID from database",
       example: "ABC123",
     }),
@@ -337,7 +334,7 @@ export const AnalyzedVideoResponseSchema = z
   .object({
     success: z.boolean(),
     analysis: VideoAnalysisDbSchema,
-    analysis_id: z.string(),
+    analysisId: z.string(),
     mode: z.string().optional(),
   })
   .openapi("AnalyzedVideoResponse");
@@ -345,7 +342,7 @@ export const AnalyzedVideoResponseSchema = z
 export const UpdateAnalysisRequestSchema = z
   .object({
     duration: z.number().optional(),
-    aspect_ratio: z.string().optional(),
+    aspectRatio: z.string().optional(),
     tags: z.array(z.string()).optional(),
     elements: z.array(DetectableElementSchema).optional(),
   })
@@ -355,8 +352,8 @@ export const UploadReferenceResponseSchema = z
   .object({
     success: z.boolean(),
     url: z.string().openapi({ description: "Public URL for the image" }),
-    s3_key: z.string().openapi({ description: "S3 storage key" }),
-    image_id: z.string().openapi({ description: "Unique image identifier" }),
+    s3Key: z.string().openapi({ description: "S3 storage key" }),
+    imageId: z.string().openapi({ description: "Unique image identifier" }),
   })
   .openapi("UploadReferenceResponse");
 
@@ -384,14 +381,14 @@ export const AddReelResponseSchema = z
     success: z.boolean(),
     reel: ReelPreviewSchema,
     message: z.string(),
-    is_new: z.boolean(),
+    isNew: z.boolean(),
   })
   .openapi("AddReelResponse");
 
 export const ReelStatsResponseSchema = z
   .object({
     total: z.number(),
-    by_status: z.object({
+    byStatus: z.object({
       scraped: z.number(),
       downloading: z.number(),
       downloaded: z.number(),
@@ -400,13 +397,13 @@ export const ReelStatsResponseSchema = z
       failed: z.number(),
     }),
     templates: z.number(),
-    active_generations: z.number(),
+    activeGenerations: z.number(),
   })
   .openapi("ReelStatsResponse");
 
 export const ProcessReelRequestSchema = z
   .object({
-    use_frames: z.boolean().optional().default(false),
+    useFrames: z.boolean().optional().default(false),
     force: z.boolean().optional().default(false),
   })
   .openapi("ProcessReelRequest");
@@ -415,8 +412,8 @@ export const ProcessReelResponseSchema = z
   .object({
     success: z.boolean(),
     message: z.string(),
-    job_id: z.string(),
-    reel_id: z.string(),
+    jobId: z.string(),
+    reelId: z.string(),
   })
   .openapi("ProcessReelResponse");
 
@@ -433,14 +430,14 @@ export const ResizeReelResponseSchema = z
     success: z.boolean(),
     message: z.string(),
     resized: z.boolean(),
-    original_width: z.number().optional(),
-    new_width: z.number().optional(),
+    originalWidth: z.number().optional(),
+    newWidth: z.number().optional(),
   })
   .openapi("ResizeReelResponse");
 
 export const BatchRefreshDurationRequestSchema = z
   .object({
-    reel_ids: z.array(z.string()).openapi({
+    reelIds: z.array(z.string()).openapi({
       description: "List of reel IDs to refresh",
     }),
   })
@@ -453,6 +450,6 @@ export const FileStreamSchema = z
   .openapi({ type: "string", format: "binary" });
 
 export const FileMetadataResponseSchema = z.object({
-  content_type: z.string(),
-  content_length: z.string(),
+  contentType: z.string(),
+  contentLength: z.string(),
 });

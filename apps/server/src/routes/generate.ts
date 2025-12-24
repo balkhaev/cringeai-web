@@ -71,12 +71,12 @@ const generateRoute = createRoute({
 });
 
 app.openapi(generateRoute, async (c) => {
-  const { analysis_id, selections, keep_audio } = c.req.valid("json");
+  const { analysisId, selections, keepAudio } = c.req.valid("json");
 
   try {
     // 1. Загружаем анализ с элементами, сценами и reel
     const analysis = await prisma.videoAnalysis.findUnique({
-      where: { id: analysis_id },
+      where: { id: analysisId },
       include: {
         template: {
           include: {
@@ -107,20 +107,20 @@ app.openapi(generateRoute, async (c) => {
       const elementIds = new Set(analysis.videoElements.map((e) => e.id));
 
       for (const sel of selections) {
-        if (!elementIds.has(sel.element_id)) {
-          return c.json({ error: `Element not found: ${sel.element_id}` }, 400);
+        if (!elementIds.has(sel.elementId)) {
+          return c.json({ error: `Element not found: ${sel.elementId}` }, 400);
         }
 
-        if (sel.option_id) {
+        if (sel.optionId) {
           const element = analysis.videoElements.find(
-            (e) => e.id === sel.element_id
+            (e) => e.id === sel.elementId
           );
           const remixOptions =
             (element?.remixOptions as Array<{ id: string }>) || [];
-          if (!remixOptions.some((opt) => opt.id === sel.option_id)) {
+          if (!remixOptions.some((opt) => opt.id === sel.optionId)) {
             return c.json(
               {
-                error: `Option not found: ${sel.option_id} for element ${sel.element_id}`,
+                error: `Option not found: ${sel.optionId} for element ${sel.elementId}`,
               },
               400
             );
@@ -151,9 +151,9 @@ app.openapi(generateRoute, async (c) => {
 
     // Преобразуем selections в формат для buildPromptFromSelections
     const elementSelections = (selections || []).map((sel) => ({
-      element_id: sel.element_id,
-      selected_option_id: sel.option_id,
-      custom_media_url: sel.custom_image_url,
+      elementId: sel.elementId,
+      selectedOptionId: sel.optionId,
+      customMediaUrl: sel.customImageUrl,
     }));
 
     // 6. Строим промпт из selections
@@ -206,7 +206,7 @@ app.openapi(generateRoute, async (c) => {
 
         // Проверяем есть ли selections для элементов этой сцены
         const sceneSelections = elementSelections.filter((sel) =>
-          sceneElementIds.has(sel.element_id)
+          sceneElementIds.has(sel.elementId)
         );
 
         if (sceneSelections.length === 0) {
@@ -235,7 +235,7 @@ app.openapi(generateRoute, async (c) => {
             {
               duration,
               aspectRatio,
-              keepAudio: keep_audio,
+              keepAudio,
               imageUrls: sceneImageUrls.length > 0 ? sceneImageUrls : undefined,
               negativePrompt: sceneNegativePrompt,
             }
@@ -254,16 +254,16 @@ app.openapi(generateRoute, async (c) => {
 
       // Запускаем composite generation
       const compositeId = await sceneGenJobQueue.startCompositeGeneration(
-        analysis_id,
+        analysisId,
         sourceVideoUrl,
         sceneConfigs
       );
 
       return c.json(
         {
-          generation_id: compositeId,
+          generationId: compositeId,
           status: "queued" as const,
-          status_url: `/api/generate/${compositeId}/composite-status`,
+          statusUrl: `/api/generate/${compositeId}/composite-status`,
           type: "composite" as const,
         },
         202
@@ -272,13 +272,13 @@ app.openapi(generateRoute, async (c) => {
 
     // 8. Full video generation
     const generationId = await videoGenJobQueue.startGeneration(
-      analysis_id,
+      analysisId,
       prompt || "Transform this video",
       sourceVideoUrl,
       {
         duration,
         aspectRatio,
-        keepAudio: keep_audio,
+        keepAudio,
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         negativePrompt,
       }
@@ -286,9 +286,9 @@ app.openapi(generateRoute, async (c) => {
 
     return c.json(
       {
-        generation_id: generationId,
+        generationId,
         status: "queued" as const,
-        status_url: `/api/generate/${generationId}/status`,
+        statusUrl: `/api/generate/${generationId}/status`,
         type: "full" as const,
       },
       202
@@ -361,24 +361,24 @@ app.openapi(statusRoute, async (c) => {
   const status = statusMap[generation.status] ?? "queued";
 
   return c.json({
-    generation_id: generation.id,
+    generationId: generation.id,
     status,
     progress: generation.progress,
     stage: generation.progressStage,
     message: generation.progressMessage,
-    provider_progress: generation.klingProgress ?? undefined,
+    providerProgress: generation.klingProgress ?? undefined,
     ...(generation.status === "completed" &&
       generation.videoUrl && {
         result: {
-          video_url: getGenerationVideoPublicUrl(generation.id),
-          thumbnail_url: generation.thumbnailUrl,
+          videoUrl: getGenerationVideoPublicUrl(generation.id),
+          thumbnailUrl: generation.thumbnailUrl,
           duration: generation.durationSec,
         },
       }),
     error: generation.error ?? undefined,
-    created_at: generation.createdAt.toISOString(),
-    started_at: generation.lastActivityAt?.toISOString() ?? undefined,
-    completed_at: generation.completedAt?.toISOString() ?? undefined,
+    createdAt: generation.createdAt.toISOString(),
+    startedAt: generation.lastActivityAt?.toISOString() ?? undefined,
+    completedAt: generation.completedAt?.toISOString() ?? undefined,
   });
 });
 
@@ -437,18 +437,18 @@ app.openapi(listRoute, async (c) => {
       status: gen.status,
       progress: gen.progress,
       prompt: gen.prompt,
-      thumbnail_url: gen.thumbnailUrl,
-      video_url: gen.videoUrl ? getGenerationVideoPublicUrl(gen.id) : null,
-      created_at: gen.createdAt.toISOString(),
-      completed_at: gen.completedAt?.toISOString() ?? null,
+      thumbnailUrl: gen.thumbnailUrl,
+      videoUrl: gen.videoUrl ? getGenerationVideoPublicUrl(gen.id) : null,
+      createdAt: gen.createdAt.toISOString(),
+      completedAt: gen.completedAt?.toISOString() ?? null,
       source: {
         type: (gen.analysis.sourceType === "upload"
           ? "upload"
           : gen.analysis.template
             ? "template"
             : "url") as "template" | "upload" | "url",
-        template_id: gen.analysis.template?.id,
-        template_title: gen.analysis.template?.title ?? undefined,
+        templateId: gen.analysis.template?.id,
+        templateTitle: gen.analysis.template?.title ?? undefined,
       },
     })),
     total,
@@ -477,7 +477,7 @@ const compositeStatusRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            composite_generation_id: z.string(),
+            compositeGenerationId: z.string(),
             status: z.enum([
               "pending",
               "waiting",
@@ -491,7 +491,7 @@ const compositeStatusRoute = createRoute({
             message: z.string().optional(),
             result: z
               .object({
-                video_url: z.string(),
+                videoUrl: z.string(),
               })
               .optional(),
             error: z.string().optional(),
@@ -523,7 +523,7 @@ app.openapi(compositeStatusRoute, async (c) => {
   }
 
   return c.json({
-    composite_generation_id: composite.id,
+    compositeGenerationId: composite.id,
     status: composite.status as
       | "pending"
       | "waiting"
@@ -536,7 +536,7 @@ app.openapi(compositeStatusRoute, async (c) => {
     message: composite.progressMessage ?? undefined,
     ...(composite.status === "completed" &&
       composite.videoUrl && {
-        result: { video_url: composite.videoUrl },
+        result: { videoUrl: composite.videoUrl },
       }),
     error: composite.error ?? undefined,
   }) as any;
@@ -612,7 +612,7 @@ app.openapi(publishRoute, async (c) => {
 
   return c.json({
     success: true,
-    template_id: templateId,
+    templateId,
   });
 });
 
@@ -669,7 +669,7 @@ app.openapi(shareRoute, async (c) => {
   // For now just return success
   return c.json({
     success: true,
-    share_url: generation.videoUrl || undefined,
+    shareUrl: generation.videoUrl || undefined,
   });
 });
 
@@ -702,13 +702,13 @@ const regenerateSceneRoute = createRoute({
                 z.union([z.literal(5), z.literal(10)])
               )
               .optional(),
-            aspect_ratio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
-            keep_audio: z.boolean().optional(),
-            auto_composite: z.boolean().optional().default(true).openapi({
+            aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
+            keepAudio: z.boolean().optional(),
+            autoComposite: z.boolean().optional().default(true).openapi({
               description:
                 "Automatically create composite generation with all scenes after this scene completes. Default: true",
             }),
-            use_generated_as_source: z
+            useGeneratedAsSource: z
               .boolean()
               .optional()
               .default(false)
@@ -716,11 +716,11 @@ const regenerateSceneRoute = createRoute({
                 description:
                   "Use the previously generated video as source instead of the original scene. Default: false (use original)",
               }),
-            image_urls: z.array(z.string()).optional().openapi({
+            imageUrls: z.array(z.string()).optional().openapi({
               description:
-                "Reference image URLs for Kling image_list. If not provided, tries to use images from previous generation.",
+                "Reference image URLs for Kling imageList. If not provided, tries to use images from previous generation.",
             }),
-            source_video_url: z.string().optional().openapi({
+            sourceVideoUrl: z.string().optional().openapi({
               description:
                 "Explicit source video URL. Use this when the scene doesn't have a saved video (e.g., upload-based analyses).",
             }),
@@ -735,8 +735,8 @@ const regenerateSceneRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
-            scene_generation_id: z.string(),
-            composite_generation_id: z.string().optional(),
+            sceneGenerationId: z.string(),
+            compositeGenerationId: z.string().optional(),
             status: z.string(),
           }),
         },
@@ -767,12 +767,12 @@ app.openapi(regenerateSceneRoute, async (c) => {
   const {
     prompt,
     duration,
-    aspect_ratio: aspectRatio,
-    keep_audio: keepAudio,
-    auto_composite: autoComposite,
-    use_generated_as_source: useGeneratedAsSource,
-    image_urls: imageUrls,
-    source_video_url: providedSourceVideoUrl,
+    aspectRatio,
+    keepAudio,
+    autoComposite,
+    useGeneratedAsSource,
+    imageUrls,
+    sourceVideoUrl: providedSourceVideoUrl,
   } = c.req.valid("json");
 
   // Get the scene with analysis, reel, and all sibling scenes
@@ -953,8 +953,8 @@ app.openapi(regenerateSceneRoute, async (c) => {
   return c.json(
     {
       success: true,
-      scene_generation_id: sceneGenerationId,
-      composite_generation_id: compositeGenerationId,
+      sceneGenerationId,
+      compositeGenerationId,
       status: "queued",
     },
     202
@@ -1057,7 +1057,7 @@ const deleteCompositeRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
-            deleted_scenes: z.number(),
+            deletedScenes: z.number(),
           }),
         },
       },
@@ -1149,7 +1149,7 @@ app.openapi(deleteCompositeRoute, async (c) => {
   );
 
   return c.json(
-    { success: true, deleted_scenes: sceneGenerationIds.length },
+    { success: true, deletedScenes: sceneGenerationIds.length },
     200
   );
 });

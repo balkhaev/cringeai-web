@@ -24,9 +24,9 @@ export type Element = {
 };
 
 export type ElementSelection = {
-  element_id: string;
-  selected_option_id?: string;
-  custom_media_url?: string;
+  elementId: string;
+  selectedOptionId?: string;
+  customMediaUrl?: string;
 };
 
 /**
@@ -47,22 +47,22 @@ export function buildPromptFromSelections(
   const imageUrls: string[] = [];
 
   // Определяем какие элементы НЕ выбраны для замены
-  const selectedIds = new Set(selections.map((s) => s.element_id));
+  const selectedIds = new Set(selections.map((s) => s.elementId));
   const unchangedElements = elements.filter((e) => !selectedIds.has(e.id));
   const unchangedLabels = unchangedElements.map((e) => e.label);
 
   for (const selection of selections) {
-    const element = elements.find((e) => e.id === selection.element_id);
+    const element = elements.find((e) => e.id === selection.elementId);
     if (!element) continue;
 
-    // Check for custom image first (selected_option_id === "custom" or has custom_media_url)
+    // Check for custom image first (selectedOptionId === "custom" or has customMediaUrl)
     if (
-      selection.selected_option_id === "custom" ||
-      (!selection.selected_option_id && selection.custom_media_url)
+      selection.selectedOptionId === "custom" ||
+      (!selection.selectedOptionId && selection.customMediaUrl)
     ) {
-      if (selection.custom_media_url) {
-        // User provided custom image - add to image_list and reference in prompt
-        imageUrls.push(selection.custom_media_url);
+      if (selection.customMediaUrl) {
+        // User provided custom image - add to imageList and reference in prompt
+        imageUrls.push(selection.customMediaUrl);
         const imageIndex = imageUrls.length; // 1-based index for Kling
 
         // Строим точное описание цели для замены
@@ -133,10 +133,10 @@ export function buildPromptFromSelections(
 
         parts.push(replacePrompt);
       }
-    } else if (selection.selected_option_id) {
+    } else if (selection.selectedOptionId) {
       // User selected a predefined option
       const option = element.remixOptions.find(
-        (o) => o.id === selection.selected_option_id
+        (o) => o.id === selection.selectedOptionId
       );
       if (option) {
         // Для preset опций тоже добавляем защиту других объектов

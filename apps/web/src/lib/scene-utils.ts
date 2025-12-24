@@ -4,7 +4,7 @@ import type { SceneSelection, VideoElement, VideoScene } from "./templates-api";
 /**
  * Строит sceneSelections из выбранных элементов.
  * Определяет какие сцены затронуты на основе appearances элементов.
- * Возвращает в snake_case формате для API.
+ * Возвращает в camelCase формате для API.
  */
 export function buildSceneSelections(
   elements: VideoElement[],
@@ -26,7 +26,7 @@ export function buildSceneSelections(
     }
   }
 
-  // Строим sceneSelections для каждой сцены (snake_case для API)
+  // Строим sceneSelections для каждой сцены (camelCase для API)
   return scenes.map((scene) => {
     if (affectedSceneIndexes.has(scene.index)) {
       // Сцена затронута - нужна генерация
@@ -36,22 +36,22 @@ export function buildSceneSelections(
           return el?.appearances?.some((a) => a.sceneIndex === scene.index);
         })
         .map((sel) => ({
-          element_id: sel.elementId,
-          selected_option_id: sel.selectedOptionId || undefined,
-          custom_media_url: sel.customImageUrl,
+          elementId: sel.elementId,
+          selectedOptionId: sel.selectedOptionId || undefined,
+          customMediaUrl: sel.customImageUrl,
         }));
 
       return {
-        scene_id: scene.id,
-        use_original: false,
-        element_selections: sceneElementSelections,
+        sceneId: scene.id,
+        useOriginal: false,
+        elementSelections: sceneElementSelections,
       };
     }
 
     // Сцена не затронута - используем оригинал
     return {
-      scene_id: scene.id,
-      use_original: true,
+      sceneId: scene.id,
+      useOriginal: true,
     };
   });
 }

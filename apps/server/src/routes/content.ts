@@ -64,7 +64,7 @@ const fromUrlRoute = createRoute({
 });
 
 app.openapi(fromUrlRoute, async (c) => {
-  const { url, auto_process: autoProcess } = c.req.valid("json");
+  const { url, autoProcess } = c.req.valid("json");
 
   const shortcode = extractShortcode(url);
   if (!shortcode) {
@@ -87,11 +87,11 @@ app.openapi(fromUrlRoute, async (c) => {
       return c.json(
         {
           success: true,
-          content_id: shortcode,
+          contentId: shortcode,
           status: "existing" as const,
-          existing_analysis: {
-            analysis_id: existing.template.analysis.id,
-            template_id: existing.template.id,
+          existingAnalysis: {
+            analysisId: existing.template.analysis.id,
+            templateId: existing.template.id,
           },
         },
         202
@@ -122,9 +122,9 @@ app.openapi(fromUrlRoute, async (c) => {
     return c.json(
       {
         success: true,
-        content_id: shortcode,
+        contentId: shortcode,
         status: existing ? ("processing" as const) : ("new" as const),
-        job_id: jobId,
+        jobId,
       },
       202
     );
@@ -232,8 +232,8 @@ app.openapi(uploadRoute, async (c) => {
     return c.json(
       {
         success: true,
-        content_id: contentId,
-        job_id: jobId,
+        contentId,
+        jobId,
         status: "processing" as const,
       },
       202
@@ -323,7 +323,7 @@ app.openapi(statusRoute, async (c) => {
   const status = statusMap[reel.status] ?? "pending";
   const analysis = reel.template?.analysis;
 
-  // Parse and transform elements to snake_case
+  // Parse and transform elements to camelCase
   type StoredElement = {
     id: string;
     type: "character" | "object" | "background";
@@ -342,7 +342,7 @@ app.openapi(statusRoute, async (c) => {
     type: el.type,
     label: el.label,
     description: el.description,
-    remix_options: el.remixOptions,
+    remixOptions: el.remixOptions,
   });
 
   const elements = analysis?.elements
@@ -353,16 +353,16 @@ app.openapi(statusRoute, async (c) => {
   const scenes = analysis?.videoScenes?.map((scene) => ({
     id: scene.id,
     index: scene.index,
-    start_time: scene.startTime,
-    end_time: scene.endTime,
+    startTime: scene.startTime,
+    endTime: scene.endTime,
     duration: scene.duration,
-    thumbnail_url: scene.thumbnailUrl,
+    thumbnailUrl: scene.thumbnailUrl,
     elements: (scene.elements as StoredElement[]).map(transformElement),
   }));
 
   return c.json(
     {
-      content_id: reel.id,
+      contentId: reel.id,
       status,
       progress: reel.progress,
       stage: reel.progressStage,
@@ -371,12 +371,12 @@ app.openapi(statusRoute, async (c) => {
         analysis: {
           id: analysis.id,
           duration: analysis.duration,
-          aspect_ratio: analysis.aspectRatio,
+          aspectRatio: analysis.aspectRatio,
           elements,
           ...(scenes && scenes.length > 0 && { scenes }),
         },
       }),
-      ...(reel.template && { template_id: reel.template.id }),
+      ...(reel.template && { templateId: reel.template.id }),
       ...(reel.errorMessage && { error: reel.errorMessage }),
     },
     200

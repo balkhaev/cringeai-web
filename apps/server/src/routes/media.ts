@@ -92,14 +92,14 @@ app.openapi(personalMediaRoute, async (c) => {
       id: item.id,
       type: item.type as "image" | "video",
       url: item.url,
-      thumbnail_url: item.url, // TODO: Generate thumbnails
+      thumbnailUrl: item.url, // TODO: Generate thumbnails
       filename: item.filename,
       size: item.size,
       width: item.width,
       height: item.height,
       duration: item.duration,
-      mime_type: item.mimeType,
-      created_at: item.createdAt.toISOString(),
+      mimeType: item.mimeType,
+      createdAt: item.createdAt.toISOString(),
       source: (item.source || "upload") as "upload" | "generated",
       category: item.category,
       prompt: item.prompt,
@@ -335,7 +335,7 @@ const stockMediaRoute = createRoute({
 });
 
 app.openapi(stockMediaRoute, async (c) => {
-  const { query, category, type, limit, offset } = c.req.valid("query");
+  const _query = c.req.valid("query");
 
   // TODO: Implement stock media integration (Pexels, Unsplash, etc.)
   // For now, return empty list with available categories

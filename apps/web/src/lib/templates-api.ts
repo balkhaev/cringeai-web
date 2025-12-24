@@ -283,6 +283,7 @@ export async function updateTemplate(
     isFeatured?: boolean;
   }
 ): Promise<Template> {
+  // API now uses camelCase directly
   const response = await fetch(`${API_URL}/api/templates/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -334,12 +335,16 @@ export async function generateFromTemplate(
   customPrompt?: string,
   options?: KlingGenerationOptions
 ): Promise<string> {
+  // API now uses camelCase directly
   const response = await fetch(
     `${API_URL}/api/templates/${templateId}/generate`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customPrompt, options }),
+      body: JSON.stringify({
+        customPrompt,
+        options,
+      }),
       credentials: "include",
     }
   );
@@ -360,10 +365,16 @@ export async function generateVideo(
   sourceVideoUrl: string,
   options?: KlingGenerationOptions
 ): Promise<string> {
+  // API now uses camelCase directly
   const response = await fetch(`${API_URL}/api/video/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ analysisId, prompt, sourceVideoUrl, options }),
+    body: JSON.stringify({
+      analysisId,
+      prompt,
+      sourceVideoUrl,
+      options,
+    }),
     credentials: "include",
   });
 
@@ -792,18 +803,18 @@ export async function removeBookmark(
  * Выбор элемента для замены
  */
 export type ElementSelection = {
-  element_id: string;
-  option_id?: string;
-  custom_image_url?: string;
+  elementId: string;
+  optionId?: string;
+  customImageUrl?: string;
 };
 
 /**
  * Ответ от POST /api/generate
  */
 export type GenerateResponse = {
-  generation_id: string;
+  generationId: string;
   status: "queued";
-  status_url: string;
+  statusUrl: string;
   type: "full" | "composite";
 };
 
@@ -841,9 +852,9 @@ export async function generate(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      analysis_id: analysisId,
+      analysisId,
       selections,
-      keep_audio: keepAudio,
+      keepAudio,
     }),
     credentials: "include",
   });
@@ -860,12 +871,12 @@ export async function generate(
  * @deprecated Use ElementSelection instead
  */
 export type SceneSelection = {
-  scene_id: string;
-  use_original: boolean;
-  element_selections?: {
-    element_id: string;
-    selected_option_id?: string;
-    custom_media_url?: string;
+  sceneId: string;
+  useOriginal: boolean;
+  elementSelections?: {
+    elementId: string;
+    selectedOptionId?: string;
+    customMediaUrl?: string;
   }[];
 };
 
@@ -919,12 +930,13 @@ export async function regenerateScene(
   compositeGenerationId?: string;
   status: string;
 }> {
+  // API now uses camelCase directly
   const response = await fetch(
     `${API_URL}/api/generate/scene/${sceneId}/regenerate`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options || {}),
+      body: JSON.stringify(options ?? {}),
       credentials: "include",
     }
   );

@@ -161,13 +161,13 @@ export function VideoGenerator({
       return;
     }
 
-    // Преобразуем selections в формат API (snake_case)
+    // Преобразуем selections в формат API (camelCase)
     const apiSelections: ApiElementSelection[] = elementSelections
       .filter((sel) => sel.selectedOptionId || sel.customImageUrl)
       .map((sel) => ({
-        element_id: sel.elementId,
-        option_id: sel.selectedOptionId || undefined,
-        custom_image_url: sel.customImageUrl,
+        elementId: sel.elementId,
+        optionId: sel.selectedOptionId || undefined,
+        customImageUrl: sel.customImageUrl,
       }));
 
     try {

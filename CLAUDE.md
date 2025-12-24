@@ -93,6 +93,7 @@ Key conventions:
 - `async/await` over promise chains
 - Function components in React
 - Semantic HTML with ARIA attributes
+- **camelCase везде**: переменные, функции, свойства объектов, типы. Snake_case только в API контрактах (schemas)
 
 ## Logs
 

@@ -128,8 +128,8 @@ const updateTemplateRoute = createRoute({
             title: z.string().optional(),
             tags: z.array(z.string()).optional(),
             category: z.string().optional(),
-            is_published: z.boolean().optional(),
-            is_featured: z.boolean().optional(),
+            isPublished: z.boolean().optional(),
+            isFeatured: z.boolean().optional(),
           }),
         },
       },
@@ -179,7 +179,7 @@ const generateFromTemplateRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            custom_prompt: z.string().optional(),
+            customPrompt: z.string().optional(),
             options: z
               .object({
                 duration: z
@@ -188,10 +188,8 @@ const generateFromTemplateRoute = createRoute({
                     z.union([z.literal(5), z.literal(10)])
                   )
                   .optional(),
-                aspect_ratio: z
-                  .enum(["16:9", "9:16", "1:1", "auto"])
-                  .optional(),
-                keep_audio: z.boolean().optional(),
+                aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
+                keepAudio: z.boolean().optional(),
               })
               .optional(),
           }),
@@ -205,8 +203,8 @@ const generateFromTemplateRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
-            generation_id: z.string(),
-            template_id: z.string(),
+            generationId: z.string(),
+            templateId: z.string(),
           }),
         },
       },
@@ -516,16 +514,16 @@ templatesRouter.openapi(feedRoute, async (c) => {
         title: t.title,
         tags: t.tags,
         category: t.category,
-        thumbnail_url: t.reel?.thumbnailUrl ?? "",
-        preview_video_url: t.reel
+        thumbnailUrl: t.reel?.thumbnailUrl ?? "",
+        previewVideoUrl: t.reel
           ? (buildReelVideoUrl(t.reel) ?? undefined)
           : undefined,
-        generation_count: t.generationCount,
-        is_bookmarked: t.bookmarks.length > 0,
+        generationCount: t.generationCount,
+        isBookmarked: t.bookmarks.length > 0,
         reel: {
           id: t.reel?.id ?? "",
           author: t.reel?.author ?? null,
-          like_count: t.reel?.likeCount ?? null,
+          likeCount: t.reel?.likeCount ?? null,
         },
         elements: elements.slice(0, 5).map((el) => ({
           id: el.id,
@@ -576,11 +574,12 @@ templatesRouter.openapi(listTemplatesRoute, async (c) => {
         analysis: {
           select: {
             id: true,
-            subject: true,
-            action: true,
-            style: true,
-            klingPrompt: true,
-            veo3Prompt: true,
+            tags: true,
+            scenesCount: true,
+            hasScenes: true,
+            _count: {
+              select: { videoElements: true },
+            },
           },
         },
       },
@@ -588,8 +587,22 @@ templatesRouter.openapi(listTemplatesRoute, async (c) => {
     prisma.template.count({ where }),
   ]);
 
+  // Transform to match schema
+  const transformed = templates.map((t) => ({
+    ...t,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+    analysis: t.analysis
+      ? {
+          id: t.analysis.id,
+          tags: t.analysis.tags,
+          elementsCount: t.analysis._count.videoElements,
+        }
+      : undefined,
+  }));
+
   return c.json(
-    { templates, total, limit: query.limit, offset: query.offset },
+    { templates: transformed, total, limit: query.limit, offset: query.offset },
     200
   );
 });
@@ -599,10 +612,22 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
   const template = await prisma.template.findUnique({
     where: { id },
     include: {
-      reel: true,
+      reel: {
+        select: {
+          id: true,
+          url: true,
+          thumbnailUrl: true,
+          likeCount: true,
+          author: true,
+          source: true,
+        },
+      },
       analysis: {
         include: {
           generations: { orderBy: { createdAt: "desc" }, take: 10 },
+          _count: {
+            select: { videoElements: true },
+          },
         },
       },
     },
@@ -611,18 +636,33 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
   if (!template) {
     return c.json({ error: "Template not found" }, 404);
   }
-  return c.json({ template }, 200);
+
+  // Transform to match schema
+  const transformed = {
+    ...template,
+    createdAt: template.createdAt.toISOString(),
+    updatedAt: template.updatedAt.toISOString(),
+    analysis: template.analysis
+      ? {
+          id: template.analysis.id,
+          tags: template.analysis.tags,
+          elementsCount: template.analysis._count.videoElements,
+        }
+      : undefined,
+  };
+
+  return c.json({ template: transformed }, 200);
 });
 
 templatesRouter.openapi(updateTemplateRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const { is_published, is_featured, ...rest } = c.req.valid("json");
+  const { isPublished, isFeatured, ...rest } = c.req.valid("json");
 
-  // Map snake_case to camelCase for Prisma
+  // Direct use of camelCase
   const data = {
     ...rest,
-    ...(is_published !== undefined && { isPublished: is_published }),
-    ...(is_featured !== undefined && { isFeatured: is_featured }),
+    ...(isPublished !== undefined && { isPublished }),
+    ...(isFeatured !== undefined && { isFeatured }),
   };
 
   try {
@@ -638,14 +678,14 @@ templatesRouter.openapi(updateTemplateRoute, async (c) => {
 
 templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const { custom_prompt, options } = c.req.valid("json");
+  const { customPrompt, options } = c.req.valid("json");
 
-  // Map snake_case to camelCase for internal use
+  // Direct use of camelCase options
   const mappedOptions = options
     ? {
         duration: options.duration,
-        aspectRatio: options.aspect_ratio,
-        keepAudio: options.keep_audio,
+        aspectRatio: options.aspectRatio,
+        keepAudio: options.keepAudio,
       }
     : undefined;
 
@@ -668,7 +708,7 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     return c.json({ error: "No source video available" }, 400);
   }
 
-  const prompt = custom_prompt || "Based on @Video1, recreate this video.";
+  const prompt = customPrompt || "Based on @Video1, recreate this video.";
   const generationId = await videoGenJobQueue.startGeneration(
     template.analysisId,
     prompt,
@@ -681,10 +721,7 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     data: { generationCount: { increment: 1 } },
   });
 
-  return c.json(
-    { success: true, generation_id: generationId, template_id: id },
-    200
-  );
+  return c.json({ success: true, generationId, templateId: id }, 200);
 });
 
 templatesRouter.openapi(getGenerationsRoute, async (c) => {
@@ -811,16 +848,16 @@ templatesRouter.openapi(searchRoute, async (c) => {
         title: t.title,
         tags: t.tags,
         category: t.category,
-        thumbnail_url: t.reel?.thumbnailUrl ?? "",
-        preview_video_url: t.reel
+        thumbnailUrl: t.reel?.thumbnailUrl ?? "",
+        previewVideoUrl: t.reel
           ? (buildReelVideoUrl(t.reel) ?? undefined)
           : undefined,
-        generation_count: t.generationCount,
-        is_bookmarked: t.bookmarks.length > 0,
+        generationCount: t.generationCount,
+        isBookmarked: t.bookmarks.length > 0,
         reel: {
           id: t.reel?.id ?? "",
           author: t.reel?.author ?? null,
-          like_count: t.reel?.likeCount ?? null,
+          likeCount: t.reel?.likeCount ?? null,
         },
         elements: elements.slice(0, 5).map((el) => ({
           id: el.id,

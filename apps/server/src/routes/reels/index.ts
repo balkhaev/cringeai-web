@@ -154,10 +154,10 @@ const getSavedReelRoute = createRoute({
       id: z.string().openapi({ param: { name: "id", in: "path" } }),
     }),
     query: z.object({
-      include_logs: z
+      includeLogs: z
         .enum(["true", "false"])
         .optional()
-        .openapi({ param: { name: "include_logs", in: "query" } }),
+        .openapi({ param: { name: "includeLogs", in: "query" } }),
     }),
   },
   responses: {
@@ -620,11 +620,11 @@ reelsRouter.openapi(listScrapeJobsRoute, async (c) => {
       jobs.map((job) => ({
         id: job.id,
         status: job.status,
-        sort_mode: job.sortMode,
-        min_likes: job.minLikes,
+        sortMode: job.sortMode,
+        minLikes: job.minLikes,
         progress: job.progress,
-        created_at: job.createdAt,
-        updated_at: job.updatedAt,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
       })),
       200
     );
@@ -799,8 +799,8 @@ reelsRouter.openapi(listSavedReelsRoute, async (c) => {
 
 reelsRouter.openapi(getSavedReelRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const { include_logs } = c.req.valid("query");
-  const shouldIncludeLogs = include_logs === "true";
+  const { includeLogs } = c.req.valid("query");
+  const shouldIncludeLogs = includeLogs === "true";
 
   const reel = await prisma.reel.findUnique({
     where: { id },
@@ -823,7 +823,7 @@ reelsRouter.openapi(getSavedReelRoute, async (c) => {
     return c.json(
       {
         ...reel,
-        recent_logs: reel.logs,
+        recentLogs: reel.logs,
       },
       200
     );
@@ -976,7 +976,7 @@ reelsRouter.openapi(addReelRoute, async (c) => {
           success: true,
           reel: existing,
           message: "Reel already exists",
-          is_new: false,
+          isNew: false,
         },
         200
       );
@@ -1007,7 +1007,7 @@ reelsRouter.openapi(addReelRoute, async (c) => {
         success: true,
         reel,
         message: "Reel added and download started",
-        is_new: true,
+        isNew: true,
       },
       201
     );
@@ -1046,7 +1046,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
     return c.json(
       {
         total,
-        by_status: {
+        byStatus: {
           scraped,
           downloading,
           downloaded,
@@ -1055,7 +1055,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
           failed,
         },
         templates,
-        active_generations: activeGenerations,
+        activeGenerations,
       },
       200
     );
@@ -1177,20 +1177,20 @@ reelsRouter.openapi(getReelDebugRoute, async (c) => {
       {
         reel: {
           ...reel,
-          video_url: videoUrl,
+          videoUrl,
         },
-        stage_stats: stageStats,
-        recent_errors: recentErrors,
+        stageStats,
+        recentErrors,
         timeline,
         logs,
-        ai_logs: aiLogs,
+        aiLogs,
         // Дополнительные поля для фронтенда
         analyses,
         template: reel.template,
         generations: relatedGenerations,
-        scene_generations: sceneGenerations,
-        composite_generations: compositeGenerations,
-        video_url: videoUrl,
+        sceneGenerations,
+        compositeGenerations,
+        videoUrl,
       },
       200
     );
@@ -1239,8 +1239,8 @@ reelsRouter.openapi(processReelRoute, async (c) => {
       {
         success: true,
         message: "Processing started",
-        job_id: jobId,
-        reel_id: id,
+        jobId,
+        reelId: id,
       },
       200
     );
@@ -1265,8 +1265,8 @@ reelsRouter.openapi(downloadReelRoute, async (c) => {
         {
           success: true,
           message: "Video already downloaded",
-          reel_id: id,
-          has_video: true,
+          reelId: id,
+          hasVideo: true,
         },
         200
       );
@@ -1278,8 +1278,8 @@ reelsRouter.openapi(downloadReelRoute, async (c) => {
       {
         success: true,
         message: "Download started",
-        job_id: jobId,
-        reel_id: id,
+        jobId,
+        reelId: id,
       },
       200
     );
@@ -1374,8 +1374,8 @@ reelsRouter.openapi(analyzeReelRoute, async (c) => {
       {
         success: true,
         message: "Analysis started",
-        job_id: jobId,
-        reel_id: id,
+        jobId,
+        reelId: id,
       },
       200
     );
@@ -1404,8 +1404,8 @@ reelsRouter.openapi(analyzeReelFramesRoute, async (c) => {
       {
         success: true,
         message: "Frame-by-frame analysis started",
-        job_id: jobId,
-        reel_id: id,
+        jobId,
+        reelId: id,
       },
       200
     );
@@ -1471,8 +1471,8 @@ reelsRouter.openapi(resizeReelRoute, async (c) => {
           success: true,
           message: `Video resized from ${originalWidth}px to ${newWidth}px`,
           resized: true,
-          original_width: Number(originalWidth),
-          new_width: Number(newWidth),
+          originalWidth: Number(originalWidth),
+          newWidth: Number(newWidth),
         },
         200
       );

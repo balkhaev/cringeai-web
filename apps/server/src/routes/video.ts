@@ -218,7 +218,7 @@ const generateRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
-            generationId: z.string(),
+            generation_id: z.string(),
           }),
         },
       },
@@ -337,10 +337,10 @@ const getGenerationLogsRoute = createRoute({
               id: z.string(),
               status: z.string(),
               progress: z.number(),
-              progressStage: z.string().nullable(),
-              progressMessage: z.string().nullable(),
-              klingProgress: z.number().nullable(),
-              lastActivityAt: z.any().nullable(),
+              progress_stage: z.string().nullable(),
+              progress_message: z.string().nullable(),
+              kling_progress: z.number().nullable(),
+              last_activity_at: z.any().nullable(),
             }),
             logs: z.array(
               z.object({
@@ -348,7 +348,7 @@ const getGenerationLogsRoute = createRoute({
                 level: z.string(),
                 stage: z.string(),
                 message: z.string(),
-                createdAt: z.any(),
+                created_at: z.any(),
               })
             ),
           }),
@@ -848,7 +848,7 @@ video.openapi(generateRoute, async (c) => {
 
     return c.json({
       success: true,
-      generationId,
+      generation_id: generationId,
     });
   } catch (error) {
     console.error("Video generation error:", error);
@@ -973,10 +973,10 @@ video.openapi(getGenerationLogsRoute, async (c) => {
         id: generation.id,
         status: generation.status,
         progress: generation.progress,
-        progressStage: generation.progressStage,
-        progressMessage: generation.progressMessage,
-        klingProgress: generation.klingProgress,
-        lastActivityAt: generation.lastActivityAt,
+        progress_stage: generation.progressStage,
+        progress_message: generation.progressMessage,
+        kling_progress: generation.klingProgress,
+        last_activity_at: generation.lastActivityAt,
       },
       logs,
     });
@@ -1219,8 +1219,8 @@ video.openapi(uploadReferenceRoute, async (c) => {
     return c.json({
       success: true,
       url,
-      s3Key,
-      imageId,
+      s3_key: s3Key,
+      image_id: imageId,
     });
   } catch (error) {
     console.error("Upload reference error:", error);
