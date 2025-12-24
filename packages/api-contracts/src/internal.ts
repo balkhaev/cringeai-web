@@ -126,7 +126,12 @@ export const GenerateVideoRequestSchema = z.object({
   sourceVideoUrl: z.string(),
   options: z
     .object({
-      duration: z.union([z.literal(5), z.literal(10)]).optional(),
+      duration: z
+        .preprocess(
+          (val) => (typeof val === "string" ? Number(val) : val),
+          z.union([z.literal(5), z.literal(10)])
+        )
+        .optional(),
       aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
       keepAudio: z.boolean().optional(),
     })

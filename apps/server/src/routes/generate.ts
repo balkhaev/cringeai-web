@@ -803,7 +803,12 @@ const regenerateSceneRoute = createRoute({
               description:
                 "Custom prompt for regeneration. If not provided, uses the last generation prompt.",
             }),
-            duration: z.union([z.literal(5), z.literal(10)]).optional(),
+            duration: z
+              .preprocess(
+                (val) => (typeof val === "string" ? Number(val) : val),
+                z.union([z.literal(5), z.literal(10)])
+              )
+              .optional(),
             aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
             keepAudio: z.boolean().optional(),
             autoComposite: z.boolean().optional().default(true).openapi({

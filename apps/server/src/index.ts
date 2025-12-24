@@ -31,9 +31,6 @@ publicApi.route("/content", contentRouterModule.contentRouter);
 const mediaRouterModule = await import("./routes/media");
 publicApi.route("/media", mediaRouterModule.mediaRouter);
 
-const remixRouterModule = await import("./routes/remix");
-publicApi.route("/remix", remixRouterModule.remixRouter);
-
 const generateRouterModule = await import("./routes/generate");
 publicApi.route("/generate", generateRouterModule.generateRouter);
 

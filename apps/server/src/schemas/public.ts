@@ -5,10 +5,7 @@
  * - Feed (templates)
  * - Content (input)
  * - Media (library)
- * - Remix (simple/expert)
  * - Generate
- *
- * Документация: docs/api-contracts.md
  */
 
 import { z } from "@hono/zod-openapi";
@@ -347,46 +344,7 @@ export const StockMediaResponseSchema = z
   })
   .openapi("StockMediaResponse");
 
-// ===== REMIX API SCHEMAS (Simple/Expert Mode) =====
-
-export const SimpleElementSchema = z
-  .object({
-    id: z.string(),
-    type: z.enum(["character", "object", "background"]),
-    label: z.string(),
-    description: z.string(),
-    thumbnail_url: z.string().optional(),
-    remix_options: z.array(RemixOptionSchema),
-    allow_custom_image: z.boolean(),
-  })
-  .openapi("SimpleElement");
-
-export const SimpleSceneSchema = z
-  .object({
-    id: z.string(),
-    index: z.number(),
-    start_time: z.number(),
-    end_time: z.number(),
-    thumbnail_url: z.string().nullable(),
-    elements: z.array(SimpleElementSchema),
-    can_keep_original: z.boolean(),
-  })
-  .openapi("SimpleScene");
-
-export const SimpleRemixDataResponseSchema = z
-  .object({
-    analysis_id: z.string(),
-    source_video: z.object({
-      url: z.string(),
-      thumbnail_url: z.string(),
-      duration: z.number().nullable(),
-      aspect_ratio: z.string(),
-    }),
-    elements: z.array(SimpleElementSchema),
-    scenes: z.array(SimpleSceneSchema).optional(),
-    is_scene_based: z.boolean(),
-  })
-  .openapi("SimpleRemixDataResponse");
+// ===== GENERATION SELECTION SCHEMAS =====
 
 export const ElementSelectionSchema = z
   .object({
@@ -442,152 +400,18 @@ export const SceneSelectionSchema = z
       "построенный из её element_selections и элементов этой сцены (scene.elements)",
   });
 
-export const SimpleConfigureRequestSchema = z
-  .object({
-    selections: z.array(ElementSelectionSchema).openapi({
-      description:
-        "Массив выборов для каждого элемента. Для каждого элемента можно указать " +
-        "selected_option_id (готовый вариант) или custom_media_url (своё изображение)",
-    }),
-    scene_selections: z.array(SceneSelectionSchema).optional().openapi({
-      description: "Выборы по сценам (для scene-based режима)",
-    }),
-  })
-  .openapi("SimpleConfigureRequest", {
-    description:
-      "Конфигурация Simple Mode. Бэкенд автоматически формирует промпт из выборов, " +
-      "добавляя <<<image_N>>> референсы для custom_media_url и собирая URLs в image_list для Kling API",
-  });
-
-export const ConfigureResponseSchema = z
-  .object({
-    success: z.boolean(),
-    configuration_id: z.string().openapi({
-      description: "ID конфигурации для передачи в /generate",
-    }),
-    generated_prompt: z.string().openapi({
-      description:
-        "Сгенерированный промпт с <<<image_N>>> референсами (Simple mode) " +
-        "или исходный промпт пользователя (Expert mode)",
-    }),
-    estimated_credits: z.number().openapi({
-      description: "Оценка стоимости генерации в кредитах",
-    }),
-  })
-  .openapi("ConfigureResponse", {
-    description:
-      "Ответ после сохранения конфигурации. configuration_id используется для запуска генерации",
-  });
-
-export const ExpertRemixDataResponseSchema = z
-  .object({
-    analysis_id: z.string(),
-    source_video: z.object({
-      url: z.string(),
-      thumbnail_url: z.string(),
-      duration: z.number().nullable(),
-      aspect_ratio: z.string(),
-    }),
-    suggested_prompt: z.string().openapi({
-      description: "Предложенный промпт на основе анализа видео",
-    }),
-    elements: z
-      .array(
-        z.object({
-          id: z.string(),
-          type: z.string(),
-          label: z.string(),
-          description: z.string(),
-        })
-      )
-      .openapi({
-        description: "Элементы для справки при написании промпта",
-      }),
-    scenes: z
-      .array(
-        z.object({
-          id: z.string(),
-          index: z.number(),
-          start_time: z.number(),
-          end_time: z.number(),
-          suggested_prompt: z.string(),
-        })
-      )
-      .optional(),
-    prompt_hints: z.array(z.string()).openapi({
-      description: "Подсказки по написанию промпта",
-      example: [
-        "Используйте @Video1 для референса на исходное видео",
-        "Используйте @Image1, @Image2... для своих изображений",
-        "Опишите желаемые изменения конкретно",
-      ],
-    }),
-    previous_generations: z
-      .array(
-        z.object({
-          id: z.string(),
-          prompt: z.string(),
-          thumbnail_url: z.string().nullable(),
-          status: z.string(),
-        })
-      )
-      .optional(),
-  })
-  .openapi("ExpertRemixDataResponse", {
-    description:
-      "Данные для Expert Mode с подсказками по использованию image references",
-  });
-
 export const GenerationOptionsSchema = z
   .object({
-    duration: z.union([z.literal(5), z.literal(10)]).optional(),
+    duration: z
+      .preprocess(
+        (val) => (typeof val === "string" ? Number(val) : val),
+        z.union([z.literal(5), z.literal(10)])
+      )
+      .optional(),
     aspect_ratio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
     keep_audio: z.boolean().optional(),
   })
   .openapi("GenerationOptions");
-
-export const ExpertConfigureRequestSchema = z
-  .object({
-    prompt: z.string().openapi({
-      description:
-        "Промпт для генерации. Можно использовать @Video1 для референса на исходное видео, " +
-        "@Image1, @Image2... для референсов на изображения из reference_images (по порядку). " +
-        "Бэкенд конвертирует в <<<video_1>>>, <<<image_1>>> и т.д. для Kling API",
-      example:
-        "Transform @Video1: replace the main character with the person from @Image1, " +
-        "change the background to cyberpunk city style",
-    }),
-    reference_images: z
-      .array(z.string())
-      .optional()
-      .openapi({
-        description:
-          "URLs изображений для референсов в промпте (@Image1 = первый URL, @Image2 = второй и т.д.). " +
-          "Передаются в Kling API как image_list",
-        example: [
-          "https://storage.example.com/my-face.jpg",
-          "https://storage.example.com/background.jpg",
-        ],
-      }),
-    scene_prompts: z
-      .array(
-        z.object({
-          scene_id: z.string(),
-          prompt: z.string(),
-          use_original: z.boolean(),
-        })
-      )
-      .optional()
-      .openapi({
-        description: "Промпты для отдельных сцен (scene-based режим)",
-      }),
-    options: GenerationOptionsSchema.optional(),
-  })
-  .openapi("ExpertConfigureRequest", {
-    description:
-      "Конфигурация Expert Mode. Пользователь сам пишет промпт с @Image1, @Image2 референсами " +
-      "и передаёт URLs изображений в reference_images. Бэкенд передаёт их в Kling image_list",
-  });
 
 // ===== GENERATE API SCHEMAS =====
 
