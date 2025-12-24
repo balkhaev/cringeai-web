@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
     // Monorepo root (so Turbopack can resolve deps outside apps/web/)
     root: path.join(__dirname, "../.."),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "srv-trender.balkhaev.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

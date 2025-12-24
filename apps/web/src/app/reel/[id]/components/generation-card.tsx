@@ -165,30 +165,6 @@ export function GenerationCard({
           </div>
         ) : null}
 
-        {/* Prompts */}
-        {generation.prompt ? (
-          <div className="mb-3 space-y-2">
-            <div>
-              <p className="mb-1 font-medium text-muted-foreground text-xs">
-                Оригинальный промпт:
-              </p>
-              <p className="line-clamp-3 rounded-lg bg-muted/50 p-2 text-sm">
-                {generation.prompt}
-              </p>
-            </div>
-            {generation.enhancedPrompt && (
-              <div>
-                <p className="mb-1 font-medium text-emerald-400 text-xs">
-                  Улучшенный промпт (ChatGPT → Kling):
-                </p>
-                <p className="line-clamp-4 rounded-lg bg-emerald-950/30 p-2 text-emerald-100 text-sm">
-                  {generation.enhancedPrompt}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : null}
-
         {/* Error */}
         <GenerationError error={generation.error} show={isFailed} />
 
@@ -233,65 +209,41 @@ export function GenerationCard({
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-2 space-y-2 rounded-lg bg-surface-1 p-3 text-xs">
-              <DetailRow label="ID" mono value={generation.id} />
-              <DetailRow label="Провайдер" value={generation.provider} />
-              <DetailRow label="Статус" value={generation.status} />
-              <DetailRow label="Прогресс" value={`${generation.progress}%`} />
-              {generation.progressStage && (
-                <DetailRow label="Этап" value={generation.progressStage} />
-              )}
-              {generation.progressMessage && (
-                <DetailRow
-                  label="Сообщение"
-                  value={generation.progressMessage}
-                />
-              )}
-              {generation.klingProgress !== undefined && (
-                <DetailRow
-                  label="Kling прогресс"
-                  value={`${generation.klingProgress}%`}
-                />
-              )}
-              <DetailRow
-                label="Создано"
-                value={new Date(generation.createdAt).toLocaleString("ru-RU")}
-              />
-              {generation.completedAt && (
-                <DetailRow
-                  label="Завершено"
-                  value={new Date(generation.completedAt).toLocaleString(
-                    "ru-RU"
-                  )}
-                />
-              )}
-              {generation.lastActivityAt && (
-                <DetailRow
-                  label="Посл. активность"
-                  value={new Date(generation.lastActivityAt).toLocaleString(
-                    "ru-RU"
-                  )}
-                />
-              )}
-              {duration !== null && (
-                <DetailRow label="Длительность" value={`${duration} сек`} />
-              )}
-              {generation.remixSource && (
-                <DetailRow
-                  label="Remix источник"
-                  mono
-                  value={generation.remixSource}
-                />
-              )}
+            <div className="mt-2 space-y-3 rounded-lg bg-surface-1 p-3 text-xs">
+              {/* Промпты */}
+              <div className="space-y-2">
+                <p className="font-medium text-muted-foreground">Промпты:</p>
+                {generation.prompt && (
+                  <div className="space-y-1">
+                    <p className="text-blue-400">Промпт пользователя:</p>
+                    <p className="break-all rounded bg-blue-950/30 p-2 text-blue-100">
+                      {generation.prompt}
+                    </p>
+                  </div>
+                )}
+                {generation.enhancedPrompt && (
+                  <div className="space-y-1">
+                    <p className="text-emerald-400">
+                      Улучшенный промпт (ChatGPT → Kling):
+                    </p>
+                    <p className="break-all rounded bg-emerald-950/30 p-2 text-emerald-100">
+                      {generation.enhancedPrompt}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Референсные изображения */}
               {generation.imageReferences.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">
-                    Референсы ({generation.imageReferences.length}):
+                <div className="space-y-2 border-glass-border border-t pt-2">
+                  <p className="font-medium text-muted-foreground">
+                    Референсные изображения ({generation.imageReferences.length}
+                    ):
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {generation.imageReferences.map((url, idx) => (
                       <a
-                        className="block h-12 w-12 overflow-hidden rounded border border-glass-border"
+                        className="block h-16 w-16 overflow-hidden rounded-lg border border-glass-border transition-transform hover:scale-105"
                         href={url}
                         key={url}
                         rel="noopener"
@@ -308,28 +260,140 @@ export function GenerationCard({
                   </div>
                 </div>
               )}
-              {generation.enhancedPrompt && (
-                <div className="space-y-1">
-                  <p className="text-emerald-400">Улучшенный промпт:</p>
-                  <p className="break-all text-emerald-300 text-xs">
-                    {generation.enhancedPrompt}
+
+              {/* Параметры генерации */}
+              {(generation.outputDuration !== undefined ||
+                generation.outputAspectRatio ||
+                generation.keepAudio !== undefined) && (
+                <div className="space-y-2 border-glass-border border-t pt-2">
+                  <p className="font-medium text-muted-foreground">
+                    Параметры генерации:
                   </p>
+                  {generation.outputDuration !== undefined && (
+                    <DetailRow
+                      label="Длительность"
+                      value={`${generation.outputDuration} сек`}
+                    />
+                  )}
+                  {generation.outputAspectRatio && (
+                    <DetailRow
+                      label="Соотношение сторон"
+                      value={generation.outputAspectRatio}
+                    />
+                  )}
+                  {generation.keepAudio !== undefined && (
+                    <DetailRow
+                      label="Сохранять аудио"
+                      value={generation.keepAudio ? "Да" : "Нет"}
+                    />
+                  )}
                 </div>
               )}
-              {generation.videoUrl && (
-                <DetailRow label="Video URL" mono value={generation.videoUrl} />
-              )}
-              {generation.thumbnailUrl && (
+
+              {/* Основная информация */}
+              <div className="space-y-2 border-glass-border border-t pt-2">
+                <p className="font-medium text-muted-foreground">
+                  Основная информация:
+                </p>
+                <DetailRow label="ID" mono value={generation.id} />
+                <DetailRow label="Провайдер" value={generation.provider} />
+                <DetailRow label="Статус" value={generation.status} />
+                <DetailRow label="Прогресс" value={`${generation.progress}%`} />
+                {generation.progressStage && (
+                  <DetailRow label="Этап" value={generation.progressStage} />
+                )}
+                {generation.progressMessage && (
+                  <DetailRow
+                    label="Сообщение"
+                    value={generation.progressMessage}
+                  />
+                )}
+                {generation.klingProgress !== undefined && (
+                  <DetailRow
+                    label="Kling прогресс"
+                    value={`${generation.klingProgress}%`}
+                  />
+                )}
                 <DetailRow
-                  label="Thumbnail URL"
-                  mono
-                  value={generation.thumbnailUrl}
+                  label="Создано"
+                  value={new Date(generation.createdAt).toLocaleString("ru-RU")}
                 />
-              )}
+                {generation.completedAt && (
+                  <DetailRow
+                    label="Завершено"
+                    value={new Date(generation.completedAt).toLocaleString(
+                      "ru-RU"
+                    )}
+                  />
+                )}
+                {generation.lastActivityAt && (
+                  <DetailRow
+                    label="Посл. активность"
+                    value={new Date(generation.lastActivityAt).toLocaleString(
+                      "ru-RU"
+                    )}
+                  />
+                )}
+                {duration !== null && (
+                  <DetailRow
+                    label="Время обработки"
+                    value={`${duration} сек`}
+                  />
+                )}
+              </div>
+
+              {/* Источники и ссылки */}
+              <div className="space-y-2 border-glass-border border-t pt-2">
+                <p className="font-medium text-muted-foreground">
+                  Источники и ссылки:
+                </p>
+                {generation.sourceVideoUrl && (
+                  <DetailRow
+                    label="Исходное видео"
+                    mono
+                    value={generation.sourceVideoUrl}
+                  />
+                )}
+                {generation.sourceVideoS3Key && (
+                  <DetailRow
+                    label="S3 Key исходного"
+                    mono
+                    value={generation.sourceVideoS3Key}
+                  />
+                )}
+                {generation.remixSource && (
+                  <DetailRow
+                    label="Remix источник"
+                    mono
+                    value={generation.remixSource}
+                  />
+                )}
+                {generation.videoUrl && (
+                  <DetailRow
+                    label="Video URL"
+                    mono
+                    value={generation.videoUrl}
+                  />
+                )}
+                {generation.s3Key && (
+                  <DetailRow label="S3 Key" mono value={generation.s3Key} />
+                )}
+                {generation.thumbnailUrl && (
+                  <DetailRow
+                    label="Thumbnail URL"
+                    mono
+                    value={generation.thumbnailUrl}
+                  />
+                )}
+              </div>
+
+              {/* Ошибка */}
               {generation.error && (
-                <div className="space-y-1">
-                  <p className="text-red-400">Ошибка:</p>
-                  <p className="break-all text-red-300">{generation.error}</p>
+                <div className="space-y-1 border-glass-border border-t pt-2">
+                  <p className="font-medium text-red-400">Ошибка:</p>
+                  <p className="break-all rounded bg-red-950/30 p-2 text-red-300">
+                    {generation.error}
+                  </p>
                 </div>
               )}
             </div>

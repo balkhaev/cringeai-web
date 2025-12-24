@@ -146,11 +146,13 @@ export type VideoGeneration = {
   id: string;
   provider: string;
   status: string;
+  /** Промпт пользователя для Kling */
   prompt: string;
   /** Улучшенный промпт от ChatGPT для Kling */
   enhancedPrompt: string | null;
   videoUrl: string | null;
   thumbnailUrl: string | null;
+  s3Key: string | null;
   error: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -158,6 +160,16 @@ export type VideoGeneration = {
   imageReferences: string[];
   /** ID of the source reel used for remix */
   remixSource: string | null;
+  /** URL исходного видео для video-to-video */
+  sourceVideoUrl?: string | null;
+  /** S3 ключ исходного видео */
+  sourceVideoS3Key?: string | null;
+  /** Длительность результата (5 или 10 секунд) */
+  outputDuration?: number;
+  /** Соотношение сторон результата */
+  outputAspectRatio?: string;
+  /** Сохранять аудио из исходного видео */
+  keepAudio?: boolean;
   // Progress tracking
   progress: number;
   progressStage: string;
