@@ -705,7 +705,6 @@ export default function ReelDetailPage() {
 
             {/* Generations Card - отдельная секция */}
             {((data.generations?.length ?? 0) > 0 ||
-              (data.sceneGenerations?.length ?? 0) > 0 ||
               (data.compositeGenerations?.length ?? 0) > 0) && (
               <Card className="animate-delay-250 animate-fade-in-up">
                 <CardHeader>
@@ -714,7 +713,6 @@ export default function ReelDetailPage() {
                     Генерации
                     <Badge variant="secondary">
                       {(data.generations?.length ?? 0) +
-                        (data.sceneGenerations?.length ?? 0) +
                         (data.compositeGenerations?.length ?? 0)}
                     </Badge>
                   </CardTitle>
@@ -749,33 +747,6 @@ export default function ReelDetailPage() {
                         <GenerationCard generation={gen} key={gen.id} />
                       ))}
                     </div>
-                  )}
-
-                  {/* Scene generations */}
-                  {(data.sceneGenerations?.length ?? 0) > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          className="w-full justify-between"
-                          variant="ghost"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            Генерации сцен ({data.sceneGenerations?.length})
-                          </span>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-180" />
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 space-y-3">
-                        {data.sceneGenerations?.map((gen) => (
-                          <SceneGenerationCard
-                            generation={gen}
-                            key={gen.id}
-                            onRegenerate={regenerateSceneMutation}
-                          />
-                        ))}
-                      </CollapsibleContent>
-                    </Collapsible>
                   )}
                 </CardContent>
               </Card>
@@ -1257,63 +1228,108 @@ function CompositeGenerationCard({
           </div>
         )}
 
-        {/* Scene breakdown */}
+        {/* Scene breakdown with previews */}
         {sceneConfigs.length > 0 && (
           <div className="mb-3">
             <p className="mb-2 font-medium text-muted-foreground text-xs">
               Сцены:
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {sceneConfigs.map((config) => {
                 const sceneGen = getSceneGeneration(config.generationId);
                 const sceneStatus = config.useOriginal
                   ? "original"
                   : sceneGen?.status || "pending";
+                const thumbnailUrl = sceneGen?.scene?.thumbnailUrl;
+                const sceneVideoUrl = sceneGen?.videoUrl;
+                const isSceneActive =
+                  sceneStatus === "pending" ||
+                  sceneStatus === "processing" ||
+                  sceneStatus === "generating";
 
                 return (
                   <div
-                    className="group relative flex items-center gap-1.5 rounded-lg border border-glass-border bg-surface-1 px-2 py-1"
+                    className="group relative overflow-hidden rounded-lg border border-glass-border bg-surface-1"
                     key={config.sceneId}
                   >
-                    <span className="font-medium text-xs">
-                      #{config.sceneIndex + 1}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {config.startTime.toFixed(1)}s-{config.endTime.toFixed(1)}
-                      s
-                    </span>
-                    <Badge
-                      className="text-xs"
-                      variant={
-                        sceneStatus === "completed" ||
-                        sceneStatus === "original"
-                          ? "default"
-                          : sceneStatus === "failed"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                    >
-                      {config.useOriginal
-                        ? "Оригинал"
-                        : sceneStatus === "completed"
-                          ? "Готово"
-                          : sceneStatus === "processing"
-                            ? "..."
-                            : sceneStatus === "failed"
-                              ? "Ошибка"
-                              : "Ожидание"}
-                    </Badge>
-                    {onRegenerateScene && !config.useOriginal && (
-                      <Button
-                        className="ml-1 h-5 w-5 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                        onClick={() => onRegenerateScene(config.sceneId)}
-                        size="sm"
-                        title="Перегенерировать сцену"
-                        variant="ghost"
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                      </Button>
-                    )}
+                    {/* Preview area */}
+                    <div className="relative aspect-video bg-surface-2">
+                      {sceneVideoUrl ? (
+                        <video
+                          className="h-full w-full object-cover"
+                          controls
+                          muted
+                          src={sceneVideoUrl}
+                        />
+                      ) : thumbnailUrl ? (
+                        <img
+                          alt={`Сцена ${config.sceneIndex + 1}`}
+                          className="h-full w-full object-cover"
+                          src={thumbnailUrl}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          {isSceneActive ? (
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          ) : config.useOriginal ? (
+                            <Film className="h-6 w-6 text-muted-foreground" />
+                          ) : (
+                            <Clock className="h-6 w-6 text-muted-foreground" />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Status overlay */}
+                      <div className="absolute top-1 left-1">
+                        <Badge
+                          className="text-xs"
+                          variant={
+                            sceneStatus === "completed"
+                              ? "default"
+                              : sceneStatus === "original"
+                                ? "secondary"
+                                : sceneStatus === "failed"
+                                  ? "destructive"
+                                  : "outline"
+                          }
+                        >
+                          {config.useOriginal
+                            ? "Ориг"
+                            : sceneStatus === "completed"
+                              ? "Готово"
+                              : sceneStatus === "processing" ||
+                                  sceneStatus === "generating"
+                                ? "..."
+                                : sceneStatus === "failed"
+                                  ? "Ошибка"
+                                  : "Ожид"}
+                        </Badge>
+                      </div>
+
+                      {/* Regenerate button overlay */}
+                      {onRegenerateScene && !config.useOriginal && (
+                        <Button
+                          className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                          onClick={() => onRegenerateScene(config.sceneId)}
+                          size="sm"
+                          title="Перегенерировать сцену"
+                          variant="secondary"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Scene info */}
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <span className="font-medium text-xs">
+                        #{config.sceneIndex + 1}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {config.startTime.toFixed(1)}s —{" "}
+                        {config.endTime.toFixed(1)}s
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -1341,125 +1357,6 @@ function CompositeGenerationCard({
 
         <GenerationError error={generation.error} show={isFailed} />
         <GenerationActions show={isCompleted} videoUrl={generation.videoUrl} />
-      </div>
-    </div>
-  );
-}
-
-function SceneGenerationCard({
-  generation,
-  onRegenerate,
-}: {
-  generation: SceneGeneration;
-  onRegenerate?: (sceneId: string) => void;
-}) {
-  const isActive =
-    generation.status === "pending" || generation.status === "processing";
-  const isCompleted = generation.status === "completed";
-  const isFailed = generation.status === "failed";
-
-  const duration =
-    generation.completedAt && generation.createdAt
-      ? Math.round(
-          (new Date(generation.completedAt).getTime() -
-            new Date(generation.createdAt).getTime()) /
-            1000
-        )
-      : null;
-
-  const statusConfig: Record<string, { label: string; className: string }> = {
-    pending: {
-      label: "В очереди",
-      className: "border-amber-500/20 bg-amber-500/10 text-amber-200",
-    },
-    processing: {
-      label: "Генерация",
-      className: "border-blue-500/20 bg-blue-500/10 text-blue-200",
-    },
-    completed: {
-      label: "Готово",
-      className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
-    },
-    failed: {
-      label: "Ошибка",
-      className: "border-red-500/20 bg-red-500/10 text-red-200",
-    },
-  };
-
-  const status = statusConfig[generation.status] || statusConfig.pending;
-  const sceneInfo = generation.scene;
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-glass-border bg-card/50">
-      <div className="flex items-center justify-between border-glass-border border-b bg-surface-2/50 px-3 py-1.5">
-        <div className="flex items-center gap-2">
-          <Badge className="text-xs" variant="outline">
-            Сцена {sceneInfo ? sceneInfo.index + 1 : "?"}
-          </Badge>
-          {sceneInfo && (
-            <span className="text-muted-foreground text-xs">
-              {sceneInfo.startTime.toFixed(1)}s - {sceneInfo.endTime.toFixed(1)}
-              s
-            </span>
-          )}
-          <span
-            className={`rounded-full border px-2 py-0.5 text-xs ${status.className}`}
-          >
-            {isActive ? (
-              <span className="flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {status.label}
-              </span>
-            ) : (
-              status.label
-            )}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-muted-foreground text-xs">
-          {duration !== null && (
-            <span className="text-emerald-300">{duration}с</span>
-          )}
-          {(isCompleted || isFailed) && onRegenerate && (
-            <Button
-              className="h-6 px-2 text-xs"
-              onClick={() => onRegenerate(generation.sceneId)}
-              size="sm"
-              variant="ghost"
-            >
-              <RefreshCw className="mr-1 h-3 w-3" />
-              Перегенерировать
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="p-3">
-        {generation.videoUrl && (
-          <div className="mb-2">
-            <video
-              className="h-32 rounded-lg"
-              controls
-              muted
-              src={generation.videoUrl}
-            />
-          </div>
-        )}
-
-        {/* Progress */}
-        {isActive && (
-          <div className="mb-2">
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-1">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-all"
-                style={{ width: `${generation.progress}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {isFailed && generation.error && (
-          <p className="text-red-300 text-xs">{generation.error}</p>
-        )}
       </div>
     </div>
   );
