@@ -226,13 +226,19 @@ export default function ReelDetailPage() {
         sceneId,
         prompt,
         useGeneratedAsSource,
+        imageUrls,
       }: {
         sceneId: string;
         prompt?: string;
         useGeneratedAsSource?: boolean;
+        imageUrls?: string[];
       }) =>
         import("@/lib/templates-api").then((m) =>
-          m.regenerateScene(sceneId, { prompt, useGeneratedAsSource })
+          m.regenerateScene(sceneId, {
+            prompt,
+            useGeneratedAsSource,
+            imageUrls,
+          })
         ),
       onSuccess: () => {
         toast.success("Перегенерация сцены запущена");
@@ -1245,6 +1251,7 @@ function CompositeGenerationCard({
     sceneId: string;
     prompt?: string;
     useGeneratedAsSource?: boolean;
+    imageUrls?: string[];
   }) => void;
   onDelete?: (id: string) => void;
   isDeleting?: boolean;
@@ -1257,6 +1264,7 @@ function CompositeGenerationCard({
   const [regeneratePrompt, setRegeneratePrompt] = useState("");
   const [useGeneratedAsSource, setUseGeneratedAsSource] = useState(false);
   const [hasCompletedGeneration, setHasCompletedGeneration] = useState(false);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
 
   const isActive =
     generation.status === "pending" ||
@@ -1284,10 +1292,18 @@ function CompositeGenerationCard({
     );
     const hasCompleted =
       sceneGen?.status === "completed" && !!sceneGen?.videoUrl;
+
+    // Extract reference images from selectedElements
+    const images =
+      sceneGen?.selectedElements
+        ?.filter((e) => e.customMediaUrl)
+        .map((e) => e.customMediaUrl as string) || [];
+
     setRegenerateSceneId(sceneId);
     setRegeneratePrompt(sceneGen?.prompt || "");
     setHasCompletedGeneration(hasCompleted);
     setUseGeneratedAsSource(false);
+    setReferenceImages(images);
     setRegenerateDialogOpen(true);
   };
 
@@ -1297,10 +1313,12 @@ function CompositeGenerationCard({
         sceneId: regenerateSceneId,
         prompt: regeneratePrompt || undefined,
         useGeneratedAsSource: useGeneratedAsSource || undefined,
+        imageUrls: referenceImages.length > 0 ? referenceImages : undefined,
       });
       setRegenerateDialogOpen(false);
       setRegenerateSceneId(null);
       setRegeneratePrompt("");
+      setReferenceImages([]);
     }
   };
 
@@ -1610,6 +1628,42 @@ function CompositeGenerationCard({
                 </p>
               )}
             </div>
+
+            {/* Reference Images */}
+            {referenceImages.length > 0 && (
+              <div className="space-y-2">
+                <p className="font-medium text-sm">Референсные изображения:</p>
+                <div className="flex flex-wrap gap-2">
+                  {referenceImages.map((url, idx) => (
+                    <div
+                      className="group relative h-16 w-16 overflow-hidden rounded-lg border"
+                      key={url}
+                    >
+                      <img
+                        alt={`Референс ${idx + 1}`}
+                        className="h-full w-full object-cover"
+                        src={url}
+                      />
+                      <button
+                        className="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/80 opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                        onClick={() =>
+                          setReferenceImages((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        title="Удалить"
+                        type="button"
+                      >
+                        <XCircle className="h-3 w-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Изображения будут использованы как референсы для генерации
+                </p>
+              </div>
+            )}
 
             {/* Prompt */}
             <div className="space-y-2">

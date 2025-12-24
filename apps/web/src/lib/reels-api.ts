@@ -7,8 +7,14 @@ import type {
 } from "@trender/types";
 import { API_URL } from "./api-client";
 
-// Re-export types for backwards compatibility
+// Re-export types from @trender/types
 export type { JobProgress, JobStatus, SortMode, ScrapeRequest, ScrapeResponse };
+
+// Re-export types from @trender/api-contracts
+export type {
+  ReelStatsResponse,
+  ReelStatus as ApiReelStatus,
+} from "@trender/api-contracts";
 
 export type JobStatusResponse = {
   id: string;

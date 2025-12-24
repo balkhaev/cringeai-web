@@ -818,6 +818,10 @@ const regenerateSceneRoute = createRoute({
                 description:
                   "Use the previously generated video as source instead of the original scene. Default: false (use original)",
               }),
+            imageUrls: z.array(z.string()).optional().openapi({
+              description:
+                "Reference image URLs for Kling image_list. If not provided, tries to use images from previous generation.",
+            }),
           }),
         },
       },
@@ -865,6 +869,7 @@ app.openapi(regenerateSceneRoute, async (c) => {
     keepAudio,
     autoComposite,
     useGeneratedAsSource,
+    imageUrls,
   } = c.req.valid("json");
 
   // Get the scene with analysis, reel, and all sibling scenes
@@ -930,6 +935,24 @@ app.openapi(regenerateSceneRoute, async (c) => {
   const finalPrompt =
     prompt || lastGeneration?.prompt || "Transform this scene";
 
+  // Get imageUrls: from request, or try to extract from previous generation's selectedElements
+  let finalImageUrls = imageUrls;
+  if (!finalImageUrls && lastGeneration?.selectedElements) {
+    try {
+      const elements = lastGeneration.selectedElements as Array<{
+        customMediaUrl?: string;
+      }>;
+      const urls = elements
+        .filter((e) => e.customMediaUrl)
+        .map((e) => e.customMediaUrl as string);
+      if (urls.length > 0) {
+        finalImageUrls = urls;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }
+
   // Start scene generation
   const sceneGenerationId = await sceneGenJobQueue.startSceneGeneration(
     sceneId,
@@ -941,6 +964,7 @@ app.openapi(regenerateSceneRoute, async (c) => {
       duration: duration || 5,
       aspectRatio: aspectRatio || "auto",
       keepAudio,
+      imageUrls: finalImageUrls,
     }
   );
 

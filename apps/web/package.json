@@ -39,6 +39,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-form": "^1.27.3",
     "@tanstack/react-query": "^5.90.12",
+    "@trender/api-contracts": "workspace:*",
     "@trender/auth": "workspace:*",
     "@trender/types": "workspace:*",
     "babel-plugin-react-compiler": "^1.0.0",

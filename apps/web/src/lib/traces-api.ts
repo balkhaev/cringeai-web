@@ -1,12 +1,10 @@
 import { API_URL } from "./api-client";
 
-export type SpanKind =
-  | "internal"
-  | "server"
-  | "client"
-  | "producer"
-  | "consumer";
-export type SpanStatus = "unset" | "ok" | "error";
+// Re-export types from @trender/api-contracts
+export type { SpanKind, SpanStatus } from "@trender/api-contracts";
+
+// Import for internal use
+import type { SpanKind, SpanStatus } from "@trender/api-contracts";
 
 export type TraceSpan = {
   id: string;

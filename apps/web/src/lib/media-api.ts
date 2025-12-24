@@ -1,47 +1,24 @@
 import { API_URL } from "./api-client";
 
-// Types
-export type MediaSource = "upload" | "generated";
-export type MediaType = "image" | "video";
-export type AssetCategory = "background" | "character" | "object" | "texture";
+// Re-export types from @trender/api-contracts
+export type {
+  AssetCategory,
+  ExtendedMediaItem as MediaItem,
+  MediaSource,
+  MediaType,
+  MediaUploadResponse,
+  PersonalMediaQueryInput as PersonalMediaParams,
+  PersonalMediaResponse,
+} from "@trender/api-contracts";
 
-export type MediaItem = {
-  id: string;
-  type: MediaType;
-  url: string;
-  thumbnailUrl: string;
-  filename: string;
-  size: number;
-  width: number | null;
-  height: number | null;
-  duration: number | null;
-  mimeType: string | null;
-  createdAt: string;
-  source: MediaSource;
-  category: string | null;
-  prompt: string | null;
-  style: string | null;
-};
+// Import for internal use
+import type {
+  MediaUploadResponse,
+  PersonalMediaQueryInput,
+  PersonalMediaResponse,
+} from "@trender/api-contracts";
 
-export type PersonalMediaParams = {
-  type?: MediaType | "all";
-  source?: MediaSource | "all";
-  category?: AssetCategory;
-  limit?: number;
-  offset?: number;
-};
-
-export type PersonalMediaResponse = {
-  items: MediaItem[];
-  total: number;
-  limit: number;
-  offset: number;
-};
-
-export type MediaUploadResponse = {
-  success: boolean;
-  media: MediaItem;
-};
+type PersonalMediaParams = PersonalMediaQueryInput;
 
 // API functions
 

@@ -1,16 +1,10 @@
 import { API_URL } from "./api-client";
 
-export type TagTrend = {
-  tag: string;
-  score: number;
-  frequency: number;
-};
+// Re-export types from @trender/api-contracts
+export type { TagTrend, TagTrendsResponse } from "@trender/api-contracts";
 
-export type TagTrendsResponse = {
-  windowHours: number;
-  videosAnalyzed: number;
-  tags: TagTrend[];
-};
+// Import for internal use
+import type { TagTrendsResponse } from "@trender/api-contracts";
 
 export async function getTagTrends(params?: {
   hours?: number;

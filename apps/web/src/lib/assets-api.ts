@@ -1,50 +1,25 @@
 import { API_URL } from "./api-client";
 
-// Types
-export type AssetCategory = "background" | "character" | "object" | "texture";
-export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+// Re-export types from @trender/api-contracts
+export type {
+  AssetAspectRatio as AspectRatio,
+  AssetCategoriesResponse as CategoriesResponse,
+  AssetCategory,
+  AssetCategoryInfo as CategoryInfo,
+  AssetGenerateRequest as GenerateAssetParams,
+  AssetGenerateResponse as GenerateAssetResponse,
+  AssetStylePreset as StylePreset,
+  AssetStylePresetsResponse as StylePresetsResponse,
+  GeneratedAsset,
+} from "@trender/api-contracts";
 
-export type GeneratedAsset = {
-  id: string;
-  url: string;
-  prompt: string;
-  category: AssetCategory;
-  width?: number;
-  height?: number;
-};
-
-export type GenerateAssetParams = {
-  prompt: string;
-  category: AssetCategory;
-  aspectRatio?: AspectRatio;
-  style?: string;
-};
-
-export type GenerateAssetResponse = {
-  success: boolean;
-  asset: GeneratedAsset;
-};
-
-export type CategoryInfo = {
-  id: string;
-  label: string;
-  description: string;
-  examples: string[];
-};
-
-export type CategoriesResponse = {
-  categories: CategoryInfo[];
-};
-
-export type StylePreset = {
-  id: string;
-  label: string;
-  description: string;
-};
-
-export type StylePresetsResponse = {
-  styles: StylePreset[];
-};
+// Import for internal use
+import type {
+  AssetCategoriesResponse,
+  AssetGenerateRequest,
+  AssetGenerateResponse,
+  AssetStylePresetsResponse,
+} from "@trender/api-contracts";
 
 // API functions
 
@@ -52,8 +27,8 @@ export type StylePresetsResponse = {
  * Generate an asset image using Imagen AI
  */
 export async function generateAsset(
-  params: GenerateAssetParams
-): Promise<GenerateAssetResponse> {
+  params: AssetGenerateRequest
+): Promise<AssetGenerateResponse> {
   const response = await fetch(`${API_URL}/api/assets/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -72,7 +47,7 @@ export async function generateAsset(
 /**
  * Get available asset categories with examples
  */
-export async function getCategories(): Promise<CategoriesResponse> {
+export async function getCategories(): Promise<AssetCategoriesResponse> {
   const response = await fetch(`${API_URL}/api/assets/categories`, {
     credentials: "include",
   });
@@ -87,7 +62,7 @@ export async function getCategories(): Promise<CategoriesResponse> {
 /**
  * Get available style presets
  */
-export async function getStylePresets(): Promise<StylePresetsResponse> {
+export async function getStylePresets(): Promise<AssetStylePresetsResponse> {
   const response = await fetch(`${API_URL}/api/assets/styles`, {
     credentials: "include",
   });

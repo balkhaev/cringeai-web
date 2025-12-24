@@ -1,0 +1,18 @@
+{
+  "name": "@trender/api-contracts",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./public": "./src/public.ts",
+    "./internal": "./src/internal.ts",
+    "./common": "./src/common.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@trender/config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

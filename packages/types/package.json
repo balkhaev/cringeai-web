@@ -18,6 +18,9 @@
       "default": "./src/template.ts"
     }
   },
+  "dependencies": {
+    "@trender/api-contracts": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "@trender/config": "workspace:*"

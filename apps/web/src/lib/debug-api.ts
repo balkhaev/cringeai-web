@@ -1,9 +1,13 @@
 import { API_URL } from "./api-client";
 
-// Types
-export type LogLevel = "debug" | "info" | "warn" | "error";
+// Re-export types from @trender/api-contracts
+export type { AIProvider, LogLevel } from "@trender/api-contracts";
+
+// Import for internal use
+import type { AIProvider, LogLevel } from "@trender/api-contracts";
+
+// Local types not in api-contracts
 export type PipelineStage = "scrape" | "download" | "analyze" | "generate";
-export type AIProvider = "gemini" | "openai" | "kling";
 
 export type ReelLog = {
   id: string;

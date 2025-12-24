@@ -1,13 +1,12 @@
 import { API_URL } from "./api-client";
 
-export type QueueStatus = {
-  name: string;
-  waiting: number;
-  active: number;
-  completed: number;
-  failed: number;
-};
+// Re-export types from @trender/api-contracts
+export type { JobState, QueueStatus } from "@trender/api-contracts";
 
+// Import for internal use
+import type { JobState, QueueStatus } from "@trender/api-contracts";
+
+// Extended QueueJob with additional fields not in api-contracts
 export type QueueJob = {
   id: string;
   name: string;
@@ -20,13 +19,6 @@ export type QueueJob = {
   processedOn?: number;
   finishedOn?: number;
 };
-
-export type JobState =
-  | "waiting"
-  | "active"
-  | "completed"
-  | "failed"
-  | "delayed";
 
 const QUEUE_DISPLAY_NAMES: Record<string, string> = {
   "reel-pipeline": "Анализ рилсов",

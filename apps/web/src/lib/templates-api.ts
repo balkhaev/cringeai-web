@@ -1,6 +1,25 @@
 import { API_URL } from "./api-client";
 
-// Types
+// Re-export API contract types
+export type {
+  BookmarkResponse,
+  FeedResponse,
+  FeedTemplateItem,
+  FeedType,
+  GenerationOptions,
+  RemixOption as ApiRemixOption,
+  SceneSelection as ApiSceneSelection,
+  SearchResponse,
+} from "@trender/api-contracts";
+
+// Import for internal use
+import type {
+  BookmarkResponse,
+  FeedResponse,
+  SearchResponse,
+} from "@trender/api-contracts";
+
+// ===== Local Types =====
 export type TemplateReel = {
   id: string;
   url: string;
@@ -160,6 +179,10 @@ export type SceneGeneration = {
   progressMessage: string;
   createdAt: string;
   completedAt: string | null;
+  selectedElements?: Array<{
+    elementId?: string;
+    customMediaUrl?: string;
+  }>;
   scene?: {
     index: number;
     startTime: number;
@@ -664,38 +687,10 @@ export async function analyzeReelByFrames(reelId: string): Promise<void> {
 }
 
 // ===== Feed API =====
-
-export type FeedType = "trends" | "community" | "bookmarks";
-
-export type FeedTemplateItem = {
-  id: string;
-  title: string | null;
-  tags: string[];
-  category: string | null;
-  thumbnailUrl: string;
-  previewVideoUrl?: string;
-  generationCount: number;
-  isBookmarked?: boolean;
-  reel: {
-    id: string;
-    author: string | null;
-    likeCount: number | null;
-  };
-  elements: {
-    id: string;
-    type: "character" | "object" | "background";
-    label: string;
-  }[];
-};
-
-export type FeedResponse = {
-  items: FeedTemplateItem[];
-  nextCursor: string | null;
-  hasMore: boolean;
-};
+// FeedType, FeedTemplateItem, FeedResponse - re-exported from @trender/api-contracts
 
 export type FeedParams = {
-  type?: FeedType;
+  type?: "trends" | "community" | "bookmarks";
   limit?: number;
   cursor?: string;
   category?: string;
@@ -725,12 +720,7 @@ export async function getFeed(params: FeedParams = {}): Promise<FeedResponse> {
 }
 
 // ===== Search API =====
-
-export type SearchResponse = {
-  items: FeedTemplateItem[];
-  total: number;
-  query: string;
-};
+// SearchResponse - re-exported from @trender/api-contracts
 
 export type SearchParams = {
   q: string;
@@ -759,11 +749,7 @@ export async function searchTemplates(
 }
 
 // ===== Bookmark API =====
-
-export type BookmarkResponse = {
-  bookmarked: boolean;
-  templateId: string;
-};
+// BookmarkResponse - re-exported from @trender/api-contracts
 
 export async function addBookmark(
   templateId: string
@@ -899,6 +885,7 @@ export async function regenerateScene(
     keepAudio?: boolean;
     autoComposite?: boolean;
     useGeneratedAsSource?: boolean;
+    imageUrls?: string[];
   }
 ): Promise<{
   success: boolean;
