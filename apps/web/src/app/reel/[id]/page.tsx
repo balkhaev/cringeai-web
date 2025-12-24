@@ -46,9 +46,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { VideoGenerator } from "@/components/video-generator";
 import { VideoPreview } from "@/components/video-preview";
 import { VideoTrimButton } from "@/components/video-trim-section";
@@ -207,8 +216,10 @@ export default function ReelDetailPage() {
 
   const { mutate: regenerateSceneMutation, isPending: isRegeneratingScene } =
     useMutation({
-      mutationFn: (sceneId: string) =>
-        import("@/lib/templates-api").then((m) => m.regenerateScene(sceneId)),
+      mutationFn: ({ sceneId, prompt }: { sceneId: string; prompt?: string }) =>
+        import("@/lib/templates-api").then((m) =>
+          m.regenerateScene(sceneId, { prompt })
+        ),
       onSuccess: () => {
         toast.success("Перегенерация сцены запущена");
         refetch();
@@ -1128,8 +1139,14 @@ function CompositeGenerationCard({
 }: {
   generation: CompositeGeneration;
   sceneGenerations?: SceneGeneration[];
-  onRegenerateScene?: (sceneId: string) => void;
+  onRegenerateScene?: (params: { sceneId: string; prompt?: string }) => void;
 }) {
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [regenerateSceneId, setRegenerateSceneId] = useState<string | null>(
+    null
+  );
+  const [regeneratePrompt, setRegeneratePrompt] = useState("");
+
   const isActive =
     generation.status === "pending" ||
     generation.status === "waiting" ||
@@ -1147,6 +1164,29 @@ function CompositeGenerationCard({
             1000
         )
       : null;
+
+  const handleOpenRegenerateDialog = (sceneId: string) => {
+    const sceneGen = sceneGenerations?.find((sg) =>
+      generation.sceneConfig?.some(
+        (c) => c.sceneId === sceneId && c.generationId === sg.id
+      )
+    );
+    setRegenerateSceneId(sceneId);
+    setRegeneratePrompt(sceneGen?.prompt || "");
+    setRegenerateDialogOpen(true);
+  };
+
+  const handleRegenerate = () => {
+    if (regenerateSceneId && onRegenerateScene) {
+      onRegenerateScene({
+        sceneId: regenerateSceneId,
+        prompt: regeneratePrompt || undefined,
+      });
+      setRegenerateDialogOpen(false);
+      setRegenerateSceneId(null);
+      setRegeneratePrompt("");
+    }
+  };
 
   const statusConfig: Record<string, { label: string; className: string }> = {
     pending: {
@@ -1310,7 +1350,9 @@ function CompositeGenerationCard({
                       {onRegenerateScene && !config.useOriginal && (
                         <Button
                           className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                          onClick={() => onRegenerateScene(config.sceneId)}
+                          onClick={() =>
+                            handleOpenRegenerateDialog(config.sceneId)
+                          }
                           size="sm"
                           title="Перегенерировать сцену"
                           variant="secondary"
@@ -1358,6 +1400,41 @@ function CompositeGenerationCard({
         <GenerationError error={generation.error} show={isFailed} />
         <GenerationActions show={isCompleted} videoUrl={generation.videoUrl} />
       </div>
+
+      {/* Regenerate Dialog */}
+      <Dialog
+        onOpenChange={setRegenerateDialogOpen}
+        open={regenerateDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Перегенерация сцены</DialogTitle>
+            <DialogDescription>
+              Введите или измените промпт для генерации новой версии сцены
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              className="min-h-[120px]"
+              onChange={(e) => setRegeneratePrompt(e.target.value)}
+              placeholder="Опишите что должно быть на видео..."
+              value={regeneratePrompt}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setRegenerateDialogOpen(false)}
+              variant="outline"
+            >
+              Отмена
+            </Button>
+            <Button onClick={handleRegenerate}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Перегенерировать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
