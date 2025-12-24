@@ -48,6 +48,14 @@ export type DownloadResult = {
 };
 
 /**
+ * Result of resize operation
+ */
+export type ResizeResult = {
+  buffer: Buffer;
+  duration: number | null;
+};
+
+/**
  * Resize video for Kling API compatibility (requires 720-2160px width)
  * Uses video-frames service
  */
@@ -55,7 +63,7 @@ export async function resizeVideoIfNeeded(
   buffer: Buffer,
   reelId: string,
   callbacks?: Pick<DownloadProgressCallbacks, "updateProgress">
-): Promise<Buffer> {
+): Promise<ResizeResult> {
   try {
     const formData = new FormData();
     formData.append(
@@ -72,12 +80,16 @@ export async function resizeVideoIfNeeded(
     });
 
     if (!response.ok) {
-      return buffer;
+      return { buffer, duration: null };
     }
 
     const resized = response.headers.get("X-Resized") === "true";
     const originalWidth = response.headers.get("X-Original-Width");
     const newWidth = response.headers.get("X-New-Width");
+    const durationHeader = response.headers.get("X-Video-Duration");
+    const duration = durationHeader
+      ? Math.round(Number.parseFloat(durationHeader))
+      : null;
 
     if (resized && callbacks?.updateProgress) {
       await callbacks.updateProgress(
@@ -89,9 +101,9 @@ export async function resizeVideoIfNeeded(
     }
 
     const resizedBuffer = await response.arrayBuffer();
-    return Buffer.from(resizedBuffer);
+    return { buffer: Buffer.from(resizedBuffer), duration };
   } catch {
-    return buffer;
+    return { buffer, duration: null };
   }
 }
 
@@ -105,6 +117,7 @@ async function fetchReelMetadata(reelId: string): Promise<{
   viewCount?: number;
   author?: string;
   thumbnailUrl?: string;
+  duration?: number;
 } | null> {
   try {
     const response = await fetch(`${INSTALOADER_SERVICE_URL}/metadata`, {
@@ -125,6 +138,7 @@ async function fetchReelMetadata(reelId: string): Promise<{
       viewCount?: number;
       author?: string;
       thumbnailUrl?: string;
+      duration?: number;
     };
 
     return metadata.success ? metadata : null;
@@ -207,8 +221,12 @@ export async function downloadReel(
       "Получение метаданных..."
     );
     const metadata = await fetchReelMetadata(reelId);
+    let metadataDuration: number | null = null;
 
     if (metadata) {
+      if (typeof metadata.duration === "number" && metadata.duration > 0) {
+        metadataDuration = metadata.duration;
+      }
       await prisma.reel.update({
         where: { id: reelId },
         data: {
@@ -218,6 +236,7 @@ export async function downloadReel(
           viewCount: metadata.viewCount ?? null,
           author: metadata.author ?? null,
           thumbnailUrl: metadata.thumbnailUrl ?? null,
+          ...(metadataDuration && { duration: metadataDuration }),
         },
       });
     }
@@ -245,7 +264,16 @@ export async function downloadReel(
       55,
       "Проверка размера видео..."
     );
-    buffer = await resizeVideoIfNeeded(buffer, reelId, callbacks);
+    const resizeResult = await resizeVideoIfNeeded(buffer, reelId, callbacks);
+    buffer = resizeResult.buffer;
+
+    // Use duration from metadata, fallback to duration from resize (ffprobe)
+    const duration = metadataDuration || resizeResult.duration;
+    if (duration) {
+      console.log(
+        `  ✓ Video duration: ${duration}s (source: ${metadataDuration ? "metadata" : "ffprobe"})`
+      );
+    }
 
     const s3Key = getS3Key("reels", reelId);
     const videoSize = buffer.length;
@@ -279,12 +307,14 @@ export async function downloadReel(
             progressStage: "download",
             progressMessage: "Загрузка завершена",
             lastActivityAt: new Date(),
+            ...(duration && { duration }),
           },
         });
 
         await timer.stop("Video downloaded and uploaded to S3", {
           fileSize: videoSize,
           s3Key,
+          duration,
         });
 
         return { path: s3Key, isS3: true, size: videoSize };
@@ -313,12 +343,14 @@ export async function downloadReel(
         progressStage: "download",
         progressMessage: "Загрузка завершена",
         lastActivityAt: new Date(),
+        ...(duration && { duration }),
       },
     });
 
     await timer.stop("Video downloaded successfully", {
       fileSize: videoSize,
       filePath: filepath,
+      duration,
     });
 
     return { path: filepath, isS3: false, size: videoSize };
@@ -351,7 +383,7 @@ class VideoDownloadService {
     buffer: Buffer,
     reelId: string,
     callbacks?: Pick<DownloadProgressCallbacks, "updateProgress">
-  ): Promise<Buffer> {
+  ): Promise<ResizeResult> {
     return resizeVideoIfNeeded(buffer, reelId, callbacks);
   }
 }

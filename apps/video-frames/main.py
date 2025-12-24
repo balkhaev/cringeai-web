@@ -761,6 +761,9 @@ async def resize_video(
             original_width, original_height = dimensions
             new_width = original_width
 
+            # Get video duration
+            duration = get_video_duration(input_path)
+
             # Determine if resize is needed
             if original_width < min_width:
                 # Upscale to min_width
@@ -782,6 +785,7 @@ async def resize_video(
                         "X-Original-Height": str(original_height),
                         "X-New-Width": str(original_width),
                         "X-Resized": "false",
+                        "X-Video-Duration": str(duration) if duration else "",
                     }
                 )
 
@@ -814,6 +818,7 @@ async def resize_video(
                     "X-New-Width": str(new_width),
                     "X-New-Height": str(new_height),
                     "X-Resized": "true",
+                    "X-Video-Duration": str(duration) if duration else "",
                 }
             )
 
