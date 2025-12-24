@@ -822,6 +822,10 @@ const regenerateSceneRoute = createRoute({
               description:
                 "Reference image URLs for Kling image_list. If not provided, tries to use images from previous generation.",
             }),
+            sourceVideoUrl: z.string().optional().openapi({
+              description:
+                "Explicit source video URL. Use this when the scene doesn't have a saved video (e.g., upload-based analyses).",
+            }),
           }),
         },
       },
@@ -870,6 +874,7 @@ app.openapi(regenerateSceneRoute, async (c) => {
     autoComposite,
     useGeneratedAsSource,
     imageUrls,
+    sourceVideoUrl: providedSourceVideoUrl,
   } = c.req.valid("json");
 
   // Get the scene with analysis, reel, and all sibling scenes
@@ -907,15 +912,42 @@ app.openapi(regenerateSceneRoute, async (c) => {
     return c.json({ error: "Scene not found" }, 404);
   }
 
-  // Get source video URL
+  // Get source video URL - try multiple sources in order of preference
+  let originalVideoUrl: string | null = null;
+
+  // 1. Try template->reel (for reel-based analyses)
   const reel = scene.analysis.template?.reel;
-  if (!reel) {
-    return c.json({ error: "Source video not found" }, 400);
+  if (reel) {
+    originalVideoUrl = buildReelVideoUrl(reel);
   }
 
-  const originalVideoUrl = buildReelVideoUrl(reel);
+  // 2. Fallback to scene's pre-trimmed video (for upload-based analyses with scene splitting)
+  if (!originalVideoUrl && scene.videoUrl) {
+    originalVideoUrl = scene.videoUrl;
+  }
+
+  // 3. Fallback to explicitly provided sourceVideoUrl
+  if (!originalVideoUrl && providedSourceVideoUrl) {
+    originalVideoUrl = providedSourceVideoUrl;
+  }
+
   if (!originalVideoUrl) {
-    return c.json({ error: "Source video URL not available" }, 400);
+    console.error(
+      `[Regenerate] No source video for scene ${sceneId}:`,
+      `sourceType=${scene.analysis.sourceType}`,
+      `hasTemplate=${!!scene.analysis.template}`,
+      `hasReel=${!!reel}`,
+      `sceneVideoUrl=${scene.videoUrl || "none"}`,
+      `providedSourceVideoUrl=${providedSourceVideoUrl || "none"}`
+    );
+    return c.json(
+      {
+        error:
+          "Source video not found. Please provide sourceVideoUrl in the request body. " +
+          `(sourceType: ${scene.analysis.sourceType}, hasTemplate: ${!!scene.analysis.template}, sceneVideoUrl: ${!!scene.videoUrl})`,
+      },
+      400
+    );
   }
 
   // Use generated video as source if requested and available
