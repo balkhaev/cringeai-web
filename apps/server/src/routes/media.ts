@@ -92,14 +92,14 @@ app.openapi(personalMediaRoute, async (c) => {
       id: item.id,
       type: item.type as "image" | "video",
       url: item.url,
-      thumbnailUrl: item.url, // TODO: Generate thumbnails
+      thumbnail_url: item.url, // TODO: Generate thumbnails
       filename: item.filename,
       size: item.size,
       width: item.width,
       height: item.height,
       duration: item.duration,
-      mimeType: item.mimeType,
-      createdAt: item.createdAt.toISOString(),
+      mime_type: item.mimeType,
+      created_at: item.createdAt.toISOString(),
       source: (item.source || "upload") as "upload" | "generated",
       category: item.category,
       prompt: item.prompt,

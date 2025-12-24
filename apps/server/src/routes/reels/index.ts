@@ -154,10 +154,10 @@ const getSavedReelRoute = createRoute({
       id: z.string().openapi({ param: { name: "id", in: "path" } }),
     }),
     query: z.object({
-      includeLogs: z
+      include_logs: z
         .enum(["true", "false"])
         .optional()
-        .openapi({ param: { name: "includeLogs", in: "query" } }),
+        .openapi({ param: { name: "include_logs", in: "query" } }),
     }),
   },
   responses: {
@@ -620,11 +620,11 @@ reelsRouter.openapi(listScrapeJobsRoute, async (c) => {
       jobs.map((job) => ({
         id: job.id,
         status: job.status,
-        sortMode: job.sortMode,
-        minLikes: job.minLikes,
+        sort_mode: job.sortMode,
+        min_likes: job.minLikes,
         progress: job.progress,
-        createdAt: job.createdAt,
-        updatedAt: job.updatedAt,
+        created_at: job.createdAt,
+        updated_at: job.updatedAt,
       })),
       200
     );
@@ -730,10 +730,25 @@ reelsRouter.openapi(listSavedReelsRoute, async (c) => {
     where.status = status;
   }
   if (search) {
+    // Find reelIds that have analysis with matching tags
+    const analysesWithTags = await prisma.videoAnalysis.findMany({
+      where: {
+        sourceType: "reel",
+        tags: { hasSome: [search] },
+      },
+      select: { sourceId: true },
+    });
+    const reelIdsWithMatchingTags = analysesWithTags
+      .map((a) => a.sourceId)
+      .filter((id): id is string => id !== null);
+
     where.OR = [
       { caption: { contains: search, mode: "insensitive" } },
       { author: { contains: search, mode: "insensitive" } },
       { hashtag: { contains: search, mode: "insensitive" } },
+      ...(reelIdsWithMatchingTags.length > 0
+        ? [{ id: { in: reelIdsWithMatchingTags } }]
+        : []),
     ];
   }
 
@@ -784,8 +799,8 @@ reelsRouter.openapi(listSavedReelsRoute, async (c) => {
 
 reelsRouter.openapi(getSavedReelRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const { includeLogs } = c.req.valid("query");
-  const shouldIncludeLogs = includeLogs === "true";
+  const { include_logs } = c.req.valid("query");
+  const shouldIncludeLogs = include_logs === "true";
 
   const reel = await prisma.reel.findUnique({
     where: { id },
@@ -808,7 +823,7 @@ reelsRouter.openapi(getSavedReelRoute, async (c) => {
     return c.json(
       {
         ...reel,
-        recentLogs: reel.logs,
+        recent_logs: reel.logs,
       },
       200
     );
@@ -961,7 +976,7 @@ reelsRouter.openapi(addReelRoute, async (c) => {
           success: true,
           reel: existing,
           message: "Reel already exists",
-          isNew: false,
+          is_new: false,
         },
         200
       );
@@ -992,7 +1007,7 @@ reelsRouter.openapi(addReelRoute, async (c) => {
         success: true,
         reel,
         message: "Reel added and download started",
-        isNew: true,
+        is_new: true,
       },
       201
     );
@@ -1031,7 +1046,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
     return c.json(
       {
         total,
-        byStatus: {
+        by_status: {
           scraped,
           downloading,
           downloaded,
@@ -1040,7 +1055,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
           failed,
         },
         templates,
-        activeGenerations,
+        active_generations: activeGenerations,
       },
       200
     );
@@ -1162,20 +1177,20 @@ reelsRouter.openapi(getReelDebugRoute, async (c) => {
       {
         reel: {
           ...reel,
-          videoUrl,
+          video_url: videoUrl,
         },
-        stageStats,
-        recentErrors,
+        stage_stats: stageStats,
+        recent_errors: recentErrors,
         timeline,
         logs,
-        aiLogs,
+        ai_logs: aiLogs,
         // Дополнительные поля для фронтенда
         analyses,
         template: reel.template,
         generations: relatedGenerations,
-        sceneGenerations,
-        compositeGenerations,
-        videoUrl,
+        scene_generations: sceneGenerations,
+        composite_generations: compositeGenerations,
+        video_url: videoUrl,
       },
       200
     );
@@ -1224,8 +1239,8 @@ reelsRouter.openapi(processReelRoute, async (c) => {
       {
         success: true,
         message: "Processing started",
-        jobId,
-        reelId: id,
+        job_id: jobId,
+        reel_id: id,
       },
       200
     );
@@ -1250,8 +1265,8 @@ reelsRouter.openapi(downloadReelRoute, async (c) => {
         {
           success: true,
           message: "Video already downloaded",
-          reelId: id,
-          hasVideo: true,
+          reel_id: id,
+          has_video: true,
         },
         200
       );
@@ -1263,8 +1278,8 @@ reelsRouter.openapi(downloadReelRoute, async (c) => {
       {
         success: true,
         message: "Download started",
-        jobId,
-        reelId: id,
+        job_id: jobId,
+        reel_id: id,
       },
       200
     );
@@ -1359,8 +1374,8 @@ reelsRouter.openapi(analyzeReelRoute, async (c) => {
       {
         success: true,
         message: "Analysis started",
-        jobId,
-        reelId: id,
+        job_id: jobId,
+        reel_id: id,
       },
       200
     );
@@ -1389,8 +1404,8 @@ reelsRouter.openapi(analyzeReelFramesRoute, async (c) => {
       {
         success: true,
         message: "Frame-by-frame analysis started",
-        jobId,
-        reelId: id,
+        job_id: jobId,
+        reel_id: id,
       },
       200
     );
@@ -1456,8 +1471,8 @@ reelsRouter.openapi(resizeReelRoute, async (c) => {
           success: true,
           message: `Video resized from ${originalWidth}px to ${newWidth}px`,
           resized: true,
-          originalWidth: Number(originalWidth),
-          newWidth: Number(newWidth),
+          original_width: Number(originalWidth),
+          new_width: Number(newWidth),
         },
         200
       );

@@ -1,6 +1,7 @@
 /**
  * Public API Types
  * Client-facing API contracts: Feed, Content, Media, Remix, Generate
+ * All fields use snake_case convention for REST API compatibility
  */
 
 import { z } from "zod";
@@ -27,45 +28,45 @@ export const DetectableElementSchema = z.object({
   type: VideoElementTypeSchema,
   label: z.string(),
   description: z.string(),
-  remixOptions: z.array(RemixOptionSchema),
+  remix_options: z.array(RemixOptionSchema),
 });
 export type DetectableElement = z.infer<typeof DetectableElementSchema>;
 
 // ===== AUTH TYPES =====
 
 export const AuthResponseSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresIn: z.number(),
+  access_token: z.string(),
+  refresh_token: z.string(),
+  expires_in: z.number(),
 });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 export const RefreshTokenRequestSchema = z.object({
-  refreshToken: z.string(),
+  refresh_token: z.string(),
 });
 export type RefreshTokenRequest = z.infer<typeof RefreshTokenRequestSchema>;
 
 export const RefreshTokenResponseSchema = z.object({
-  accessToken: z.string(),
-  expiresIn: z.number(),
+  access_token: z.string(),
+  expires_in: z.number(),
 });
 export type RefreshTokenResponse = z.infer<typeof RefreshTokenResponseSchema>;
 
 export const BasicTokenRequestSchema = z.object({
-  deviceType: z.string(),
+  device_type: z.string(),
   algorithm: z.string(),
   timestamp: z.string(),
-  installationHash: z.string(),
+  installation_hash: z.string(),
 });
 export type BasicTokenRequest = z.infer<typeof BasicTokenRequestSchema>;
 
 export const GoogleAuthRequestSchema = z.object({
-  idToken: z.string(),
+  id_token: z.string(),
 });
 export type GoogleAuthRequest = z.infer<typeof GoogleAuthRequestSchema>;
 
 export const AppleAuthRequestSchema = z.object({
-  identityToken: z.string(),
+  identity_token: z.string(),
   user: z
     .object({
       name: z.string().optional(),
@@ -98,14 +99,14 @@ export const FeedTemplateItemSchema = z.object({
   title: z.string().nullable(),
   tags: z.array(z.string()),
   category: z.string().nullable(),
-  thumbnailUrl: z.string(),
-  previewVideoUrl: z.string().optional(),
-  generationCount: z.number(),
-  isBookmarked: z.boolean().optional(),
+  thumbnail_url: z.string(),
+  preview_video_url: z.string().optional(),
+  generation_count: z.number(),
+  is_bookmarked: z.boolean().optional(),
   reel: z.object({
     id: z.string(),
     author: z.string().nullable(),
-    likeCount: z.number().nullable(),
+    like_count: z.number().nullable(),
   }),
   elements: z.array(
     z.object({
@@ -119,8 +120,8 @@ export type FeedTemplateItem = z.infer<typeof FeedTemplateItemSchema>;
 
 export const FeedResponseSchema = z.object({
   items: z.array(FeedTemplateItemSchema),
-  nextCursor: z.string().nullable(),
-  hasMore: z.boolean(),
+  next_cursor: z.string().nullable(),
+  has_more: z.boolean(),
 });
 export type FeedResponse = z.infer<typeof FeedResponseSchema>;
 
@@ -131,21 +132,21 @@ export type ContentStatus = z.infer<typeof ContentStatusSchema>;
 
 export const ContentFromUrlRequestSchema = z.object({
   url: z.string().url(),
-  autoProcess: z.boolean().default(true),
+  auto_process: z.boolean().default(true),
 });
 export type ContentFromUrlRequest = z.infer<typeof ContentFromUrlRequestSchema>;
 
 export const ContentFromUrlResponseSchema = z.object({
   success: z.boolean(),
-  contentId: z.string(),
+  content_id: z.string(),
   status: ContentStatusSchema,
-  existingAnalysis: z
+  existing_analysis: z
     .object({
-      analysisId: z.string(),
-      templateId: z.string().optional(),
+      analysis_id: z.string(),
+      template_id: z.string().optional(),
     })
     .optional(),
-  jobId: z.string().optional(),
+  job_id: z.string().optional(),
 });
 export type ContentFromUrlResponse = z.infer<
   typeof ContentFromUrlResponseSchema
@@ -153,8 +154,8 @@ export type ContentFromUrlResponse = z.infer<
 
 export const ContentUploadResponseSchema = z.object({
   success: z.boolean(),
-  contentId: z.string(),
-  jobId: z.string(),
+  content_id: z.string(),
+  job_id: z.string(),
   status: z.literal("processing"),
 });
 export type ContentUploadResponse = z.infer<typeof ContentUploadResponseSchema>;
@@ -171,7 +172,7 @@ export type ContentProcessingStatus = z.infer<
 >;
 
 export const ContentStatusResponseSchema = z.object({
-  contentId: z.string(),
+  content_id: z.string(),
   status: ContentProcessingStatusSchema,
   progress: z.number().min(0).max(100),
   stage: z.string(),
@@ -180,24 +181,24 @@ export const ContentStatusResponseSchema = z.object({
     .object({
       id: z.string(),
       duration: z.number().nullable(),
-      aspectRatio: z.string(),
+      aspect_ratio: z.string(),
       elements: z.array(DetectableElementSchema),
       scenes: z
         .array(
           z.object({
             id: z.string(),
             index: z.number(),
-            startTime: z.number(),
-            endTime: z.number(),
+            start_time: z.number(),
+            end_time: z.number(),
             duration: z.number(),
-            thumbnailUrl: z.string().nullable(),
+            thumbnail_url: z.string().nullable(),
             elements: z.array(DetectableElementSchema),
           })
         )
         .optional(),
     })
     .optional(),
-  templateId: z.string().optional(),
+  template_id: z.string().optional(),
   error: z.string().optional(),
 });
 export type ContentStatusResponse = z.infer<typeof ContentStatusResponseSchema>;
@@ -214,14 +215,14 @@ export const MediaItemSchema = z.object({
   id: z.string(),
   type: MediaTypeSchema,
   url: z.string(),
-  thumbnailUrl: z.string(),
+  thumbnail_url: z.string(),
   filename: z.string(),
   size: z.number(),
   width: z.number().nullable(),
   height: z.number().nullable(),
   duration: z.number().nullable(),
-  mimeType: z.string().nullable(),
-  createdAt: z.string(),
+  mime_type: z.string().nullable(),
+  created_at: z.string(),
 });
 export type MediaItem = z.infer<typeof MediaItemSchema>;
 
@@ -278,34 +279,34 @@ export const SimpleElementSchema = z.object({
   type: VideoElementTypeSchema,
   label: z.string(),
   description: z.string(),
-  thumbnailUrl: z.string().optional(),
-  remixOptions: z.array(RemixOptionSchema),
-  allowCustomImage: z.boolean(),
+  thumbnail_url: z.string().optional(),
+  remix_options: z.array(RemixOptionSchema),
+  allow_custom_image: z.boolean(),
 });
 export type SimpleElement = z.infer<typeof SimpleElementSchema>;
 
 export const SimpleSceneSchema = z.object({
   id: z.string(),
   index: z.number(),
-  startTime: z.number(),
-  endTime: z.number(),
-  thumbnailUrl: z.string().nullable(),
+  start_time: z.number(),
+  end_time: z.number(),
+  thumbnail_url: z.string().nullable(),
   elements: z.array(SimpleElementSchema),
-  canKeepOriginal: z.boolean(),
+  can_keep_original: z.boolean(),
 });
 export type SimpleScene = z.infer<typeof SimpleSceneSchema>;
 
 export const SimpleRemixDataResponseSchema = z.object({
-  analysisId: z.string(),
-  sourceVideo: z.object({
+  analysis_id: z.string(),
+  source_video: z.object({
     url: z.string(),
-    thumbnailUrl: z.string(),
+    thumbnail_url: z.string(),
     duration: z.number().nullable(),
-    aspectRatio: z.string(),
+    aspect_ratio: z.string(),
   }),
   elements: z.array(SimpleElementSchema),
   scenes: z.array(SimpleSceneSchema).optional(),
-  isSceneBased: z.boolean(),
+  is_scene_based: z.boolean(),
 });
 export type SimpleRemixDataResponse = z.infer<
   typeof SimpleRemixDataResponseSchema
@@ -336,21 +337,21 @@ export type SimpleConfigureRequest = z.infer<
 
 export const ConfigureResponseSchema = z.object({
   success: z.boolean(),
-  configurationId: z.string(),
-  generatedPrompt: z.string(),
-  estimatedCredits: z.number(),
+  configuration_id: z.string(),
+  generated_prompt: z.string(),
+  estimated_credits: z.number(),
 });
 export type ConfigureResponse = z.infer<typeof ConfigureResponseSchema>;
 
 export const ExpertRemixDataResponseSchema = z.object({
-  analysisId: z.string(),
-  sourceVideo: z.object({
+  analysis_id: z.string(),
+  source_video: z.object({
     url: z.string(),
-    thumbnailUrl: z.string(),
+    thumbnail_url: z.string(),
     duration: z.number().nullable(),
-    aspectRatio: z.string(),
+    aspect_ratio: z.string(),
   }),
-  suggestedPrompt: z.string(),
+  suggested_prompt: z.string(),
   elements: z.array(
     z.object({
       id: z.string(),
@@ -364,19 +365,19 @@ export const ExpertRemixDataResponseSchema = z.object({
       z.object({
         id: z.string(),
         index: z.number(),
-        startTime: z.number(),
-        endTime: z.number(),
-        suggestedPrompt: z.string(),
+        start_time: z.number(),
+        end_time: z.number(),
+        suggested_prompt: z.string(),
       })
     )
     .optional(),
-  promptHints: z.array(z.string()),
-  previousGenerations: z
+  prompt_hints: z.array(z.string()),
+  previous_generations: z
     .array(
       z.object({
         id: z.string(),
         prompt: z.string(),
-        thumbnailUrl: z.string().nullable(),
+        thumbnail_url: z.string().nullable(),
         status: z.string(),
       })
     )
@@ -390,23 +391,23 @@ export const GenerationOptionsSchema = z.object({
   duration: z
     .preprocess(
       (val) => (typeof val === "string" ? Number(val) : val),
-      z.union([z.literal(5), z.literal(10)])
+      z.number().min(5).max(10)
     )
     .optional(),
-  aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
-  keepAudio: z.boolean().optional(),
+  aspect_ratio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
+  keep_audio: z.boolean().optional(),
 });
 export type GenerationOptions = z.infer<typeof GenerationOptionsSchema>;
 
 export const ExpertConfigureRequestSchema = z.object({
   prompt: z.string(),
-  referenceImages: z.array(z.string()).optional(),
-  scenePrompts: z
+  reference_images: z.array(z.string()).optional(),
+  scene_prompts: z
     .array(
       z.object({
-        sceneId: z.string(),
+        scene_id: z.string(),
         prompt: z.string(),
-        useOriginal: z.boolean(),
+        use_original: z.boolean(),
       })
     )
     .optional(),
@@ -429,13 +430,13 @@ export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 
 export const GenerateResponseSchema = z.object({
   success: z.boolean(),
-  generationId: z.string().optional(),
-  compositeGenerationId: z.string().optional(),
-  sceneGenerationIds: z.array(z.string()).optional(),
+  generation_id: z.string().optional(),
+  composite_generation_id: z.string().optional(),
+  scene_generation_ids: z.array(z.string()).optional(),
   type: z.enum(["full", "composite"]).optional(),
   status: z.literal("queued"),
-  estimatedWaitTime: z.number().optional(),
-  queuePosition: z.number().optional(),
+  estimated_wait_time: z.number().optional(),
+  queue_position: z.number().optional(),
 });
 export type GenerateResponse = z.infer<typeof GenerateResponseSchema>;
 
@@ -458,33 +459,33 @@ export const GenerationStatusSchema = z.enum([
 export type GenerationStatus = z.infer<typeof GenerationStatusSchema>;
 
 export const GenerationStatusResponseSchema = z.object({
-  generationId: z.string(),
+  generation_id: z.string(),
   status: GenerationStatusSchema,
   progress: z.number(),
   stage: GenerationStageSchema,
   message: z.string(),
-  providerProgress: z.number().optional(),
+  provider_progress: z.number().optional(),
   result: z
     .object({
-      videoUrl: z.string(),
-      thumbnailUrl: z.string().nullable(),
+      video_url: z.string(),
+      thumbnail_url: z.string().nullable(),
       duration: z.number().nullable(),
     })
     .optional(),
-  sceneStatuses: z
+  scene_statuses: z
     .array(
       z.object({
-        sceneId: z.string(),
+        scene_id: z.string(),
         status: z.string(),
         progress: z.number(),
-        videoUrl: z.string().optional(),
+        video_url: z.string().optional(),
       })
     )
     .optional(),
   error: z.string().optional(),
-  createdAt: z.string(),
-  startedAt: z.string().optional(),
-  completedAt: z.string().optional(),
+  created_at: z.string(),
+  started_at: z.string().optional(),
+  completed_at: z.string().optional(),
 });
 export type GenerationStatusResponse = z.infer<
   typeof GenerationStatusResponseSchema
@@ -501,14 +502,14 @@ export const CompositeStatusSchema = z.enum([
 export type CompositeStatus = z.infer<typeof CompositeStatusSchema>;
 
 export const CompositeStatusResponseSchema = z.object({
-  compositeGenerationId: z.string(),
+  composite_generation_id: z.string(),
   status: CompositeStatusSchema,
   progress: z.number(),
   stage: z.string().optional(),
   message: z.string().optional(),
   result: z
     .object({
-      videoUrl: z.string(),
+      video_url: z.string(),
     })
     .optional(),
   error: z.string().optional(),
@@ -525,15 +526,15 @@ export const GenerationItemSchema = z.object({
   status: z.string(),
   progress: z.number(),
   prompt: z.string(),
-  thumbnailUrl: z.string().nullable(),
-  videoUrl: z.string().nullable(),
-  createdAt: z.string(),
-  completedAt: z.string().nullable(),
+  thumbnail_url: z.string().nullable(),
+  video_url: z.string().nullable(),
+  created_at: z.string(),
+  completed_at: z.string().nullable(),
   source: z.object({
     type: GenerationSourceTypeSchema,
-    templateId: z.string().optional(),
-    templateTitle: z.string().optional(),
-    sourceUrl: z.string().optional(),
+    template_id: z.string().optional(),
+    template_title: z.string().optional(),
+    source_url: z.string().optional(),
   }),
 });
 export type GenerationItem = z.infer<typeof GenerationItemSchema>;
@@ -566,7 +567,7 @@ export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 
 export const BookmarkResponseSchema = z.object({
   bookmarked: z.boolean(),
-  templateId: z.string(),
+  template_id: z.string(),
 });
 export type BookmarkResponse = z.infer<typeof BookmarkResponseSchema>;
 
@@ -592,7 +593,7 @@ export type AssetAspectRatio = z.infer<typeof AssetAspectRatioSchema>;
 export const AssetGenerateRequestSchema = z.object({
   prompt: z.string().min(1).max(1000),
   category: AssetCategorySchema,
-  aspectRatio: AssetAspectRatioSchema.default("1:1"),
+  aspect_ratio: AssetAspectRatioSchema.default("1:1"),
   style: z.string().optional(),
 });
 export type AssetGenerateRequest = z.infer<typeof AssetGenerateRequestSchema>;
@@ -645,8 +646,8 @@ export type AssetStylePresetsResponse = z.infer<
 // ===== PUBLISH & SHARE TYPES =====
 
 export const PublishGenerationRequestSchema = z.object({
-  isShared: z.boolean().default(true),
-  communityConsent: z.boolean(),
+  is_shared: z.boolean().default(true),
+  community_consent: z.boolean(),
   title: z.string().optional(),
 });
 export type PublishGenerationRequest = z.infer<
@@ -655,7 +656,7 @@ export type PublishGenerationRequest = z.infer<
 
 export const PublishGenerationResponseSchema = z.object({
   success: z.boolean(),
-  templateId: z.string().optional(),
+  template_id: z.string().optional(),
 });
 export type PublishGenerationResponse = z.infer<
   typeof PublishGenerationResponseSchema
@@ -676,6 +677,6 @@ export type SocialShareRequest = z.infer<typeof SocialShareRequestSchema>;
 
 export const SocialShareResponseSchema = z.object({
   success: z.boolean(),
-  shareUrl: z.string().optional(),
+  share_url: z.string().optional(),
 });
 export type SocialShareResponse = z.infer<typeof SocialShareResponseSchema>;

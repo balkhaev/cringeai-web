@@ -6,6 +6,8 @@
  * - Content (input)
  * - Media (library)
  * - Generate
+ *
+ * All fields use snake_case convention for REST API compatibility
  */
 
 import { z } from "@hono/zod-openapi";
@@ -30,15 +32,15 @@ export const RemixOptionSchema = z
 
 export const AuthResponseSchema = z
   .object({
-    accessToken: z.string().openapi({
+    access_token: z.string().openapi({
       description: "Short-lived JWT access token",
       example: "eyJhbG...",
     }),
-    refreshToken: z.string().openapi({
+    refresh_token: z.string().openapi({
       description: "Long-lived JWT refresh token",
       example: "eyJhbG...",
     }),
-    expiresIn: z.number().openapi({
+    expires_in: z.number().openapi({
       description: "Access token lifetime in seconds",
       example: 3600,
     }),
@@ -47,7 +49,7 @@ export const AuthResponseSchema = z
 
 export const RefreshTokenRequestSchema = z
   .object({
-    refreshToken: z.string().openapi({
+    refresh_token: z.string().openapi({
       description: "The refresh token obtained during initial authentication",
       example: "eyJhbG...",
     }),
@@ -56,11 +58,11 @@ export const RefreshTokenRequestSchema = z
 
 export const RefreshTokenResponseSchema = z
   .object({
-    accessToken: z.string().openapi({
+    access_token: z.string().openapi({
       description: "New short-lived JWT access token",
       example: "eyJhbG...",
     }),
-    expiresIn: z.number().openapi({
+    expires_in: z.number().openapi({
       description: "New access token lifetime in seconds",
       example: 3600,
     }),
@@ -69,7 +71,7 @@ export const RefreshTokenResponseSchema = z
 
 export const BasicTokenRequestSchema = z
   .object({
-    deviceType: z
+    device_type: z
       .string()
       .openapi({ description: "Mobile platform name", example: "Android" }),
     algorithm: z.string().openapi({
@@ -80,7 +82,7 @@ export const BasicTokenRequestSchema = z
       description: "Unix timestamp in milliseconds as string",
       example: "1625097600000",
     }),
-    installationHash: z.string().openapi({
+    installation_hash: z.string().openapi({
       description: "Unique client-side generated device identifier",
       example: "client_generated_hash",
     }),
@@ -171,8 +173,8 @@ export const FeedTemplateItemSchema = z
 export const FeedResponseSchema = z
   .object({
     items: z.array(FeedTemplateItemSchema),
-    nextCursor: z.string().nullable(),
-    hasMore: z.boolean(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
   })
   .openapi("FeedResponse");
 
@@ -254,14 +256,14 @@ export const MediaItemSchema = z
     id: z.string(),
     type: z.enum(["image", "video"]),
     url: z.string(),
-    thumbnailUrl: z.string(),
+    thumbnail_url: z.string(),
     filename: z.string(),
     size: z.number(),
     width: z.number().nullable(),
     height: z.number().nullable(),
     duration: z.number().nullable(),
-    mimeType: z.string().nullable(),
-    createdAt: z.string(),
+    mime_type: z.string().nullable(),
+    created_at: z.string(),
   })
   .openapi("MediaItem");
 
@@ -349,106 +351,59 @@ export const StockMediaResponseSchema = z
 export const ElementSelectionSchema = z
   .object({
     element_id: z.string().openapi({
-      description: "ID элемента из analysis.elements",
+      description: "ID элемента из analysis.videoElements",
+      example: "char-1",
     }),
-    selected_option_id: z.string().optional().openapi({
-      description:
-        "ID выбранной опции из element.remixOptions (предустановленный вариант)",
+    option_id: z.string().optional().openapi({
+      description: "ID опции из element.remixOptions",
+      example: "opt-1",
     }),
-    custom_media_id: z.string().optional().openapi({
-      description: "ID медиа из библиотеки пользователя",
+    custom_image_url: z.string().url().optional().openapi({
+      description: "URL кастомного изображения для замены элемента",
+      example: "https://storage.example.com/uploads/my-character.jpg",
     }),
-    custom_media_url: z
-      .string()
-      .optional()
-      .openapi({
-        description:
-          "URL кастомного изображения для замены элемента. " +
-          "Бэкенд автоматически добавит <<<image_N>>> в промпт и передаст URL в Kling image_list",
-        example: "https://storage.example.com/uploads/my-character.jpg",
-      }),
   })
-  .openapi("ElementSelection", {
-    description:
-      "Выбор для элемента: selected_option_id (предустановленный вариант) " +
-      "ИЛИ custom_media_url (своё изображение). При custom_media_url бэкенд " +
-      "формирует промпт с <<<image_N>>> референсами для Kling API",
-  });
-
-export const SceneSelectionSchema = z
-  .object({
-    scene_id: z.string().openapi({
-      description: "ID сцены из analysis.scenes",
-    }),
-    use_original: z.boolean().openapi({
-      description:
-        "true = использовать оригинальный фрагмент без генерации, " +
-        "false = генерировать с промптом из element_selections",
-    }),
-    element_selections: z
-      .array(ElementSelectionSchema)
-      .optional()
-      .openapi({
-        description:
-          "Выборы элементов для ЭТОЙ сцены. Из них строится уникальный промпт для генерации этой сцены. " +
-          "element_id должен соответствовать элементам из scene.elements, а не глобальным elements",
-      }),
-  })
-  .openapi("SceneSelection", {
-    description:
-      "Конфигурация для одной сцены. Каждая сцена с use_original=false получает СВОЙ промпт, " +
-      "построенный из её element_selections и элементов этой сцены (scene.elements)",
-  });
-
-export const GenerationOptionsSchema = z
-  .object({
-    duration: z
-      .preprocess(
-        (val) => (typeof val === "string" ? Number(val) : val),
-        z.union([z.literal(5), z.literal(10)])
-      )
-      .optional(),
-    aspect_ratio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
-    keep_audio: z.boolean().optional(),
-  })
-  .openapi("GenerationOptions");
+  .openapi("ElementSelection");
 
 // ===== GENERATE API SCHEMAS =====
 
 export const GenerateRequestSchema = z
   .object({
-    configuration_id: z.string().optional().openapi({
-      description: "Config ID from Simple/Expert mode",
+    analysis_id: z.string().openapi({
+      description: "ID анализа видео (VideoAnalysis)",
+      example: "550e8400-e29b-41d4-a716-446655440000",
     }),
-    analysis_id: z.string().optional().openapi({
-      description: "Direct analysis ID (for quick generate)",
+    selections: z.array(ElementSelectionSchema).optional().openapi({
+      description:
+        "Какие элементы на что заменить. Если пусто - генерация без изменений",
     }),
-    prompt: z.string().optional().openapi({
-      description: "Direct prompt (for quick generate)",
+    keep_audio: z.boolean().default(false).openapi({
+      description: "Сохранить аудио из оригинального видео",
     }),
-    scene_selections: z.array(SceneSelectionSchema).optional().openapi({
-      description: "Direct scene selections for scene-based generation",
-    }),
-    options: GenerationOptionsSchema.optional(),
   })
   .openapi("GenerateRequest");
 
 export const GenerateResponseSchema = z
   .object({
-    success: z.boolean(),
-    generationId: z.string().optional(),
-    compositeGenerationId: z.string().optional(),
-    sceneGenerationIds: z.array(z.string()).optional(),
-    type: z.enum(["full", "composite"]).optional(),
+    generation_id: z.string().openapi({
+      description: "ID генерации для отслеживания статуса",
+    }),
     status: z.literal("queued"),
-    estimatedWaitTime: z.number().optional(),
-    queuePosition: z.number().optional(),
+    status_url: z.string().openapi({
+      description: "URL для получения статуса генерации",
+      example: "/api/generate/{id}/status",
+    }),
+    type: z.enum(["full", "composite"]).openapi({
+      description: "Тип генерации: full (одно видео) или composite (по сценам)",
+    }),
+    estimated_wait_time: z.number().optional(),
+    queue_position: z.number().optional(),
   })
   .openapi("GenerateResponse");
 
 export const GenerationStatusResponseSchema = z
   .object({
-    generationId: z.string(),
+    generation_id: z.string(),
     status: z.enum(["queued", "processing", "completed", "failed"]),
     progress: z.number(),
     stage: z
@@ -461,31 +416,31 @@ export const GenerationStatusResponseSchema = z
         "finalizing",
       ])
       .openapi({
-        description: "Current generation stage as shown in Figma flow",
+        description: "Current generation stage",
       }),
     message: z.string(),
-    providerProgress: z.number().optional(),
+    provider_progress: z.number().optional(),
     result: z
       .object({
-        videoUrl: z.string(),
-        thumbnailUrl: z.string().nullable(),
+        video_url: z.string(),
+        thumbnail_url: z.string().nullable(),
         duration: z.number().nullable(),
       })
       .optional(),
-    sceneStatuses: z
+    scene_statuses: z
       .array(
         z.object({
-          sceneId: z.string(),
+          scene_id: z.string(),
           status: z.string(),
           progress: z.number(),
-          videoUrl: z.string().optional(),
+          video_url: z.string().optional(),
         })
       )
       .optional(),
     error: z.string().optional(),
-    createdAt: z.string(),
-    startedAt: z.string().optional(),
-    completedAt: z.string().optional(),
+    created_at: z.string(),
+    started_at: z.string().optional(),
+    completed_at: z.string().optional(),
   })
   .openapi("GenerationStatusResponse");
 
@@ -495,15 +450,15 @@ export const GenerationItemSchema = z
     status: z.string(),
     progress: z.number(),
     prompt: z.string(),
-    thumbnailUrl: z.string().nullable(),
-    videoUrl: z.string().nullable(),
-    createdAt: z.string(),
-    completedAt: z.string().nullable(),
+    thumbnail_url: z.string().nullable(),
+    video_url: z.string().nullable(),
+    created_at: z.string(),
+    completed_at: z.string().nullable(),
     source: z.object({
       type: z.enum(["template", "upload", "url"]),
-      templateId: z.string().optional(),
-      templateTitle: z.string().optional(),
-      sourceUrl: z.string().optional(),
+      template_id: z.string().optional(),
+      template_title: z.string().optional(),
+      source_url: z.string().optional(),
     }),
   })
   .openapi("GenerationItem");
@@ -573,7 +528,7 @@ export const SearchResponseSchema = z
 export const BookmarkResponseSchema = z
   .object({
     bookmarked: z.boolean(),
-    templateId: z.string(),
+    template_id: z.string(),
   })
   .openapi("BookmarkResponse");
 
@@ -596,7 +551,7 @@ export const AssetGenerateRequestSchema = z
     category: AssetCategorySchema.openapi({
       description: "Категория ассета",
     }),
-    aspectRatio: AssetAspectRatioSchema.default("1:1").openapi({
+    aspect_ratio: AssetAspectRatioSchema.default("1:1").openapi({
       description: "Соотношение сторон",
     }),
     style: z.string().optional().openapi({
@@ -710,10 +665,10 @@ export const ExtendedPersonalMediaResponseSchema = z
 
 export const PublishGenerationRequestSchema = z
   .object({
-    isShared: z.boolean().default(true).openapi({
+    is_shared: z.boolean().default(true).openapi({
       description: "Whether to share the result with the community",
     }),
-    communityConsent: z.boolean().openapi({
+    community_consent: z.boolean().openapi({
       description: "User consent for community sharing",
     }),
     title: z.string().optional().openapi({
@@ -725,7 +680,7 @@ export const PublishGenerationRequestSchema = z
 export const PublishGenerationResponseSchema = z
   .object({
     success: z.boolean(),
-    templateId: z.string().optional().openapi({
+    template_id: z.string().optional().openapi({
       description: "ID of the created template if shared",
     }),
   })
@@ -742,7 +697,7 @@ export const SocialShareRequestSchema = z
 export const SocialShareResponseSchema = z
   .object({
     success: z.boolean(),
-    shareUrl: z.string().optional().openapi({
+    share_url: z.string().optional().openapi({
       description: "Deep link or share URL if applicable",
     }),
   })
@@ -752,13 +707,13 @@ export const SocialShareResponseSchema = z
 
 export const GoogleAuthRequestSchema = z
   .object({
-    idToken: z.string().openapi({ description: "Google ID Token" }),
+    id_token: z.string().openapi({ description: "Google ID Token" }),
   })
   .openapi("GoogleAuthRequest");
 
 export const AppleAuthRequestSchema = z
   .object({
-    identityToken: z.string().openapi({ description: "Apple Identity Token" }),
+    identity_token: z.string().openapi({ description: "Apple Identity Token" }),
     user: z
       .object({
         name: z.string().optional(),

@@ -395,6 +395,8 @@ export type KlingGenerationOptions = {
   elements?: KlingImageElement[];
   /** Remix source reel ID */
   remixSource?: string;
+  /** Negative prompt for Kling */
+  negativePrompt?: string;
 };
 
 // API for adding video generation jobs

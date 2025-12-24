@@ -114,23 +114,130 @@ function GenerationsSection({
 }
 
 function GenerationRow({ gen }: { gen: VideoGeneration }) {
+  const [expanded, setExpanded] = useState(false);
   const href = gen.videoUrl;
   const variant = getGenerationBadgeVariant(gen.status);
 
   return (
-    <div className="flex items-center justify-between rounded-lg border p-3">
-      <div className="flex items-center gap-2">
-        <Badge variant={variant}>{gen.provider}</Badge>
-        <span className="text-muted-foreground text-sm">
-          {getGenerationStatusText(gen)}
-        </span>
+    <div className="rounded-lg border">
+      <div className="flex items-center justify-between p-3">
+        <div className="flex items-center gap-2">
+          <Badge variant={variant}>{gen.provider}</Badge>
+          <span className="text-muted-foreground text-sm">
+            {getGenerationStatusText(gen)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {href ? (
+            <Button asChild size="sm" variant="ghost">
+              <a href={href} rel="noopener" target="_blank">
+                Открыть
+              </a>
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => setExpanded(!expanded)}
+            size="icon"
+            variant="ghost"
+          >
+            {expanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
-      {href ? (
-        <Button asChild size="sm" variant="ghost">
-          <a href={href} rel="noopener" target="_blank">
-            Открыть
-          </a>
-        </Button>
+
+      {expanded ? (
+        <div className="space-y-3 border-t p-3">
+          {gen.prompt ? (
+            <div>
+              <h5 className="mb-1 font-medium text-sm">Prompt</h5>
+              <pre className="whitespace-pre-wrap rounded bg-muted p-2 font-mono text-xs">
+                {gen.prompt}
+              </pre>
+            </div>
+          ) : null}
+
+          {gen.imageReferences?.length > 0 ? (
+            <div>
+              <h5 className="mb-1 font-medium text-sm">
+                Images ({gen.imageReferences.length})
+              </h5>
+              <div className="flex flex-wrap gap-2">
+                {gen.imageReferences.map((url) => (
+                  <a
+                    className="block"
+                    href={url}
+                    key={url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <img
+                      alt="Reference"
+                      className="h-12 w-12 rounded border object-cover"
+                      src={url}
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {gen.remixSource ? (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Remix source:</span>{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">
+                {gen.remixSource}
+              </code>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">Progress:</span>{" "}
+              <span className="font-medium">{gen.progress}%</span>
+              {gen.klingProgress !== undefined ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  (kling: {gen.klingProgress}%)
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Stage:</span>{" "}
+              <span className="font-medium">{gen.progressStage}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Создано:</span>{" "}
+              <span className="font-medium">
+                {new Date(gen.createdAt).toLocaleString("ru-RU")}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Завершено:</span>{" "}
+              <span className="font-medium">
+                {gen.completedAt
+                  ? new Date(gen.completedAt).toLocaleString("ru-RU")
+                  : "—"}
+              </span>
+            </div>
+          </div>
+
+          {gen.progressMessage ? (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Message:</span>{" "}
+              {gen.progressMessage}
+            </div>
+          ) : null}
+
+          {gen.error ? (
+            <div className="rounded bg-red-50 p-2 text-red-600 text-sm dark:bg-red-950 dark:text-red-400">
+              {gen.error}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

@@ -128,8 +128,8 @@ const updateTemplateRoute = createRoute({
             title: z.string().optional(),
             tags: z.array(z.string()).optional(),
             category: z.string().optional(),
-            isPublished: z.boolean().optional(),
-            isFeatured: z.boolean().optional(),
+            is_published: z.boolean().optional(),
+            is_featured: z.boolean().optional(),
           }),
         },
       },
@@ -179,7 +179,7 @@ const generateFromTemplateRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            customPrompt: z.string().optional(),
+            custom_prompt: z.string().optional(),
             options: z
               .object({
                 duration: z
@@ -188,8 +188,10 @@ const generateFromTemplateRoute = createRoute({
                     z.union([z.literal(5), z.literal(10)])
                   )
                   .optional(),
-                aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
-                keepAudio: z.boolean().optional(),
+                aspect_ratio: z
+                  .enum(["16:9", "9:16", "1:1", "auto"])
+                  .optional(),
+                keep_audio: z.boolean().optional(),
               })
               .optional(),
           }),
@@ -203,8 +205,8 @@ const generateFromTemplateRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
-            generationId: z.string(),
-            templateId: z.string(),
+            generation_id: z.string(),
+            template_id: z.string(),
           }),
         },
       },
@@ -614,7 +616,14 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
 
 templatesRouter.openapi(updateTemplateRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const data = c.req.valid("json");
+  const { is_published, is_featured, ...rest } = c.req.valid("json");
+
+  // Map snake_case to camelCase for Prisma
+  const data = {
+    ...rest,
+    ...(is_published !== undefined && { isPublished: is_published }),
+    ...(is_featured !== undefined && { isFeatured: is_featured }),
+  };
 
   try {
     const template = await prisma.template.update({
@@ -629,7 +638,16 @@ templatesRouter.openapi(updateTemplateRoute, async (c) => {
 
 templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
   const { id } = c.req.valid("param");
-  const { customPrompt, options } = c.req.valid("json");
+  const { custom_prompt, options } = c.req.valid("json");
+
+  // Map snake_case to camelCase for internal use
+  const mappedOptions = options
+    ? {
+        duration: options.duration,
+        aspectRatio: options.aspect_ratio,
+        keepAudio: options.keep_audio,
+      }
+    : undefined;
 
   if (!isKlingConfigured()) {
     return c.json({ error: "Kling API is not configured" }, 400);
@@ -650,12 +668,12 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     return c.json({ error: "No source video available" }, 400);
   }
 
-  const prompt = customPrompt || "Based on @Video1, recreate this video.";
+  const prompt = custom_prompt || "Based on @Video1, recreate this video.";
   const generationId = await videoGenJobQueue.startGeneration(
     template.analysisId,
     prompt,
     sourceVideoUrl,
-    options
+    mappedOptions
   );
 
   await prisma.template.update({
@@ -663,7 +681,10 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     data: { generationCount: { increment: 1 } },
   });
 
-  return c.json({ success: true, generationId, templateId: id }, 200);
+  return c.json(
+    { success: true, generation_id: generationId, template_id: id },
+    200
+  );
 });
 
 templatesRouter.openapi(getGenerationsRoute, async (c) => {
@@ -728,13 +749,17 @@ templatesRouter.openapi(searchRoute, async (c) => {
   const { q, limit, offset } = c.req.valid("query");
   const userId = getUserId();
 
-  // Search by title, tags, category
+  // Search by title, tags, category, related reel fields and analysis tags
   const where = {
     isPublished: true,
     OR: [
       { title: { contains: q, mode: "insensitive" as const } },
       { tags: { hasSome: [q] } },
       { category: { contains: q, mode: "insensitive" as const } },
+      { reel: { caption: { contains: q, mode: "insensitive" as const } } },
+      { reel: { author: { contains: q, mode: "insensitive" as const } } },
+      { reel: { hashtag: { contains: q, mode: "insensitive" as const } } },
+      { analysis: { tags: { hasSome: [q] } } },
     ],
   };
 

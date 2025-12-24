@@ -786,30 +786,25 @@ export async function removeBookmark(
   return response.json();
 }
 
-// ===== Scene-based Generation API =====
+// ===== Generation API =====
 
 /**
- * Тип для передачи на бэкенд (snake_case)
+ * Выбор элемента для замены
  */
-export type SceneSelection = {
-  scene_id: string;
-  use_original: boolean;
-  element_selections?: {
-    element_id: string;
-    selected_option_id?: string;
-    custom_media_url?: string;
-  }[];
+export type ElementSelection = {
+  element_id: string;
+  option_id?: string;
+  custom_image_url?: string;
 };
 
 /**
  * Ответ от POST /api/generate
  */
 export type GenerateResponse = {
-  success: boolean;
-  generationId?: string;
-  compositeGenerationId?: string;
-  type: "full" | "composite";
+  generation_id: string;
   status: "queued";
+  status_url: string;
+  type: "full" | "composite";
 };
 
 /**
@@ -832,20 +827,23 @@ export type CompositeStatus = {
 };
 
 /**
- * Запустить scene-based генерацию
+ * Запустить генерацию видео
+ * @param analysisId - ID анализа видео
+ * @param selections - Какие элементы на что заменить
+ * @param keepAudio - Сохранить аудио из оригинала
  */
-export async function generateWithScenes(
+export async function generate(
   analysisId: string,
-  sceneSelections: SceneSelection[],
-  options?: KlingGenerationOptions
+  selections?: ElementSelection[],
+  keepAudio = false
 ): Promise<GenerateResponse> {
   const response = await fetch(`${API_URL}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       analysis_id: analysisId,
-      scene_selections: sceneSelections,
-      options,
+      selections,
+      keep_audio: keepAudio,
     }),
     credentials: "include",
   });
@@ -856,6 +854,31 @@ export async function generateWithScenes(
   }
 
   return response.json();
+}
+
+/**
+ * @deprecated Use ElementSelection instead
+ */
+export type SceneSelection = {
+  scene_id: string;
+  use_original: boolean;
+  element_selections?: {
+    element_id: string;
+    selected_option_id?: string;
+    custom_media_url?: string;
+  }[];
+};
+
+/**
+ * @deprecated Use generate() instead
+ */
+export async function generateWithScenes(
+  analysisId: string,
+  _sceneSelections: SceneSelection[],
+  _options?: KlingGenerationOptions
+): Promise<GenerateResponse> {
+  console.warn("generateWithScenes is deprecated. Use generate() instead.");
+  return generate(analysisId);
 }
 
 /**

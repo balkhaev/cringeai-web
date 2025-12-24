@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { buildElementPrompt, canGenerate } from "@/lib/remix-prompt";
-import { buildSceneSelections, canUseSceneGeneration } from "@/lib/scene-utils";
 import {
-  generateWithScenes,
+  type ElementSelection as ApiElementSelection,
+  generate,
   type KlingGenerationOptions,
   type TemplateAnalysis,
 } from "@/lib/templates-api";
@@ -161,59 +161,27 @@ export function VideoGenerator({
       return;
     }
 
-    const options: KlingGenerationOptions = {
-      duration,
-      aspectRatio,
-      keepAudio,
-    };
+    // Преобразуем selections в формат API (snake_case)
+    const apiSelections: ApiElementSelection[] = elementSelections
+      .filter((sel) => sel.selectedOptionId || sel.customImageUrl)
+      .map((sel) => ({
+        element_id: sel.elementId,
+        option_id: sel.selectedOptionId || undefined,
+        custom_image_url: sel.customImageUrl,
+      }));
 
-    const scenes = analysis.videoScenes;
+    try {
+      const result = await generate(analysis.id, apiSelections, keepAudio);
 
-    // Scene-based генерация если есть сцены
-    if (canUseSceneGeneration(scenes, elementSelections)) {
-      const sceneSelections = buildSceneSelections(
-        allElements,
-        scenes!,
-        elementSelections
-      );
-
-      try {
-        const result = await generateWithScenes(
-          analysis.id,
-          sceneSelections,
-          options
-        );
-
-        if (result.type === "composite" && result.compositeGenerationId) {
-          toast.success("Генерация по сценам запущена");
-        }
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Ошибка генерации"
-        );
+      if (result.type === "composite") {
+        toast.success("Генерация по сценам запущена");
+      } else {
+        toast.success("Генерация запущена");
       }
-      return;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка генерации");
     }
-
-    // Fallback на обычную генерацию полного видео
-    if (elementRefs.length > 0) {
-      options.elements = elementRefs;
-    }
-
-    await onGenerate(generatedPrompt, options, analysis.id);
-  }, [
-    sourceVideoUrl,
-    analysis,
-    canGenerateNow,
-    generatedPrompt,
-    elementRefs,
-    elementSelections,
-    allElements,
-    duration,
-    aspectRatio,
-    keepAudio,
-    onGenerate,
-  ]);
+  }, [sourceVideoUrl, analysis, canGenerateNow, elementSelections, keepAudio]);
 
   return (
     <Card className="border-violet-500/20 bg-linear-to-br from-violet-500/5 to-transparent">
