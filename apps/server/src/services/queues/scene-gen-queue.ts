@@ -659,12 +659,18 @@ export const sceneGenJobQueue = {
     endTime: number,
     options?: SceneGenJobData["options"]
   ): Promise<string> {
+    // Build selectedElements from imageUrls for storage
+    const selectedElements =
+      options?.imageUrls?.map((url) => ({
+        customMediaUrl: url,
+      })) || [];
+
     // Create SceneGeneration record
     const generation = await prisma.sceneGeneration.create({
       data: {
         sceneId,
         prompt,
-        selectedElements: [],
+        selectedElements,
         status: "pending",
       },
     });

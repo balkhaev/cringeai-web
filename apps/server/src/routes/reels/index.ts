@@ -176,6 +176,39 @@ const getSavedReelRoute = createRoute({
   },
 });
 
+const deleteSavedReelRoute = createRoute({
+  method: "delete",
+  path: "/saved/{id}",
+  summary: "Delete saved reel by ID",
+  tags: ["Reels"],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ param: { name: "id", in: "path" } }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+      description: "Reel deleted successfully",
+    },
+    404: {
+      content: { "application/json": { schema: NotFoundResponseSchema } },
+      description: "Reel not found",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Server error",
+    },
+  },
+});
+
 const addReelRoute = createRoute({
   method: "post",
   path: "/add",
@@ -782,6 +815,86 @@ reelsRouter.openapi(getSavedReelRoute, async (c) => {
   }
 
   return c.json(reel, 200);
+});
+
+reelsRouter.openapi(deleteSavedReelRoute, async (c) => {
+  const { id } = c.req.valid("param");
+
+  try {
+    const reel = await prisma.reel.findUnique({ where: { id } });
+    if (!reel) {
+      return c.json({ error: "Reel not found" }, 404);
+    }
+
+    // Delete related data first (cascade not always set)
+    await prisma.$transaction(async (tx) => {
+      // Delete logs
+      await tx.reelLog.deleteMany({ where: { reelId: id } });
+
+      // Delete AI logs
+      await tx.aILog.deleteMany({ where: { reelId: id } });
+
+      // Get analyses for this reel
+      const analyses = await tx.videoAnalysis.findMany({
+        where: { sourceType: "reel", sourceId: id },
+        select: { id: true },
+      });
+      const analysisIds = analyses.map((a) => a.id);
+
+      if (analysisIds.length > 0) {
+        // Delete video scenes and their generations
+        const scenes = await tx.videoScene.findMany({
+          where: { analysisId: { in: analysisIds } },
+          select: { id: true },
+        });
+        const sceneIds = scenes.map((s) => s.id);
+
+        if (sceneIds.length > 0) {
+          await tx.sceneGeneration.deleteMany({
+            where: { sceneId: { in: sceneIds } },
+          });
+          await tx.videoScene.deleteMany({ where: { id: { in: sceneIds } } });
+        }
+
+        // Delete video elements
+        await tx.videoElement.deleteMany({
+          where: { analysisId: { in: analysisIds } },
+        });
+
+        // Delete composite generations
+        await tx.compositeGeneration.deleteMany({
+          where: { analysisId: { in: analysisIds } },
+        });
+
+        // Delete video generations
+        await tx.videoGeneration.deleteMany({
+          where: { analysisId: { in: analysisIds } },
+        });
+
+        // Delete analyses
+        await tx.videoAnalysis.deleteMany({
+          where: { id: { in: analysisIds } },
+        });
+      }
+
+      // Delete S3 file if exists
+      if (reel.s3Key) {
+        try {
+          await s3Service.deleteFile(reel.s3Key);
+        } catch (s3Error) {
+          console.error(`[DeleteReel] Failed to delete S3 file: ${s3Error}`);
+        }
+      }
+
+      // Finally delete the reel
+      await tx.reel.delete({ where: { id } });
+    });
+
+    return c.json({ success: true, message: "Reel deleted successfully" }, 200);
+  } catch (error) {
+    console.error("Delete reel error:", error);
+    return c.json({ error: "Failed to delete reel" }, 500);
+  }
 });
 
 reelsRouter.openapi(addReelRoute, async (c) => {
