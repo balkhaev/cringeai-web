@@ -177,7 +177,7 @@ export function VideoGenerator({
       const result = await generate(analysis.id, {
         selections: apiSelections,
         keepAudio,
-        duration: duration as 5 | 10,
+        duration,
         aspectRatio,
       });
 

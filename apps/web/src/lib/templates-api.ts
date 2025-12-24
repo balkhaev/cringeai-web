@@ -325,7 +325,7 @@ export type KlingImageElement = {
  * Options for Kling video generation
  */
 export type KlingGenerationOptions = {
-  duration?: number; // 1-10 seconds
+  duration?: number; // 3-10 seconds
   aspectRatio?: "16:9" | "9:16" | "1:1" | "auto";
   keepAudio?: boolean;
   /** Image URLs for @Image1, @Image2... references */
@@ -858,7 +858,7 @@ export type CompositeStatus = {
 export type GenerateOptions = {
   selections?: ElementSelection[];
   keepAudio?: boolean;
-  duration?: 5 | 10;
+  duration?: number; // 3-10
   aspectRatio?: "16:9" | "9:16" | "1:1" | "auto";
 };
 
@@ -942,7 +942,7 @@ export async function regenerateScene(
   sceneId: string,
   options?: {
     prompt?: string;
-    duration?: 5 | 10;
+    duration?: number; // 3-10
     aspectRatio?: "16:9" | "9:16" | "1:1" | "auto";
     keepAudio?: boolean;
     autoComposite?: boolean;

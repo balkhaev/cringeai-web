@@ -185,7 +185,7 @@ const generateFromTemplateRoute = createRoute({
                 duration: z
                   .preprocess(
                     (val) => (typeof val === "string" ? Number(val) : val),
-                    z.union([z.literal(5), z.literal(10)])
+                    z.number().min(3).max(10)
                   )
                   .optional(),
                 aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
