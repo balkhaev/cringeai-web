@@ -214,6 +214,9 @@ export class GeminiService {
         pollCount += 1;
         // Progress from 10% to 50% during file processing
         const percent = Math.min(10 + pollCount * 3, 50);
+        console.log(
+          `[GEMINI] uploadVideo: polling ${pollCount}, state: ${file.state}`
+        );
         await onProgress?.(
           "processing",
           percent,
@@ -221,6 +224,9 @@ export class GeminiService {
         );
         await new Promise((resolve) => setTimeout(resolve, 2000));
         file = await this.fileManager.getFile(file.name);
+        console.log(
+          `[GEMINI] uploadVideo: after getFile, state: ${file.state}`
+        );
       }
 
       if (file.state === FileState.FAILED) {

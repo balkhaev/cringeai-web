@@ -157,9 +157,11 @@ export const pipelineWorker = new Worker<PipelineJobData, PipelineJobResult>(
 
         case "analyze-scenes": {
           // Use unified analysis
+          console.log(`[PipelineQueue] ${reelId}: Starting dynamic import...`);
           const { analyzeReelUnified } = await import(
             "../analysis/scene-analysis.service"
           );
+          console.log(`[PipelineQueue] ${reelId}: Dynamic import done`);
 
           await updateProgress(
             job,

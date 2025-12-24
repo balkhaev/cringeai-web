@@ -14,10 +14,8 @@ import {
   VideoGenerationListQuerySchema,
 } from "../schemas";
 import { sceneGenJobQueue, videoGenJobQueue } from "../services/queues";
-import {
-  buildReelVideoUrl,
-  getGenerationVideoPublicUrl,
-} from "../services/url-builder";
+import { getExternalReelVideoUrl } from "../services/s3";
+import { getGenerationVideoPublicUrl } from "../services/url-builder";
 import { buildPromptFromSelections } from "../utils/prompt-builder";
 
 const app = new OpenAPIHono();
@@ -94,9 +92,9 @@ app.openapi(generateRoute, async (c) => {
       return c.json({ error: "Analysis not found" }, 404);
     }
 
-    // 2. Получаем source video URL
+    // 2. Получаем source video URL (прямой S3 URL для внешних сервисов типа Kling)
     const reel = analysis.template?.reel;
-    const sourceVideoUrl = reel ? buildReelVideoUrl(reel) : null;
+    const sourceVideoUrl = reel ? getExternalReelVideoUrl(reel) : null;
 
     if (!sourceVideoUrl) {
       return c.json({ error: "Source video not found" }, 400);
@@ -870,10 +868,10 @@ app.openapi(regenerateSceneRoute, async (c) => {
   // Get source video URL - try multiple sources in order of preference
   let originalVideoUrl: string | null = null;
 
-  // 1. Try template->reel (for reel-based analyses)
+  // 1. Try template->reel (for reel-based analyses) - use external S3 URL for Kling
   const reel = scene.analysis.template?.reel;
   if (reel) {
-    originalVideoUrl = buildReelVideoUrl(reel);
+    originalVideoUrl = getExternalReelVideoUrl(reel);
   }
 
   // 2. Fallback to scene's pre-trimmed video (for upload-based analyses with scene splitting)

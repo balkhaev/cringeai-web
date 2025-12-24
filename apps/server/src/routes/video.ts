@@ -22,7 +22,12 @@ import { getDownloadsPath } from "../services/instagram/downloader";
 import { isKlingConfigured } from "../services/kling";
 import { getOpenAIService, isOpenAIConfigured } from "../services/openai";
 import { getVideoGenerationsPath, videoGenJobQueue } from "../services/queues";
-import { getS3Key, isS3Configured, s3Service } from "../services/s3";
+import {
+  getExternalReelVideoUrl,
+  getS3Key,
+  isS3Configured,
+  s3Service,
+} from "../services/s3";
 import { getReferenceImagePublicUrl } from "../services/url-builder";
 
 declare const Bun: {
@@ -846,7 +851,7 @@ video.openapi(analyzeReelRoute, async (c) => {
 
 video.openapi(generateRoute, async (c) => {
   try {
-    const { analysisId, prompt, sourceVideoUrl, options } = c.req.valid("json");
+    const { analysisId, prompt, options } = c.req.valid("json");
 
     if (!analysisId) {
       return c.json({ error: "analysisId is required" }, 400);
@@ -854,13 +859,6 @@ video.openapi(generateRoute, async (c) => {
 
     if (!prompt) {
       return c.json({ error: "prompt is required" }, 400);
-    }
-
-    if (!sourceVideoUrl) {
-      return c.json(
-        { error: "sourceVideoUrl is required for video-to-video generation" },
-        400
-      );
     }
 
     if (!isKlingConfigured()) {
@@ -873,12 +871,28 @@ video.openapi(generateRoute, async (c) => {
       );
     }
 
+    // Get analysis with template and reel to obtain external video URL
     const analysis = await prisma.videoAnalysis.findUnique({
       where: { id: analysisId },
+      include: {
+        template: {
+          include: {
+            reel: true,
+          },
+        },
+      },
     });
 
     if (!analysis) {
       return c.json({ error: "Analysis not found" }, 404);
+    }
+
+    // Get external S3 URL for Kling API (needs direct access)
+    const reel = analysis.template?.reel;
+    const sourceVideoUrl = reel ? getExternalReelVideoUrl(reel) : null;
+
+    if (!sourceVideoUrl) {
+      return c.json({ error: "Source video not found for this analysis" }, 400);
     }
 
     const generationId = await videoGenJobQueue.startGeneration(

@@ -361,17 +361,21 @@ export function getReelVideoUrl(reel: {
 
 /**
  * Get public URL for S3 file (for Kling API which needs direct access)
+ * Uses S3_PUBLIC_URL if configured, falls back to S3_ENDPOINT
  */
 export function getS3PublicUrl(key: string): string {
-  // For MinIO/S3, construct direct URL
-  return `${s3Config.endpoint}/${s3Config.bucket}/${key}`;
+  // For MinIO/S3, construct direct URL using public URL
+  return `${s3Config.publicUrl}/${s3Config.bucket}/${key}`;
 }
 
 /**
- * Get public video URL for a reel (for external services like Kling API)
+ * Get external video URL for a reel (for external services like Kling API)
  * Returns direct S3 URL that can be accessed from the internet
+ *
+ * IMPORTANT: Use this for external API calls (Kling, etc.) that need to fetch the video.
+ * For internal/frontend URLs use buildReelVideoUrl from url-builder.ts
  */
-export function getReelVideoPublicUrl(reel: {
+export function getExternalReelVideoUrl(reel: {
   id: string;
   s3Key?: string | null;
   videoUrl?: string | null;
@@ -379,7 +383,7 @@ export function getReelVideoPublicUrl(reel: {
   // If S3 key is available, return public S3 URL
   if (reel.s3Key && isS3Configured()) {
     const url = getS3PublicUrl(reel.s3Key);
-    console.log(`[S3] Public URL for reel ${reel.id}: ${url}`);
+    console.log(`[S3] External URL for reel ${reel.id}: ${url}`);
     return url;
   }
 

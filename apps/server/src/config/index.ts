@@ -52,6 +52,11 @@ export const ai = {
 
 export const s3 = {
   endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
+  /** Public URL for S3/MinIO (for external services like Kling API) */
+  publicUrl:
+    process.env.S3_PUBLIC_URL ||
+    process.env.S3_ENDPOINT ||
+    "http://localhost:9000",
   accessKey: process.env.S3_ACCESS_KEY || "",
   secretKey: process.env.S3_SECRET_KEY || "",
   bucket: process.env.S3_BUCKET || "trender",

@@ -78,12 +78,12 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
         );
       }
 
-      // URL should already be a full public URL (from buildReelVideoUrl)
+      // URL should already be a full public URL (from getExternalReelVideoUrl)
       // Validate that it's not a relative path
       if (sourceVideoUrl.startsWith("/api/")) {
         throw new Error(
           "Source video URL must be a full public URL, not a relative path. " +
-            "Check that PUBLIC_URL is configured and buildReelVideoUrl is used."
+            "Check that S3_PUBLIC_URL is configured and getExternalReelVideoUrl is used."
         );
       }
       const publicVideoUrl = sourceVideoUrl;

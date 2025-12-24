@@ -14,7 +14,7 @@ import {
 } from "../schemas";
 import { isKlingConfigured } from "../services/kling";
 import { videoGenJobQueue } from "../services/queues";
-import { getReelVideoPublicUrl } from "../services/s3";
+import { getExternalReelVideoUrl } from "../services/s3";
 import { buildReelVideoUrl } from "../services/url-builder";
 
 // TODO: Get userId from auth session
@@ -702,8 +702,8 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     return c.json({ error: "Template not found" }, 404);
   }
 
-  // Use public URL for Kling API (needs direct access to video file)
-  const sourceVideoUrl = getReelVideoPublicUrl(template.reel);
+  // Use external S3 URL for Kling API (needs direct access to video file)
+  const sourceVideoUrl = getExternalReelVideoUrl(template.reel);
   if (!sourceVideoUrl) {
     return c.json({ error: "No source video available" }, 400);
   }
