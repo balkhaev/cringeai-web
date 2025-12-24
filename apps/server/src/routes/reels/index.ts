@@ -17,10 +17,8 @@ import {
   ResizeReelResponseSchema,
 } from "../../schemas";
 import { getDownloadsPath } from "../../services/instagram/downloader";
-import { parseReelUrl } from "../../services/instagram/reel-url";
 import { pipelineLogger } from "../../services/pipeline-logger";
 import { pipelineJobQueue } from "../../services/queues";
-import { reelPipeline } from "../../services/reel-pipeline";
 import { s3Service } from "../../services/s3";
 import { buildReelVideoUrl } from "../../services/url-builder";
 import { authRouter } from "./auth";
@@ -732,83 +730,17 @@ reelsRouter.openapi(listSavedReelsRoute, async (c) => {
   const { limit, offset, minLikes, hashtag, status, search } =
     c.req.valid("query");
 
-  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-  const where: any = {};
-  if (minLikes && minLikes > 0) {
-    where.likeCount = { gte: minLikes };
-  }
-  if (hashtag) {
-    where.hashtag = hashtag === "reels" ? null : hashtag;
-  }
-  if (status) {
-    where.status = status;
-  }
-  if (search) {
-    // Find reelIds that have analysis with matching tags
-    const analysesWithTags = await prisma.videoAnalysis.findMany({
-      where: {
-        sourceType: "reel",
-        tags: { hasSome: [search] },
-      },
-      select: { sourceId: true },
-    });
-    const reelIdsWithMatchingTags = analysesWithTags
-      .map((a) => a.sourceId)
-      .filter((id): id is string => id !== null);
-
-    where.OR = [
-      { caption: { contains: search, mode: "insensitive" } },
-      { author: { contains: search, mode: "insensitive" } },
-      { hashtag: { contains: search, mode: "insensitive" } },
-      ...(reelIdsWithMatchingTags.length > 0
-        ? [{ id: { in: reelIdsWithMatchingTags } }]
-        : []),
-    ];
-  }
-
-  const [reels, total] = await Promise.all([
-    prisma.reel.findMany({
-      where,
-      orderBy: { likeCount: "desc" },
-      take: limit,
-      skip: offset,
-    }),
-    prisma.reel.count({ where }),
-  ]);
-
-  // Get analyses for these reels
-  const reelIds = reels.map((r) => r.id);
-  const analyses = await prisma.videoAnalysis.findMany({
-    where: {
-      sourceType: "reel",
-      sourceId: { in: reelIds },
-    },
-    include: {
-      generations: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
+  const { listSavedReelsUseCase } = await import("../../application/reels");
+  const result = await listSavedReelsUseCase({
+    limit,
+    offset,
+    minLikes,
+    hashtag,
+    status,
+    search,
   });
 
-  // Create a map of reelId -> analysis
-  const analysisMap = new Map(analyses.map((a) => [a.sourceId, a]));
-
-  // Merge reels with their analyses
-  const reelsWithAnalysis = reels.map((reel) => ({
-    ...reel,
-    analysis: analysisMap.get(reel.id) || null,
-  }));
-
-  return c.json(
-    {
-      reels: reelsWithAnalysis,
-      total,
-      limit,
-      offset,
-    },
-    200
-  );
+  return c.json(result, 200);
 });
 
 reelsRouter.openapi(getSavedReelRoute, async (c) => {
@@ -850,116 +782,14 @@ reelsRouter.openapi(deleteSavedReelRoute, async (c) => {
   const { id } = c.req.valid("param");
 
   try {
-    const reel = await prisma.reel.findUnique({ where: { id } });
-    if (!reel) {
-      return c.json({ error: "Reel not found" }, 404);
+    const { deleteReelUseCase } = await import("../../application/reels");
+    const result = await deleteReelUseCase(id);
+
+    if (!result.success) {
+      return c.json({ error: result.error }, result.status);
     }
 
-    // Collect S3 keys to delete
-    const s3KeysToDelete: string[] = [];
-    if (reel.s3Key) {
-      s3KeysToDelete.push(reel.s3Key);
-    }
-
-    // Delete related data first (cascade not always set)
-    await prisma.$transaction(async (tx) => {
-      // Delete logs
-      await tx.reelLog.deleteMany({ where: { reelId: id } });
-
-      // Delete AI logs
-      await tx.aILog.deleteMany({ where: { reelId: id } });
-
-      // Get analyses for this reel
-      const analyses = await tx.videoAnalysis.findMany({
-        where: { sourceType: "reel", sourceId: id },
-        select: { id: true },
-      });
-      const analysisIds = analyses.map((a) => a.id);
-
-      if (analysisIds.length > 0) {
-        // Get video scenes with their S3 keys
-        const scenes = await tx.videoScene.findMany({
-          where: { analysisId: { in: analysisIds } },
-          select: { id: true, thumbnailS3Key: true, videoS3Key: true },
-        });
-        const sceneIds = scenes.map((s) => s.id);
-
-        // Collect scene S3 keys
-        for (const scene of scenes) {
-          if (scene.thumbnailS3Key) s3KeysToDelete.push(scene.thumbnailS3Key);
-          if (scene.videoS3Key) s3KeysToDelete.push(scene.videoS3Key);
-        }
-
-        if (sceneIds.length > 0) {
-          // Get scene generations with S3 keys
-          const sceneGens = await tx.sceneGeneration.findMany({
-            where: { sceneId: { in: sceneIds } },
-            select: { s3Key: true },
-          });
-          for (const gen of sceneGens) {
-            if (gen.s3Key) s3KeysToDelete.push(gen.s3Key);
-          }
-
-          await tx.sceneGeneration.deleteMany({
-            where: { sceneId: { in: sceneIds } },
-          });
-          await tx.videoScene.deleteMany({ where: { id: { in: sceneIds } } });
-        }
-
-        // Delete video elements
-        await tx.videoElement.deleteMany({
-          where: { analysisId: { in: analysisIds } },
-        });
-
-        // Get composite generations with S3 keys
-        const compositeGens = await tx.compositeGeneration.findMany({
-          where: { analysisId: { in: analysisIds } },
-          select: { s3Key: true },
-        });
-        for (const gen of compositeGens) {
-          if (gen.s3Key) s3KeysToDelete.push(gen.s3Key);
-        }
-        await tx.compositeGeneration.deleteMany({
-          where: { analysisId: { in: analysisIds } },
-        });
-
-        // Get video generations with S3 keys
-        const videoGens = await tx.videoGeneration.findMany({
-          where: { analysisId: { in: analysisIds } },
-          select: { s3Key: true },
-        });
-        for (const gen of videoGens) {
-          if (gen.s3Key) s3KeysToDelete.push(gen.s3Key);
-        }
-        await tx.videoGeneration.deleteMany({
-          where: { analysisId: { in: analysisIds } },
-        });
-
-        // Delete analyses
-        await tx.videoAnalysis.deleteMany({
-          where: { id: { in: analysisIds } },
-        });
-      }
-
-      // Finally delete the reel
-      await tx.reel.delete({ where: { id } });
-    });
-
-    // Delete S3 files after transaction (non-blocking)
-    if (s3KeysToDelete.length > 0) {
-      console.log(`[DeleteReel] Deleting ${s3KeysToDelete.length} S3 files...`);
-      Promise.all(
-        s3KeysToDelete.map((key) =>
-          s3Service.deleteFile(key).catch((err) => {
-            console.error(`[DeleteReel] Failed to delete S3 file ${key}:`, err);
-          })
-        )
-      ).then(() => {
-        console.log(`[DeleteReel] S3 cleanup completed for reel ${id}`);
-      });
-    }
-
-    return c.json({ success: true, message: "Reel deleted successfully" }, 200);
+    return c.json({ success: true, message: result.message }, 200);
   } catch (error) {
     console.error("Delete reel error:", error);
     return c.json({ error: "Failed to delete reel" }, 500);
@@ -969,61 +799,21 @@ reelsRouter.openapi(deleteSavedReelRoute, async (c) => {
 reelsRouter.openapi(addReelRoute, async (c) => {
   try {
     const { url } = c.req.valid("json");
+    const { addReelUseCase } = await import("../../application/reels");
+    const result = await addReelUseCase(url);
 
-    // Parse shortcode from URL
-    const shortcode = parseReelUrl(url);
-    if (!shortcode) {
-      return c.json(
-        {
-          error:
-            "Invalid Instagram URL. Expected format: instagram.com/reel/SHORTCODE",
-        },
-        400
-      );
-    }
-
-    // Check if reel already exists
-    const existing = await prisma.reel.findUnique({ where: { id: shortcode } });
-    if (existing) {
-      return c.json(
-        {
-          success: true,
-          reel: existing,
-          message: "Reel already exists",
-          isNew: false,
-        },
-        200
-      );
-    }
-
-    // Create reel entry
-    const reel = await prisma.reel.create({
-      data: {
-        id: shortcode,
-        url: `https://www.instagram.com/reel/${shortcode}/`,
-        source: "manual",
-        status: "scraped",
-      },
-    });
-
-    // Start download immediately
-    console.log(`[AddReel] Starting download for reel ${shortcode}...`);
-    try {
-      const jobId = await pipelineJobQueue.addDownloadJob(shortcode);
-      console.log(`[AddReel] Download job added: ${jobId}`);
-    } catch (queueError) {
-      console.error("[AddReel] Failed to add download job:", queueError);
-      throw queueError;
+    if (!result.success) {
+      return c.json({ error: result.error }, result.status);
     }
 
     return c.json(
       {
         success: true,
-        reel,
-        message: "Reel added and download started",
-        isNew: true,
+        reel: result.reel,
+        message: result.message,
+        isNew: result.isNew,
       },
-      201
+      result.isNew ? 201 : 200
     );
   } catch (error) {
     console.error("Failed to add reel:", error);
@@ -1082,132 +872,14 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
 reelsRouter.openapi(getReelDebugRoute, async (c) => {
   try {
     const { id } = c.req.valid("param");
+    const { getReelDebugUseCase } = await import("../../application/reels");
+    const result = await getReelDebugUseCase(id);
 
-    const reel = await reelPipeline.getReelWithDetails(id);
-
-    if (!reel) {
-      return c.json({ error: "Reel not found" }, 404);
+    if (!result.success) {
+      return c.json({ error: result.error }, result.status);
     }
 
-    // Получаем статистику по этапам
-    const stageStats = await pipelineLogger.getStageStats(id);
-
-    // Получаем последние ошибки
-    const recentErrors = await pipelineLogger.getRecentErrors(id);
-
-    // Получаем все логи для таймлайна
-    const logs = await pipelineLogger.getReelLogs(id);
-
-    // Собираем таймлайн из логов
-    const timeline = logs.map((log) => ({
-      stage: log.stage,
-      level: log.level,
-      message: log.message,
-      duration: log.duration,
-      timestamp: log.createdAt,
-      metadata: log.metadata,
-    }));
-
-    // Получаем все анализы для этого рила (только нужные поля)
-    const analyses = await prisma.videoAnalysis.findMany({
-      where: {
-        sourceType: "reel",
-        sourceId: id,
-      },
-      select: {
-        id: true,
-        sourceType: true,
-        sourceId: true,
-        analysisType: true,
-        duration: true,
-        aspectRatio: true,
-        elements: true,
-        hasScenes: true,
-        scenesCount: true,
-        createdAt: true,
-        tags: true,
-        videoScenes: {
-          orderBy: { index: "asc" },
-        },
-        videoElements: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    // Получаем генерации для этого рила через analysisIds
-    const analysisIds = analyses.map((a) => a.id);
-    const relatedGenerations = await prisma.videoGeneration.findMany({
-      where: { analysisId: { in: analysisIds } },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const generationIds = relatedGenerations.map((g) => g.id);
-
-    // Получаем scene генерации через VideoScene -> SceneGeneration
-    const sceneIds = analyses.flatMap(
-      (a) => a.videoScenes?.map((s) => s.id) || []
-    );
-    const sceneGenerations =
-      sceneIds.length > 0
-        ? await prisma.sceneGeneration.findMany({
-            where: { sceneId: { in: sceneIds } },
-            orderBy: { createdAt: "desc" },
-            include: {
-              scene: {
-                select: {
-                  index: true,
-                  startTime: true,
-                  endTime: true,
-                  duration: true,
-                  thumbnailUrl: true,
-                },
-              },
-            },
-          })
-        : [];
-
-    // Получаем composite генерации
-    const compositeGenerations =
-      analysisIds.length > 0
-        ? await prisma.compositeGeneration.findMany({
-            where: { analysisId: { in: analysisIds } },
-            orderBy: { createdAt: "desc" },
-          })
-        : [];
-
-    // Получаем AI логи (Kling, OpenAI, Gemini)
-    const aiLogs = await prisma.aILog.findMany({
-      where: {
-        OR: [{ reelId: id }, { generationId: { in: generationIds } }],
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-
-    // Формируем videoUrl из s3Key или localPath
-    const videoUrl = buildReelVideoUrl(reel);
-
-    return c.json(
-      {
-        reel: {
-          ...reel,
-          videoUrl,
-        },
-        stageStats,
-        recentErrors,
-        timeline,
-        logs,
-        aiLogs,
-        // Дополнительные поля для фронтенда
-        analyses,
-        template: reel.template,
-        generations: relatedGenerations,
-        sceneGenerations,
-        compositeGenerations,
-        videoUrl,
-      },
-      200
-    );
+    return c.json(result.data, 200);
   } catch (error) {
     console.error("Debug endpoint error:", error);
     return c.json({ error: "Failed to get debug info" }, 500);

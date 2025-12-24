@@ -272,7 +272,7 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
   },
   {
     connection: redis,
-    concurrency: 2, // Process up to 2 generations in parallel (API rate limits)
+    concurrency: 5, // Process up to 5 generations in parallel
   }
 );
 
