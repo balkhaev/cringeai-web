@@ -16,33 +16,7 @@ model VideoAnalysis {
   hasScenes    Boolean @default(false) // Флаг: есть ли разбиение на сцены
   scenesCount  Int?                     // Количество сцен
 
-  // Legacy fields (kept for old analyses, optional now)
-  subject      String @default("")
-  action       String @default("")
-  environment  String @default("")
-  cameraStyle  String @default("")
-  mood         String @default("")
-  colorPalette String @default("")
-  style        String @default("")
-  lighting     String @default("")
-  pacing       String @default("")
-  cameraWork   String @default("")
-
-  // Legacy detailed fields
-  scenes           Json @default("[]")
-  characters       Json @default("[]")
-  objects          Json @default("[]")
-  cameraMovements  Json @default("[]")
-  transitions      Json @default("[]")
-  audio            Json @default("{}")
-  textOverlays     Json @default("[]")
-
-  // Legacy prompts
-  klingPrompt  String @default("")
-  veo3Prompt   String @default("")
-
   tags         String[] @default([])
-  suggestions  Json @default("[]")
 
   createdAt DateTime @default(now())
 

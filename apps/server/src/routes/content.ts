@@ -64,7 +64,7 @@ const fromUrlRoute = createRoute({
 });
 
 app.openapi(fromUrlRoute, async (c) => {
-  const { url, autoProcess } = c.req.valid("json");
+  const { url, auto_process: autoProcess } = c.req.valid("json");
 
   const shortcode = extractShortcode(url);
   if (!shortcode) {
@@ -87,11 +87,11 @@ app.openapi(fromUrlRoute, async (c) => {
       return c.json(
         {
           success: true,
-          contentId: shortcode,
+          content_id: shortcode,
           status: "existing" as const,
-          existingAnalysis: {
-            analysisId: existing.template.analysis.id,
-            templateId: existing.template.id,
+          existing_analysis: {
+            analysis_id: existing.template.analysis.id,
+            template_id: existing.template.id,
           },
         },
         202
@@ -122,9 +122,9 @@ app.openapi(fromUrlRoute, async (c) => {
     return c.json(
       {
         success: true,
-        contentId: shortcode,
+        content_id: shortcode,
         status: existing ? ("processing" as const) : ("new" as const),
-        jobId,
+        job_id: jobId,
       },
       202
     );
@@ -232,8 +232,8 @@ app.openapi(uploadRoute, async (c) => {
     return c.json(
       {
         success: true,
-        contentId,
-        jobId,
+        content_id: contentId,
+        job_id: jobId,
         status: "processing" as const,
       },
       202
@@ -323,47 +323,46 @@ app.openapi(statusRoute, async (c) => {
   const status = statusMap[reel.status] ?? "pending";
   const analysis = reel.template?.analysis;
 
-  // Parse elements from JSON
+  // Parse and transform elements to snake_case
+  type StoredElement = {
+    id: string;
+    type: "character" | "object" | "background";
+    label: string;
+    description: string;
+    remixOptions: Array<{
+      id: string;
+      label: string;
+      icon: string;
+      prompt: string;
+    }>;
+  };
+
+  const transformElement = (el: StoredElement) => ({
+    id: el.id,
+    type: el.type,
+    label: el.label,
+    description: el.description,
+    remix_options: el.remixOptions,
+  });
+
   const elements = analysis?.elements
-    ? (analysis.elements as Array<{
-        id: string;
-        type: "character" | "object" | "background";
-        label: string;
-        description: string;
-        remixOptions: Array<{
-          id: string;
-          label: string;
-          icon: string;
-          prompt: string;
-        }>;
-      }>)
+    ? (analysis.elements as StoredElement[]).map(transformElement)
     : [];
 
   // Map scenes
   const scenes = analysis?.videoScenes?.map((scene) => ({
     id: scene.id,
     index: scene.index,
-    startTime: scene.startTime,
-    endTime: scene.endTime,
+    start_time: scene.startTime,
+    end_time: scene.endTime,
     duration: scene.duration,
-    thumbnailUrl: scene.thumbnailUrl,
-    elements: scene.elements as Array<{
-      id: string;
-      type: "character" | "object" | "background";
-      label: string;
-      description: string;
-      remixOptions: Array<{
-        id: string;
-        label: string;
-        icon: string;
-        prompt: string;
-      }>;
-    }>,
+    thumbnail_url: scene.thumbnailUrl,
+    elements: (scene.elements as StoredElement[]).map(transformElement),
   }));
 
   return c.json(
     {
-      contentId: reel.id,
+      content_id: reel.id,
       status,
       progress: reel.progress,
       stage: reel.progressStage,
@@ -372,12 +371,12 @@ app.openapi(statusRoute, async (c) => {
         analysis: {
           id: analysis.id,
           duration: analysis.duration,
-          aspectRatio: analysis.aspectRatio,
+          aspect_ratio: analysis.aspectRatio,
           elements,
           ...(scenes && scenes.length > 0 && { scenes }),
         },
       }),
-      ...(reel.template && { templateId: reel.template.id }),
+      ...(reel.template && { template_id: reel.template.id }),
       ...(reel.errorMessage && { error: reel.errorMessage }),
     },
     200

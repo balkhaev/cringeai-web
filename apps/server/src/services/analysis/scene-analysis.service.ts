@@ -708,28 +708,57 @@ async function mergeUnifiedElementsWithOptions(
 
   const remixOptionsMap = new Map<string, RemixOption[]>();
 
+  console.log(
+    `[mergeUnifiedElementsWithOptions] OpenAI configured: ${isOpenAIConfigured()}, elements count: ${elementsForChatGPT.length}`
+  );
+
   if (isOpenAIConfigured() && elementsForChatGPT.length > 0) {
     try {
+      console.log(
+        "[mergeUnifiedElementsWithOptions] Calling OpenAI generateEnchantingOptions..."
+      );
       const openaiService = getOpenAIService();
       const enchantingResults =
         await openaiService.generateEnchantingOptions(elementsForChatGPT);
 
+      console.log(
+        `[mergeUnifiedElementsWithOptions] OpenAI returned ${enchantingResults.length} results`
+      );
+
       for (const result of enchantingResults) {
+        console.log(
+          `[mergeUnifiedElementsWithOptions] Element ${result.id} got ${result.remixOptions?.length || 0} remixOptions`
+        );
         remixOptionsMap.set(result.id, result.remixOptions);
       }
     } catch (openaiError) {
+      console.error(
+        "[mergeUnifiedElementsWithOptions] OpenAI error:",
+        openaiError
+      );
       await pipelineLogger.warn({
         reelId,
         stage: "analyze",
         message: `ChatGPT error: ${openaiError instanceof Error ? openaiError.message : String(openaiError)}`,
       });
     }
+  } else {
+    console.log(
+      "[mergeUnifiedElementsWithOptions] Skipping OpenAI - not configured or no elements"
+    );
   }
 
-  return elements.map((element) => ({
+  const result = elements.map((element) => ({
     ...element,
     remixOptions: remixOptionsMap.get(element.id) || [],
   }));
+
+  console.log(
+    `[mergeUnifiedElementsWithOptions] Final result: ${result.length} elements with remixOptions:`,
+    result.map((e) => ({ id: e.id, remixOptionsCount: e.remixOptions.length }))
+  );
+
+  return result;
 }
 
 /**
@@ -884,6 +913,10 @@ export async function analyzeReelUnified(
           // sceneId will be added after creating scenes
         };
       });
+
+      console.log(
+        `[analyzeReelUnified] Saving VideoElement ${element.id} with ${element.remixOptions?.length || 0} remixOptions`
+      );
 
       const dbElement = await prisma.videoElement.create({
         data: {

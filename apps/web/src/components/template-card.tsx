@@ -60,17 +60,18 @@ export function TemplateCard({ template, onSelect }: TemplateCardProps) {
 
   const handleCopy = useCallback(async () => {
     if (!isFullTemplate(template)) {
-      toast.error("Промпт недоступен в этом режиме");
+      toast.error("Информация недоступна в этом режиме");
       return;
     }
-    const prompt = template.analysis.klingPrompt || "";
-    if (!prompt) {
-      toast.error("Промпт не найден");
+    // Копируем теги как текст
+    const tags = template.analysis.tags?.join(", ") || "";
+    if (!tags) {
+      toast.error("Теги не найдены");
       return;
     }
-    await navigator.clipboard.writeText(prompt);
+    await navigator.clipboard.writeText(tags);
     setCopied(true);
-    toast.success("Промпт скопирован");
+    toast.success("Теги скопированы");
     setTimeout(() => setCopied(false), 2000);
   }, [template]);
 

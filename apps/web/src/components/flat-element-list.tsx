@@ -213,6 +213,31 @@ function ElementCard({
           </div>
         )}
 
+        {/* Text-only prompt input */}
+        {!selection?.customImageUrl && (
+          <div className="space-y-1">
+            <Label className="text-muted-foreground text-xs">
+              Или опишите замену текстом:
+            </Label>
+            <textarea
+              className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={disabled}
+              onChange={(e) => {
+                const value = e.target.value;
+                onCustomPromptChange(value);
+                if (value.trim()) {
+                  onSelect("custom");
+                } else if (selectedOptionId === "custom") {
+                  onSelect(null);
+                }
+              }}
+              placeholder="Например: синий робот, космический корабль, средневековый замок..."
+              rows={2}
+              value={selection?.customPrompt || ""}
+            />
+          </div>
+        )}
+
         {/* Custom Image Upload */}
         <div
           className={`rounded-lg border-2 border-dashed p-3 transition-colors ${
@@ -340,7 +365,12 @@ export function FlatElementList({
 
         if (existing) {
           const updated = { ...existing, ...update };
-          if (updated.selectedOptionId || updated.customImageUrl) {
+          // Сохраняем selection если есть: выбранная опция, картинка, или текстовый промпт
+          if (
+            updated.selectedOptionId ||
+            updated.customImageUrl ||
+            updated.customPrompt?.trim()
+          ) {
             return prev.map((s) => (s.elementId === elementId ? updated : s));
           }
           return prev.filter((s) => s.elementId !== elementId);

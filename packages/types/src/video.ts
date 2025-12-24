@@ -4,16 +4,26 @@
 
 export type VideoProvider = "veo3" | "sora2" | "kling";
 
+export type RemixOption = {
+  id: string;
+  label: string;
+  icon: string;
+  prompt: string;
+};
+
+export type DetectableElement = {
+  id: string;
+  type: "character" | "object" | "background";
+  label: string;
+  description: string;
+  remixOptions: RemixOption[];
+};
+
 export type VideoAnalysis = {
-  action: string;
-  subject: string;
-  environment: string;
-  cameraWork: string;
-  lighting: string;
-  colorPalette: string;
-  style: string;
-  pacing: string;
-  veo3Prompt: string;
+  duration: number | null;
+  aspectRatio: string;
+  tags: string[];
+  elements: DetectableElement[];
 };
 
 export type VideoAnalysisWithId = VideoAnalysis & {
@@ -21,6 +31,9 @@ export type VideoAnalysisWithId = VideoAnalysis & {
   sourceType: string;
   sourceId?: string;
   fileName?: string;
+  analysisType?: string;
+  hasScenes?: boolean;
+  scenesCount?: number | null;
   createdAt: string;
 };
 
@@ -105,19 +118,3 @@ export type CompositeGeneration = {
   createdAt: string;
   completedAt: string | null;
 };
-
-/**
- * Форматирует полный промпт для Veo3
- */
-export function formatFullVeo3Prompt(analysis: VideoAnalysis): string {
-  const parts = [
-    analysis.veo3Prompt,
-    "",
-    "---",
-    `Camera: ${analysis.cameraWork}`,
-    `Lighting: ${analysis.lighting}`,
-    `Color grade: ${analysis.colorPalette}`,
-    `Style: ${analysis.style}, ${analysis.pacing}`,
-  ];
-  return parts.join("\n");
-}

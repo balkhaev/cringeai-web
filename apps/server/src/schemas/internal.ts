@@ -105,186 +105,12 @@ export const ReelListQuerySchema = z.object({
 
 // ===== ANALYSIS DETAIL SCHEMAS =====
 
-export const VideoSceneSchema = z
-  .object({
-    timestamp: z.string().openapi({
-      description: "Time range in MM:SS-MM:SS format",
-      example: "0:00-0:03",
-    }),
-    description: z.string().openapi({
-      description: "Visual description of the scene",
-      example: "Close up of a coffee cup",
-    }),
-    action: z.string().openapi({
-      description: "Main action in the scene",
-      example: "Steam rising from the cup",
-    }),
-  })
-  .openapi("VideoScene");
-
-export const VideoCharacterSchema = z
-  .object({
-    id: z.string().openapi({
-      description: "Unique identifier for the character",
-      example: "person1",
-    }),
-    age: z
-      .string()
-      .openapi({ description: "Approximate age", example: "mid-20s" }),
-    gender: z
-      .string()
-      .openapi({ description: "Gender of the character", example: "female" }),
-    appearance: z.string().openapi({
-      description: "Detailed look",
-      example: "Blonde hair, blue eyes",
-    }),
-    clothing: z.string().openapi({
-      description: "What they are wearing",
-      example: "Red sweater",
-    }),
-    actions: z.string().openapi({
-      description: "What they do in the video",
-      example: "Smiling at the camera",
-    }),
-  })
-  .openapi("VideoCharacter");
-
-export const VideoObjectSchema = z
-  .object({
-    name: z
-      .string()
-      .openapi({ description: "Name of the object", example: "coffee cup" }),
-    role: z.string().openapi({
-      description: "Context of the object use",
-      example: "interactive prop",
-    }),
-    position: z
-      .string()
-      .openapi({ description: "Where it is located", example: "center table" }),
-    description: z.string().openapi({
-      description: "Look of the object",
-      example: "White ceramic mug",
-    }),
-  })
-  .openapi("VideoObject");
-
-export const CameraMovementSchema = z
-  .object({
-    type: z
-      .string()
-      .openapi({ description: "Type of camera motion", example: "dolly" }),
-    direction: z
-      .string()
-      .openapi({ description: "Direction of movement", example: "forward" }),
-    speed: z
-      .string()
-      .openapi({ description: "Speed of movement", example: "slow" }),
-    startTime: z
-      .string()
-      .openapi({ description: "When it starts", example: "0:01" }),
-    endTime: z
-      .string()
-      .openapi({ description: "When it ends", example: "0:05" }),
-  })
-  .openapi("CameraMovement");
-
-export const VideoTransitionSchema = z
-  .object({
-    type: z
-      .string()
-      .openapi({ description: "Type of transition", example: "cut" }),
-    timestamp: z
-      .string()
-      .openapi({ description: "When it happens", example: "0:03" }),
-  })
-  .openapi("VideoTransition");
-
-export const VideoAudioSchema = z
-  .object({
-    music: z
-      .string()
-      .openapi({ description: "Music description", example: "Upbeat Lo-fi" }),
-    speech: z
-      .string()
-      .openapi({ description: "Any spoken words", example: "None" }),
-    effects: z
-      .string()
-      .openapi({ description: "Sound effects", example: "Birds chirping" }),
-    mood: z
-      .string()
-      .openapi({ description: "Aural atmosphere", example: "Relaxing" }),
-  })
-  .openapi("VideoAudio");
-
-export const TextOverlaySchema = z
-  .object({
-    text: z.string().openapi({
-      description: "Content of the text",
-      example: "Morning Vibes",
-    }),
-    timestamp: z
-      .string()
-      .openapi({ description: "When it appears", example: "0:01" }),
-    position: z
-      .string()
-      .openapi({ description: "Screen position", example: "top center" }),
-    style: z.string().openapi({
-      description: "Visual style of text",
-      example: "Bold Sans-serif",
-    }),
-  })
-  .openapi("TextOverlay");
-
-export const RemixSuggestionSchema = z
-  .object({
-    id: z.string().openapi({
-      description: "Unique suggestion ID",
-      example: "cyberpunk-glitch",
-    }),
-    category: z
-      .enum(["Character", "Background", "Style", "Action"])
-      .openapi({ description: "Category of suggestion", example: "Style" }),
-    name: z
-      .string()
-      .openapi({ description: "Display name", example: "Cyberpunk Glitch" }),
-    icon: z.string().openapi({ description: "Emoji icon", example: "👾" }),
-    prompt: z.string().openapi({
-      description: "Prompt fragment",
-      example: "Add digital glitch effects and neon colors",
-    }),
-  })
-  .openapi("RemixSuggestion");
-
 export const AnalysisSchema = z
   .object({
     id: z.string().openapi({
       description: "Unique analysis UUID",
       example: "550e8400-e29b-41d4-a716-446655440000",
     }),
-    subject: z.string().openapi({
-      description: "Main subject of the video",
-      example: "A peaceful morning routine",
-    }),
-    action: z.string().openapi({
-      description: "Primary action happening",
-      example: "Preparing coffee",
-    }),
-    environment: z.string().openapi({
-      description: "Setting of the video",
-      example: "Sunlit kitchen",
-    }),
-    cameraStyle: z.string().openapi({
-      description: "Overall camera vibe",
-      example: "Cinematic, handheld",
-    }),
-    mood: z
-      .string()
-      .openapi({ description: "Emotional tone", example: "Calm" }),
-    colorPalette: z.string().openapi({
-      description: "Dominant colors",
-      example: "Warm ambers and whites",
-    }),
-    style: z.string().openapi({ description: "Visual genre", example: "Vlog" }),
     duration: z
       .number()
       .nullable()
@@ -292,40 +118,18 @@ export const AnalysisSchema = z
     aspectRatio: z
       .string()
       .openapi({ description: "Screen ratio", example: "9:16" }),
-    scenes: z.array(VideoSceneSchema),
-    characters: z.array(VideoCharacterSchema),
-    objects: z.array(VideoObjectSchema),
-    cameraMovements: z.array(CameraMovementSchema),
-    lighting: z.string().openapi({
-      description: "Lighting conditions",
-      example: "Natural morning light",
-    }),
-    transitions: z.array(VideoTransitionSchema),
-    audio: VideoAudioSchema,
-    textOverlays: z.array(TextOverlaySchema),
-    klingPrompt: z.string().openapi({
-      description: "Optimized prompt for Kling AI",
-      example: "Cinematic shot of a woman in a sunlit kitchen...",
-    }),
     tags: z
       .array(z.string())
       .openapi({ example: ["vlog", "coffee", "morning"] }),
-    suggestions: z.array(RemixSuggestionSchema).optional(),
-    elements: z.array(DetectableElementSchema).optional(),
+    elements: z.array(DetectableElementSchema),
   })
   .openapi("VideoAnalysis");
 
 export const AnalysisPreviewSchema = z
   .object({
     id: z.string().openapi({ description: "Analysis ID" }),
-    subject: z.string().openapi({ description: "Main subject" }),
-    action: z.string().openapi({ description: "Main action" }),
-    style: z.string().openapi({ description: "Visual style" }),
-    klingPrompt: z
-      .string()
-      .default("")
-      .openapi({ description: "Kling prompt" }),
-    veo3Prompt: z.string().default("").openapi({ description: "Veo3 prompt" }),
+    tags: z.array(z.string()).openapi({ example: ["vlog", "coffee"] }),
+    elementsCount: z.number().openapi({ description: "Number of elements" }),
   })
   .openapi("AnalysisPreview");
 
@@ -340,11 +144,8 @@ export const VideoAnalysisDbSchema = z
     elements: z.any(),
     tags: z.array(z.string()).nullable(),
     analysisType: z.string().nullable(),
-    subject: z.string().nullable(),
-    action: z.string().nullable(),
-    style: z.string().nullable(),
-    klingPrompt: z.string().nullable(),
-    veo3Prompt: z.string().nullable(),
+    hasScenes: z.boolean().optional(),
+    scenesCount: z.number().nullable().optional(),
     createdAt: z.string(),
     generations: z.array(z.any()).optional(),
   })
@@ -533,26 +334,10 @@ export const AnalyzedVideoResponseSchema = z
 
 export const UpdateAnalysisRequestSchema = z
   .object({
-    subject: z.string().optional(),
-    action: z.string().optional(),
-    environment: z.string().optional(),
-    cameraStyle: z.string().optional(),
-    mood: z.string().optional(),
-    colorPalette: z.string().optional(),
-    style: z.string().optional(),
     duration: z.number().optional(),
     aspectRatio: z.string().optional(),
-    scenes: z.any().optional(),
-    characters: z.any().optional(),
-    objects: z.any().optional(),
-    cameraMovements: z.any().optional(),
-    lighting: z.string().optional(),
-    transitions: z.any().optional(),
-    audio: z.any().optional(),
-    textOverlays: z.any().optional(),
-    pacing: z.string().optional(),
-    klingPrompt: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    elements: z.any().optional(),
   })
   .openapi("UpdateAnalysisRequest");
 

@@ -873,28 +873,7 @@ video.openapi(updateAnalysisRoute, async (c) => {
     }
 
     const updateData: Record<string, unknown> = {};
-    const allowedFields = [
-      "subject",
-      "action",
-      "environment",
-      "cameraStyle",
-      "mood",
-      "colorPalette",
-      "style",
-      "duration",
-      "aspectRatio",
-      "scenes",
-      "characters",
-      "objects",
-      "cameraMovements",
-      "lighting",
-      "transitions",
-      "audio",
-      "textOverlays",
-      "pacing",
-      "klingPrompt",
-      "tags",
-    ];
+    const allowedFields = ["duration", "aspectRatio", "tags", "elements"];
 
     for (const field of allowedFields) {
       if (field in body) {

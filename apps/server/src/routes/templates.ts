@@ -645,10 +645,7 @@ templatesRouter.openapi(generateFromTemplateRoute, async (c) => {
     return c.json({ error: "No source video available" }, 400);
   }
 
-  const prompt =
-    customPrompt ||
-    template.analysis.klingPrompt ||
-    "Based on @Video1, recreate this video.";
+  const prompt = customPrompt || "Based on @Video1, recreate this video.";
   const generationId = await videoGenJobQueue.startGeneration(
     template.analysisId,
     prompt,

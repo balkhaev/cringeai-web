@@ -354,12 +354,6 @@ function AnalysisResults({ analysis }: { analysis: TemplateAnalysis }) {
     <div className="space-y-3 rounded-lg border bg-surface-1/50 p-3">
       {/* Tags */}
       <div className="flex flex-wrap gap-1">
-        {analysis.style && (
-          <Badge variant="secondary">
-            <Film className="mr-1 h-3 w-3" />
-            {analysis.style}
-          </Badge>
-        )}
         {analysis.duration !== null && analysis.duration > 0 && (
           <Badge variant="secondary">
             <Clock className="mr-1 h-3 w-3" />
@@ -373,19 +367,12 @@ function AnalysisResults({ analysis }: { analysis: TemplateAnalysis }) {
         {totalElements > 0 && (
           <Badge variant="outline">{totalElements} элементов</Badge>
         )}
+        {analysis.tags?.map((tag) => (
+          <Badge key={tag} variant="secondary">
+            {tag}
+          </Badge>
+        ))}
       </div>
-
-      {/* Kling Prompt */}
-      {analysis.klingPrompt && (
-        <div className="rounded-lg border bg-surface-2 p-2">
-          <p className="mb-1 font-medium text-muted-foreground text-xs">
-            Промпт для Kling:
-          </p>
-          <p className="line-clamp-2 font-mono text-sm text-violet-200">
-            {analysis.klingPrompt}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

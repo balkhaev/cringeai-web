@@ -358,12 +358,19 @@ class ReelPipeline {
   }
 
   /**
-   * Извлечь теги из анализа
+   * Извлечь теги из анализа (на основе elements)
    */
   private extractTags(analysis: VideoAnalysis): string[] {
     const tags: string[] = [];
-    const text =
-      `${analysis.subject} ${analysis.environment} ${analysis.style}`.toLowerCase();
+
+    // Собираем текст из elements
+    const elements =
+      (analysis.elements as Array<{ label?: string; description?: string }>) ||
+      [];
+    const text = elements
+      .map((el) => `${el.label || ""} ${el.description || ""}`)
+      .join(" ")
+      .toLowerCase();
 
     const tagKeywords: Record<string, string[]> = {
       travel: ["travel", "journey", "adventure", "destination", "tourist"],
@@ -387,28 +394,37 @@ class ReelPipeline {
   }
 
   /**
-   * Определить категорию
+   * Определить категорию (на основе elements и tags)
    */
   private detectCategory(analysis: VideoAnalysis): string {
-    const style = analysis.style.toLowerCase();
+    // Используем существующие теги если есть
+    const tags = analysis.tags || [];
+    const tagsText = tags.join(" ").toLowerCase();
 
-    if (style.includes("cinematic") || style.includes("film")) {
+    // Также проверяем описания элементов
+    const elements =
+      (analysis.elements as Array<{ description?: string }>) || [];
+    const elementsText = elements
+      .map((el) => el.description || "")
+      .join(" ")
+      .toLowerCase();
+
+    const text = `${tagsText} ${elementsText}`;
+
+    if (text.includes("cinematic") || text.includes("film")) {
       return "cinematic";
     }
-    if (style.includes("commercial") || style.includes("advertisement")) {
+    if (text.includes("commercial") || text.includes("advertisement")) {
       return "commercial";
     }
-    if (style.includes("tutorial") || style.includes("how-to")) {
+    if (text.includes("tutorial") || text.includes("how-to")) {
       return "tutorial";
     }
-    if (style.includes("music video")) {
+    if (text.includes("music")) {
       return "music";
     }
-    if (style.includes("documentary")) {
+    if (text.includes("documentary")) {
       return "documentary";
-    }
-    if (style.includes("social") || style.includes("vertical")) {
-      return "social";
     }
 
     return "viral";

@@ -3,6 +3,7 @@ import { ai, timeouts } from "../config";
 import { aiLogger } from "./ai-logger";
 import type { DetectableElement, RemixOption } from "./gemini";
 import { withTimeout } from "./utils";
+import { extractJsonArray } from "./utils/json-parser";
 
 const openaiConfig = ai.openai;
 

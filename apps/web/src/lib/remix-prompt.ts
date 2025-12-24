@@ -28,7 +28,8 @@ export function buildElementPrompt(
   let elementIndex = 1;
 
   for (const selection of selections) {
-    if (!selection.selectedOptionId) {
+    // Пропускаем если нет выбранной опции И нет текстового промпта
+    if (!(selection.selectedOptionId || selection.customPrompt?.trim())) {
       continue;
     }
 
@@ -48,7 +49,18 @@ export function buildElementPrompt(
         frontalImageUrl: selection.customImageUrl,
       });
       elementIndex++;
-    } else if (selection.selectedOptionId !== "custom") {
+    } else if (
+      selection.selectedOptionId === "custom" &&
+      selection.customPrompt?.trim()
+    ) {
+      // Text-only prompt (no image) - use direct text description
+      promptParts.push(
+        `Replace ${element.label} with ${selection.customPrompt.trim()}`
+      );
+    } else if (
+      selection.selectedOptionId &&
+      selection.selectedOptionId !== "custom"
+    ) {
       // Preset option - use text prompt
       const option = element.remixOptions.find(
         (o) => o.id === selection.selectedOptionId
@@ -73,15 +85,19 @@ export function buildElementPrompt(
 }
 
 /**
- * Check if generation can proceed (has at least one element selected)
+ * Check if generation can proceed (has at least one element selected or text prompt)
  */
 export function canGenerate(selections: ElementSelection[]): boolean {
-  return selections.some((s) => s.selectedOptionId !== null);
+  return selections.some(
+    (s) => s.selectedOptionId !== null || s.customPrompt?.trim()
+  );
 }
 
 /**
- * Count selected elements
+ * Count selected elements (with option or text prompt)
  */
 export function countSelections(selections: ElementSelection[]): number {
-  return selections.filter((s) => s.selectedOptionId !== null).length;
+  return selections.filter(
+    (s) => s.selectedOptionId !== null || s.customPrompt?.trim()
+  ).length;
 }

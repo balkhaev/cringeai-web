@@ -106,9 +106,13 @@ app.openapi(simpleDataRoute, async (c) => {
   }
 
   const elements = rawElements.map((el) => ({
-    ...el,
-    thumbnailUrl: undefined,
-    allowCustomImage: true,
+    id: el.id,
+    type: el.type,
+    label: el.label,
+    description: el.description,
+    thumbnail_url: undefined,
+    remix_options: el.remixOptions,
+    allow_custom_image: true,
   }));
 
   // Build scenes if available
@@ -117,9 +121,9 @@ app.openapi(simpleDataRoute, async (c) => {
       ? analysis.videoScenes.map((scene) => ({
           id: scene.id,
           index: scene.index,
-          startTime: scene.startTime,
-          endTime: scene.endTime,
-          thumbnailUrl: scene.thumbnailUrl,
+          start_time: scene.startTime,
+          end_time: scene.endTime,
+          thumbnail_url: scene.thumbnailUrl,
           elements: (
             scene.elements as Array<{
               id: string;
@@ -134,25 +138,29 @@ app.openapi(simpleDataRoute, async (c) => {
               }>;
             }>
           ).map((el) => ({
-            ...el,
-            thumbnailUrl: undefined,
-            allowCustomImage: true,
+            id: el.id,
+            type: el.type,
+            label: el.label,
+            description: el.description,
+            thumbnail_url: undefined,
+            remix_options: el.remixOptions,
+            allow_custom_image: true,
           })),
-          canKeepOriginal: true,
+          can_keep_original: true,
         }))
       : undefined;
 
   return c.json({
-    analysisId: analysis.id,
-    sourceVideo: {
+    analysis_id: analysis.id,
+    source_video: {
       url: videoUrl ?? "",
-      thumbnailUrl: reel?.thumbnailUrl ?? "",
+      thumbnail_url: reel?.thumbnailUrl ?? "",
       duration: analysis.duration,
-      aspectRatio: analysis.aspectRatio,
+      aspect_ratio: analysis.aspectRatio,
     },
     elements,
     scenes,
-    isSceneBased: analysis.videoScenes.length > 0,
+    is_scene_based: analysis.videoScenes.length > 0,
   });
 });
 
@@ -201,7 +209,8 @@ const simpleConfigureRoute = createRoute({
 
 app.openapi(simpleConfigureRoute, async (c) => {
   const { analysisId } = c.req.valid("param");
-  const { selections, sceneSelections } = c.req.valid("json");
+  const { selections: rawSelections, scene_selections: rawSceneSelections } =
+    c.req.valid("json");
 
   const analysis = await prisma.videoAnalysis.findUnique({
     where: { id: analysisId },
@@ -210,6 +219,40 @@ app.openapi(simpleConfigureRoute, async (c) => {
   if (!analysis) {
     return c.json({ error: "Analysis not found" }, 404);
   }
+
+  // Transform snake_case selections to camelCase for buildPromptFromSelections
+  const selections = rawSelections.map(
+    (s: {
+      element_id: string;
+      selected_option_id?: string;
+      custom_media_id?: string;
+      custom_media_url?: string;
+    }) => ({
+      elementId: s.element_id,
+      selectedOptionId: s.selected_option_id,
+      customMediaUrl: s.custom_media_url,
+    })
+  );
+
+  const sceneSelections = rawSceneSelections?.map(
+    (s: {
+      scene_id: string;
+      use_original: boolean;
+      element_selections?: Array<{
+        element_id: string;
+        selected_option_id?: string;
+        custom_media_url?: string;
+      }>;
+    }) => ({
+      sceneId: s.scene_id,
+      useOriginal: s.use_original,
+      elementSelections: s.element_selections?.map((es) => ({
+        elementId: es.element_id,
+        selectedOptionId: es.selected_option_id,
+        customMediaUrl: es.custom_media_url,
+      })),
+    })
+  );
 
   const elements = analysis.elements as Array<{
     id: string;
@@ -228,7 +271,8 @@ app.openapi(simpleConfigureRoute, async (c) => {
 
   // Estimate credits (5 per generation)
   const estimatedCredits = sceneSelections
-    ? sceneSelections.filter((s) => !s.useOriginal).length * 5
+    ? sceneSelections.filter((s: { useOriginal: boolean }) => !s.useOriginal)
+        .length * 5
     : 5;
 
   // Create configuration with referenceImages for Kling image_list
@@ -246,9 +290,9 @@ app.openapi(simpleConfigureRoute, async (c) => {
 
   return c.json({
     success: true,
-    configurationId: config.id,
-    generatedPrompt,
-    estimatedCredits,
+    configuration_id: config.id,
+    generated_prompt: generatedPrompt,
+    estimated_credits: estimatedCredits,
   });
 });
 
@@ -348,10 +392,9 @@ app.openapi(expertDataRoute, async (c) => {
     description: el.description,
   }));
 
-  // Build suggested prompt from analysis
-  const suggestedPrompt =
-    analysis.klingPrompt ||
-    `Transform the video: ${analysis.subject} ${analysis.action} in ${analysis.environment}`;
+  // Build suggested prompt from elements
+  const elementsDesc = elements.map((el) => el.label).join(", ");
+  const suggestedPrompt = `Transform the video with elements: ${elementsDesc || "the scene"}`;
 
   // Build scene prompts
   const scenes =
@@ -359,9 +402,9 @@ app.openapi(expertDataRoute, async (c) => {
       ? analysis.videoScenes.map((scene) => ({
           id: scene.id,
           index: scene.index,
-          startTime: scene.startTime,
-          endTime: scene.endTime,
-          suggestedPrompt: `Scene ${scene.index + 1}: Transform this segment`,
+          start_time: scene.startTime,
+          end_time: scene.endTime,
+          suggested_prompt: `Scene ${scene.index + 1}: Transform this segment`,
         }))
       : undefined;
 
@@ -369,31 +412,31 @@ app.openapi(expertDataRoute, async (c) => {
   const previousGenerations = analysis.generations.map((gen) => ({
     id: gen.id,
     prompt: gen.prompt,
-    thumbnailUrl: gen.thumbnailUrl,
+    thumbnail_url: gen.thumbnailUrl,
     status: gen.status,
   }));
 
   // Prompt hints for Kling API syntax
   const promptHints = [
     "Используйте @Video1 для референса на исходное видео",
-    "Используйте @Image1, @Image2... для своих изображений (добавьте URLs в referenceImages)",
+    "Используйте @Image1, @Image2... для своих изображений (добавьте URLs в reference_images)",
     "Опишите желаемые изменения конкретно",
     "Укажите настроение и стиль",
   ];
 
   return c.json({
-    analysisId: analysis.id,
-    sourceVideo: {
+    analysis_id: analysis.id,
+    source_video: {
       url: videoUrl ?? "",
-      thumbnailUrl: reel?.thumbnailUrl ?? "",
+      thumbnail_url: reel?.thumbnailUrl ?? "",
       duration: analysis.duration,
-      aspectRatio: analysis.aspectRatio,
+      aspect_ratio: analysis.aspectRatio,
     },
-    suggestedPrompt,
+    suggested_prompt: suggestedPrompt,
     elements,
     scenes,
-    promptHints,
-    previousGenerations:
+    prompt_hints: promptHints,
+    previous_generations:
       previousGenerations.length > 0 ? previousGenerations : undefined,
   });
 });
@@ -442,8 +485,12 @@ const expertConfigureRoute = createRoute({
 
 app.openapi(expertConfigureRoute, async (c) => {
   const { analysisId } = c.req.valid("param");
-  const { prompt, referenceImages, scenePrompts, options } =
-    c.req.valid("json");
+  const {
+    prompt,
+    reference_images: referenceImages,
+    scene_prompts: rawScenePrompts,
+    options: rawOptions,
+  } = c.req.valid("json");
 
   const analysis = await prisma.videoAnalysis.findUnique({
     where: { id: analysisId },
@@ -453,9 +500,28 @@ app.openapi(expertConfigureRoute, async (c) => {
     return c.json({ error: "Analysis not found" }, 404);
   }
 
+  // Transform snake_case scene_prompts to camelCase
+  const scenePrompts = rawScenePrompts?.map(
+    (s: { scene_id: string; prompt: string; use_original: boolean }) => ({
+      sceneId: s.scene_id,
+      prompt: s.prompt,
+      useOriginal: s.use_original,
+    })
+  );
+
+  // Transform snake_case options to camelCase
+  const options = rawOptions
+    ? {
+        duration: rawOptions.duration,
+        aspectRatio: rawOptions.aspect_ratio,
+        keepAudio: rawOptions.keep_audio,
+      }
+    : undefined;
+
   // Estimate credits
   const estimatedCredits = scenePrompts
-    ? scenePrompts.filter((s) => !s.useOriginal).length * 5
+    ? scenePrompts.filter((s: { useOriginal: boolean }) => !s.useOriginal)
+        .length * 5
     : 5;
 
   // Create configuration
@@ -475,9 +541,9 @@ app.openapi(expertConfigureRoute, async (c) => {
 
   return c.json({
     success: true,
-    configurationId: config.id,
-    generatedPrompt: prompt,
-    estimatedCredits,
+    configuration_id: config.id,
+    generated_prompt: prompt,
+    estimated_credits: estimatedCredits,
   });
 });
 

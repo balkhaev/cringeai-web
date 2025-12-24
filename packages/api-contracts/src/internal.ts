@@ -39,104 +39,19 @@ export type ReelListQuery = z.infer<typeof ReelListQuerySchema>;
 
 // ===== ANALYSIS DETAIL TYPES =====
 
-export const VideoSceneSchema = z.object({
-  timestamp: z.string(),
-  description: z.string(),
-  action: z.string(),
-});
-export type VideoScene = z.infer<typeof VideoSceneSchema>;
-
-export const VideoCharacterSchema = z.object({
+export const VideoAnalysisSchema = z.object({
   id: z.string(),
-  age: z.string(),
-  gender: z.string(),
-  appearance: z.string(),
-  clothing: z.string(),
-  actions: z.string(),
-});
-export type VideoCharacter = z.infer<typeof VideoCharacterSchema>;
-
-export const VideoObjectSchema = z.object({
-  name: z.string(),
-  role: z.string(),
-  position: z.string(),
-  description: z.string(),
-});
-export type VideoObject = z.infer<typeof VideoObjectSchema>;
-
-export const CameraMovementSchema = z.object({
-  type: z.string(),
-  direction: z.string(),
-  speed: z.string(),
-  startTime: z.string(),
-  endTime: z.string(),
-});
-export type CameraMovement = z.infer<typeof CameraMovementSchema>;
-
-export const VideoTransitionSchema = z.object({
-  type: z.string(),
-  timestamp: z.string(),
-});
-export type VideoTransition = z.infer<typeof VideoTransitionSchema>;
-
-export const VideoAudioSchema = z.object({
-  music: z.string(),
-  speech: z.string(),
-  effects: z.string(),
-  mood: z.string(),
-});
-export type VideoAudio = z.infer<typeof VideoAudioSchema>;
-
-export const TextOverlaySchema = z.object({
-  text: z.string(),
-  timestamp: z.string(),
-  position: z.string(),
-  style: z.string(),
-});
-export type TextOverlay = z.infer<typeof TextOverlaySchema>;
-
-export const RemixSuggestionSchema = z.object({
-  id: z.string(),
-  category: z.enum(["Character", "Background", "Style", "Action"]),
-  name: z.string(),
-  icon: z.string(),
-  prompt: z.string(),
-});
-export type RemixSuggestion = z.infer<typeof RemixSuggestionSchema>;
-
-export const FullVideoAnalysisSchema = z.object({
-  id: z.string(),
-  subject: z.string(),
-  action: z.string(),
-  environment: z.string(),
-  cameraStyle: z.string(),
-  mood: z.string(),
-  colorPalette: z.string(),
-  style: z.string(),
   duration: z.number().nullable(),
   aspectRatio: z.string(),
-  scenes: z.array(VideoSceneSchema),
-  characters: z.array(VideoCharacterSchema),
-  objects: z.array(VideoObjectSchema),
-  cameraMovements: z.array(CameraMovementSchema),
-  lighting: z.string(),
-  transitions: z.array(VideoTransitionSchema),
-  audio: VideoAudioSchema,
-  textOverlays: z.array(TextOverlaySchema),
-  klingPrompt: z.string(),
   tags: z.array(z.string()),
-  suggestions: z.array(RemixSuggestionSchema).optional(),
-  elements: z.array(DetectableElementSchema).optional(),
+  elements: z.array(DetectableElementSchema),
 });
-export type FullVideoAnalysis = z.infer<typeof FullVideoAnalysisSchema>;
+export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
 
 export const AnalysisPreviewSchema = z.object({
   id: z.string(),
-  subject: z.string(),
-  action: z.string(),
-  style: z.string(),
-  klingPrompt: z.string().default(""),
-  veo3Prompt: z.string().default(""),
+  tags: z.array(z.string()),
+  elementsCount: z.number(),
 });
 export type AnalysisPreview = z.infer<typeof AnalysisPreviewSchema>;
 
@@ -150,11 +65,8 @@ export const VideoAnalysisDbSchema = z.object({
   elements: z.any(),
   tags: z.array(z.string()).nullable(),
   analysisType: z.string().nullable(),
-  subject: z.string().nullable(),
-  action: z.string().nullable(),
-  style: z.string().nullable(),
-  klingPrompt: z.string().nullable(),
-  veo3Prompt: z.string().nullable(),
+  hasScenes: z.boolean().optional(),
+  scenesCount: z.number().nullable().optional(),
   createdAt: z.string(),
   generations: z.array(z.any()).optional(),
 });
@@ -245,26 +157,10 @@ export const AnalyzedVideoResponseSchema = z.object({
 export type AnalyzedVideoResponse = z.infer<typeof AnalyzedVideoResponseSchema>;
 
 export const UpdateAnalysisRequestSchema = z.object({
-  subject: z.string().optional(),
-  action: z.string().optional(),
-  environment: z.string().optional(),
-  cameraStyle: z.string().optional(),
-  mood: z.string().optional(),
-  colorPalette: z.string().optional(),
-  style: z.string().optional(),
   duration: z.number().optional(),
   aspectRatio: z.string().optional(),
-  scenes: z.any().optional(),
-  characters: z.any().optional(),
-  objects: z.any().optional(),
-  cameraMovements: z.any().optional(),
-  lighting: z.string().optional(),
-  transitions: z.any().optional(),
-  audio: z.any().optional(),
-  textOverlays: z.any().optional(),
-  pacing: z.string().optional(),
-  klingPrompt: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  elements: z.any().optional(),
 });
 export type UpdateAnalysisRequest = z.infer<typeof UpdateAnalysisRequestSchema>;
 
