@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronDown,
   Clock,
   Film,
   Loader2,
@@ -23,6 +24,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +64,7 @@ export function CompositeGenerationCard({
 }: CompositeGenerationCardProps) {
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [regenerateSceneId, setRegenerateSceneId] = useState<string | null>(
     null
   );
@@ -243,6 +250,7 @@ export function CompositeGenerationCard({
                       handleOpenRegenerateDialog(config.sceneId)
                     }
                     onRegenerateScene={onRegenerateScene}
+                    sceneGeneration={sceneGen}
                     sceneStatus={sceneStatus}
                     sceneVideoUrl={sceneVideoUrl}
                     thumbnailUrl={thumbnailUrl}
@@ -268,11 +276,110 @@ export function CompositeGenerationCard({
                 style={{ width: `${generation.progress}%` }}
               />
             </div>
+            {generation.progressStage && (
+              <p className="mt-1 text-muted-foreground text-xs">
+                Этап: {generation.progressStage}
+              </p>
+            )}
           </div>
         )}
 
         <GenerationError error={generation.error} show={isFailed} />
         <GenerationActions show={isCompleted} videoUrl={generation.videoUrl} />
+
+        {/* Details Collapsible */}
+        <Collapsible onOpenChange={setDetailsOpen} open={detailsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              className="mt-2 w-full justify-between"
+              size="sm"
+              variant="ghost"
+            >
+              <span>Подробности</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${detailsOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 space-y-3 rounded-lg bg-surface-1 p-3 text-xs">
+              {/* Main info */}
+              <div className="space-y-2">
+                <p className="font-medium text-muted-foreground">
+                  Основная информация:
+                </p>
+                <DetailRow label="ID" mono value={generation.id} />
+                <DetailRow
+                  label="Analysis ID"
+                  mono
+                  value={generation.analysisId}
+                />
+                <DetailRow label="Статус" value={generation.status} />
+                <DetailRow label="Прогресс" value={`${generation.progress}%`} />
+                {generation.progressStage && (
+                  <DetailRow label="Этап" value={generation.progressStage} />
+                )}
+                {generation.progressMessage && (
+                  <DetailRow
+                    label="Сообщение"
+                    value={generation.progressMessage}
+                  />
+                )}
+                <DetailRow
+                  label="Создано"
+                  value={new Date(generation.createdAt).toLocaleString("ru-RU")}
+                />
+                {generation.completedAt && (
+                  <DetailRow
+                    label="Завершено"
+                    value={new Date(generation.completedAt).toLocaleString(
+                      "ru-RU"
+                    )}
+                  />
+                )}
+                {duration !== null && (
+                  <DetailRow label="Длительность" value={`${duration} сек`} />
+                )}
+                {generation.videoUrl && (
+                  <DetailRow
+                    label="Video URL"
+                    mono
+                    value={generation.videoUrl}
+                  />
+                )}
+                {generation.s3Key && (
+                  <DetailRow label="S3 Key" mono value={generation.s3Key} />
+                )}
+                {generation.error && (
+                  <div className="space-y-1">
+                    <p className="text-red-400">Ошибка:</p>
+                    <p className="break-all text-red-300">{generation.error}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Scene configs */}
+              {sceneConfigs.length > 0 && (
+                <div className="space-y-2 border-glass-border border-t pt-2">
+                  <p className="font-medium text-muted-foreground">
+                    Конфигурация сцен ({sceneConfigs.length}):
+                  </p>
+                  {sceneConfigs.map((config, idx) => {
+                    const sceneGen = getSceneGeneration(config.generationId);
+                    return (
+                      <SceneConfigDetails
+                        config={config}
+                        index={idx}
+                        key={config.sceneId}
+                        sceneGeneration={sceneGen}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Regenerate Dialog */}
@@ -390,6 +497,204 @@ export function CompositeGenerationCard({
   );
 }
 
+function DetailRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex gap-2">
+      <span className="shrink-0 text-muted-foreground">{label}:</span>
+      <span className={`break-all ${mono ? "font-mono" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+type SceneConfigDetailsProps = {
+  config: {
+    sceneId: string;
+    sceneIndex: number;
+    startTime: number;
+    endTime: number;
+    useOriginal?: boolean;
+    generationId?: string;
+  };
+  index: number;
+  sceneGeneration?: SceneGeneration;
+};
+
+function SceneConfigDetails({
+  config,
+  index,
+  sceneGeneration,
+}: SceneConfigDetailsProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible onOpenChange={setOpen} open={open}>
+      <CollapsibleTrigger asChild>
+        <button
+          className="flex w-full items-center justify-between rounded-lg bg-surface-2 p-2 text-left hover:bg-surface-2/80"
+          type="button"
+        >
+          <span className="font-medium">
+            Сцена #{index + 1}{" "}
+            <span className="font-normal text-muted-foreground">
+              ({config.startTime.toFixed(1)}s - {config.endTime.toFixed(1)}s)
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-1 space-y-1 rounded-lg bg-surface-2/50 p-2">
+          <DetailRow label="Scene ID" mono value={config.sceneId} />
+          <DetailRow label="Индекс" value={String(config.sceneIndex)} />
+          <DetailRow
+            label="Время"
+            value={`${config.startTime.toFixed(2)}s - ${config.endTime.toFixed(2)}s`}
+          />
+          <DetailRow
+            label="Использует оригинал"
+            value={config.useOriginal ? "Да" : "Нет"}
+          />
+          {config.generationId && (
+            <DetailRow label="Generation ID" mono value={config.generationId} />
+          )}
+
+          {/* Scene generation details */}
+          {sceneGeneration && (
+            <div className="mt-2 space-y-1 border-glass-border border-t pt-2">
+              <p className="font-medium text-muted-foreground">
+                Генерация сцены:
+              </p>
+              <DetailRow label="ID" mono value={sceneGeneration.id} />
+              <DetailRow label="Статус" value={sceneGeneration.status} />
+              <DetailRow label="Провайдер" value={sceneGeneration.provider} />
+              <DetailRow
+                label="Прогресс"
+                value={`${sceneGeneration.progress}%`}
+              />
+              {sceneGeneration.progressStage && (
+                <DetailRow label="Этап" value={sceneGeneration.progressStage} />
+              )}
+              {sceneGeneration.progressMessage && (
+                <DetailRow
+                  label="Сообщение"
+                  value={sceneGeneration.progressMessage}
+                />
+              )}
+              {sceneGeneration.prompt && (
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Промпт:</p>
+                  <p className="break-all rounded bg-surface-1 p-1">
+                    {sceneGeneration.prompt}
+                  </p>
+                </div>
+              )}
+              <DetailRow
+                label="Создано"
+                value={new Date(sceneGeneration.createdAt).toLocaleString(
+                  "ru-RU"
+                )}
+              />
+              {sceneGeneration.completedAt && (
+                <DetailRow
+                  label="Завершено"
+                  value={new Date(sceneGeneration.completedAt).toLocaleString(
+                    "ru-RU"
+                  )}
+                />
+              )}
+              {sceneGeneration.videoUrl && (
+                <DetailRow
+                  label="Video URL"
+                  mono
+                  value={sceneGeneration.videoUrl}
+                />
+              )}
+              {sceneGeneration.s3Key && (
+                <DetailRow label="S3 Key" mono value={sceneGeneration.s3Key} />
+              )}
+              {sceneGeneration.error && (
+                <div className="space-y-1">
+                  <p className="text-red-400">Ошибка:</p>
+                  <p className="break-all text-red-300">
+                    {sceneGeneration.error}
+                  </p>
+                </div>
+              )}
+              {sceneGeneration.selectedElements &&
+                sceneGeneration.selectedElements.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">
+                      Выбранные элементы (
+                      {sceneGeneration.selectedElements.length}):
+                    </p>
+                    {sceneGeneration.selectedElements.map((el, elIdx) => (
+                      <div
+                        className="flex items-center gap-2 rounded bg-surface-1 p-1"
+                        key={elIdx}
+                      >
+                        {el.customMediaUrl && (
+                          <a
+                            className="block h-8 w-8 shrink-0 overflow-hidden rounded border border-glass-border"
+                            href={el.customMediaUrl}
+                            rel="noopener"
+                            target="_blank"
+                          >
+                            <img
+                              alt="Element media"
+                              className="h-full w-full object-cover"
+                              src={el.customMediaUrl}
+                            />
+                          </a>
+                        )}
+                        <span className="font-mono text-[10px]">
+                          {el.elementId || "custom"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              {sceneGeneration.scene && (
+                <div className="space-y-1 border-glass-border border-t pt-1">
+                  <p className="text-muted-foreground">Информация о сцене:</p>
+                  <DetailRow
+                    label="Индекс"
+                    value={String(sceneGeneration.scene.index)}
+                  />
+                  <DetailRow
+                    label="Время"
+                    value={`${sceneGeneration.scene.startTime.toFixed(2)}s - ${sceneGeneration.scene.endTime.toFixed(2)}s`}
+                  />
+                  <DetailRow
+                    label="Длительность"
+                    value={`${sceneGeneration.scene.duration.toFixed(2)}s`}
+                  />
+                  {sceneGeneration.scene.thumbnailUrl && (
+                    <DetailRow
+                      label="Thumbnail"
+                      mono
+                      value={sceneGeneration.scene.thumbnailUrl}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 type ScenePreviewCardProps = {
   config: {
     sceneId: string;
@@ -404,6 +709,7 @@ type ScenePreviewCardProps = {
   isSceneActive: boolean;
   onRegenerateScene?: CompositeGenerationCardProps["onRegenerateScene"];
   onRegenerateClick: () => void;
+  sceneGeneration?: SceneGeneration;
 };
 
 function ScenePreviewCard({
@@ -414,7 +720,10 @@ function ScenePreviewCard({
   isSceneActive,
   onRegenerateScene,
   onRegenerateClick,
+  sceneGeneration,
 }: ScenePreviewCardProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   return (
     <div className="group relative overflow-hidden rounded-lg border border-glass-border bg-surface-1">
       {/* Preview area */}
@@ -491,6 +800,49 @@ function ScenePreviewCard({
           {config.startTime.toFixed(1)}s — {config.endTime.toFixed(1)}s
         </span>
       </div>
+
+      {/* Scene details collapsible */}
+      {sceneGeneration && (
+        <Collapsible onOpenChange={setDetailsOpen} open={detailsOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              className="flex w-full items-center justify-center gap-1 border-glass-border border-t py-1 text-[10px] text-muted-foreground hover:bg-surface-2"
+              type="button"
+            >
+              <span>Детали</span>
+              <ChevronDown
+                className={`h-3 w-3 transition-transform duration-200 ${detailsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="space-y-1 border-glass-border border-t p-2 text-[10px]">
+              <DetailRow label="ID" mono value={sceneGeneration.id} />
+              <DetailRow label="Статус" value={sceneGeneration.status} />
+              <DetailRow
+                label="Прогресс"
+                value={`${sceneGeneration.progress}%`}
+              />
+              {sceneGeneration.progressStage && (
+                <DetailRow label="Этап" value={sceneGeneration.progressStage} />
+              )}
+              {sceneGeneration.prompt && (
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground">Промпт:</span>
+                  <p className="line-clamp-2 break-all rounded bg-surface-2 p-1">
+                    {sceneGeneration.prompt}
+                  </p>
+                </div>
+              )}
+              {sceneGeneration.error && (
+                <p className="break-all text-red-300">
+                  {sceneGeneration.error}
+                </p>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }

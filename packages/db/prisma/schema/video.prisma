@@ -47,6 +47,7 @@ model VideoGeneration {
   provider String // "kling" (video-to-video)
   status   String @default("pending") // pending, processing, completed, failed
   prompt   String // Промпт изменений для Kling
+  enhancedPrompt String? // Улучшенный промпт от ChatGPT для Kling
 
   // Source video for video-to-video generation
   sourceVideoUrl String? // URL исходного видео для референса

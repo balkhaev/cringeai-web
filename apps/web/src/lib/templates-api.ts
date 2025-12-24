@@ -147,6 +147,8 @@ export type VideoGeneration = {
   provider: string;
   status: string;
   prompt: string;
+  /** Улучшенный промпт от ChatGPT для Kling */
+  enhancedPrompt: string | null;
   videoUrl: string | null;
   thumbnailUrl: string | null;
   error: string | null;

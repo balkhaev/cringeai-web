@@ -146,12 +146,73 @@ export function buildPromptFromSelections(
         (o) => o.id === selection.selectedOptionId
       );
       if (option) {
-        // Для preset опций тоже добавляем защиту других объектов
-        let optionPrompt = option.prompt;
-        if (unchangedLabels.length > 0) {
-          optionPrompt += `. Keep unchanged: ${unchangedLabels.join(", ")}`;
+        // Строим точное описание цели для замены (аналогично custom режиму)
+        const targetDesc = element.description
+          ? `${element.label} (${element.description})`
+          : element.label;
+
+        // Собираем контекст позиции и взаимодействия
+        const contextParts: string[] = [];
+        if (element.position) {
+          contextParts.push(`located ${element.position}`);
         }
-        parts.push(optionPrompt);
+        if (element.environmentInteractions) {
+          contextParts.push(element.environmentInteractions);
+        }
+        if (element.visibilityPercent !== undefined) {
+          contextParts.push(`${element.visibilityPercent}% visible`);
+        }
+        if (element.contactPoints) {
+          contextParts.push(`contact: ${element.contactPoints}`);
+        }
+
+        const contextHint =
+          contextParts.length > 0 ? ` (${contextParts.join(", ")})` : "";
+
+        // Строим полный промпт с явной инструкцией замены
+        let replacePrompt = `Replace ONLY the ${targetDesc}${contextHint} with: ${option.prompt}`;
+
+        // КРИТИЧЕСКИ ВАЖНО: инструкции по сохранению взаимодействий
+        const preserveInstructions: string[] = [];
+
+        if (element.environmentInteractions) {
+          preserveInstructions.push(
+            `PRESERVE EXACT ENVIRONMENT INTERACTION: ${element.environmentInteractions}`
+          );
+        }
+
+        if (element.visibilityPercent !== undefined) {
+          preserveInstructions.push(
+            `maintain ${element.visibilityPercent}% visibility (same occlusion as original)`
+          );
+        }
+
+        if (element.contactPoints) {
+          preserveInstructions.push(
+            `keep contact points: ${element.contactPoints}`
+          );
+        }
+
+        if (element.occlusionInfo) {
+          preserveInstructions.push(
+            `preserve occlusion: ${element.occlusionInfo}`
+          );
+        }
+
+        // Базовые инструкции физики
+        preserveInstructions.push(
+          "maintain exact position, scale, angle, orientation, perspective",
+          "replacement must have IDENTICAL spatial relationship with environment as original"
+        );
+
+        replacePrompt += `. CRITICAL: ${preserveInstructions.join(". ")}`;
+
+        // Добавляем защиту других объектов
+        if (unchangedLabels.length > 0) {
+          replacePrompt += `. Keep unchanged: ${unchangedLabels.join(", ")}`;
+        }
+
+        parts.push(replacePrompt);
       }
     }
   }

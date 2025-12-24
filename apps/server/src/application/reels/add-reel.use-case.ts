@@ -1,12 +1,14 @@
-import type { Reel } from "@trender/db";
 import prisma from "@trender/db";
 import { parseReelUrl } from "../../services/instagram/reel-url";
 import { pipelineJobQueue } from "../../services/queues";
 
+// Use the actual Prisma return type for type safety
+type ReelRecord = Awaited<ReturnType<typeof prisma.reel.create>>;
+
 type AddReelResult =
   | {
       success: true;
-      reel: Reel;
+      reel: ReelRecord;
       message: string;
       isNew: boolean;
     }

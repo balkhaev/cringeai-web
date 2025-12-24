@@ -19,36 +19,25 @@ type TimelineEntry = {
   metadata: unknown;
 };
 
+// Use loose typing for complex query results - the actual structure
+// is determined by the Prisma queries with custom selects/includes
+type ReelDebugData = {
+  reel: unknown;
+  stageStats: StageStats[];
+  recentErrors: unknown[];
+  timeline: TimelineEntry[];
+  logs: unknown[];
+  aiLogs: unknown[];
+  analyses: unknown[];
+  template: unknown;
+  generations: unknown[];
+  sceneGenerations: unknown[];
+  compositeGenerations: unknown[];
+  videoUrl: string | null;
+};
+
 type ReelDebugResult =
-  | {
-      success: true;
-      data: {
-        reel: ReturnType<
-          typeof reelPipeline.getReelWithDetails
-        > extends Promise<infer T>
-          ? T & { videoUrl: string | null }
-          : never;
-        stageStats: StageStats[];
-        recentErrors: Awaited<
-          ReturnType<typeof pipelineLogger.getRecentErrors>
-        >;
-        timeline: TimelineEntry[];
-        logs: Awaited<ReturnType<typeof pipelineLogger.getReelLogs>>;
-        aiLogs: Awaited<ReturnType<typeof prisma.aILog.findMany>>;
-        analyses: Awaited<ReturnType<typeof prisma.videoAnalysis.findMany>>;
-        template: unknown;
-        generations: Awaited<
-          ReturnType<typeof prisma.videoGeneration.findMany>
-        >;
-        sceneGenerations: Awaited<
-          ReturnType<typeof prisma.sceneGeneration.findMany>
-        >;
-        compositeGenerations: Awaited<
-          ReturnType<typeof prisma.compositeGeneration.findMany>
-        >;
-        videoUrl: string | null;
-      };
-    }
+  | { success: true; data: ReelDebugData }
   | { success: false; error: string; status: 404 | 500 };
 
 export async function getReelDebugUseCase(

@@ -103,6 +103,12 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
           generationId
         );
         console.log(`[VideoGenQueue] Enhanced prompt: ${enhancedPrompt}`);
+
+        // Save enhanced prompt to DB for debugging
+        await prisma.videoGeneration.update({
+          where: { id: generationId },
+          data: { enhancedPrompt },
+        });
       }
 
       const startTime = Date.now();

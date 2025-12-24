@@ -1,6 +1,13 @@
 "use client";
 
-import { Clock, Download, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Clock,
+  Download,
+  ExternalLink,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import NextImage from "next/image";
 import { useState } from "react";
 import {
@@ -16,6 +23,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   GENERATION_STATUS_CONFIG,
   getGenerationVariant,
@@ -34,6 +46,7 @@ export function GenerationCard({
   isDeleting,
 }: GenerationCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const isActive =
     generation.status === "pending" || generation.status === "processing";
   const isCompleted = generation.status === "completed";
@@ -152,15 +165,27 @@ export function GenerationCard({
           </div>
         ) : null}
 
-        {/* Prompt */}
+        {/* Prompts */}
         {generation.prompt ? (
-          <div className="mb-3">
-            <p className="mb-1 font-medium text-muted-foreground text-xs">
-              Промпт:
-            </p>
-            <p className="line-clamp-3 rounded-lg bg-muted/50 p-2 text-sm">
-              {generation.prompt}
-            </p>
+          <div className="mb-3 space-y-2">
+            <div>
+              <p className="mb-1 font-medium text-muted-foreground text-xs">
+                Оригинальный промпт:
+              </p>
+              <p className="line-clamp-3 rounded-lg bg-muted/50 p-2 text-sm">
+                {generation.prompt}
+              </p>
+            </div>
+            {generation.enhancedPrompt && (
+              <div>
+                <p className="mb-1 font-medium text-emerald-400 text-xs">
+                  Улучшенный промпт (ChatGPT → Kling):
+                </p>
+                <p className="line-clamp-4 rounded-lg bg-emerald-950/30 p-2 text-emerald-100 text-sm">
+                  {generation.enhancedPrompt}
+                </p>
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -172,14 +197,162 @@ export function GenerationCard({
 
         {/* Processing indicator */}
         {isActive ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-1">
-              <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500" />
+          <div className="mb-3 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {generation.progressMessage || "Обработка..."}
+              </span>
+              <span className="font-medium">{generation.progress}%</span>
             </div>
-            <span className="text-xs">Обработка...</span>
+            <div className="h-2 overflow-hidden rounded-full bg-surface-1">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all"
+                style={{ width: `${generation.progress}%` }}
+              />
+            </div>
+            {generation.progressStage && (
+              <p className="text-muted-foreground text-xs">
+                Этап: {generation.progressStage}
+              </p>
+            )}
           </div>
         ) : null}
+
+        {/* Details Collapsible */}
+        <Collapsible onOpenChange={setDetailsOpen} open={detailsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              className="mt-2 w-full justify-between"
+              size="sm"
+              variant="ghost"
+            >
+              <span>Подробности</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${detailsOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 space-y-2 rounded-lg bg-surface-1 p-3 text-xs">
+              <DetailRow label="ID" mono value={generation.id} />
+              <DetailRow label="Провайдер" value={generation.provider} />
+              <DetailRow label="Статус" value={generation.status} />
+              <DetailRow label="Прогресс" value={`${generation.progress}%`} />
+              {generation.progressStage && (
+                <DetailRow label="Этап" value={generation.progressStage} />
+              )}
+              {generation.progressMessage && (
+                <DetailRow
+                  label="Сообщение"
+                  value={generation.progressMessage}
+                />
+              )}
+              {generation.klingProgress !== undefined && (
+                <DetailRow
+                  label="Kling прогресс"
+                  value={`${generation.klingProgress}%`}
+                />
+              )}
+              <DetailRow
+                label="Создано"
+                value={new Date(generation.createdAt).toLocaleString("ru-RU")}
+              />
+              {generation.completedAt && (
+                <DetailRow
+                  label="Завершено"
+                  value={new Date(generation.completedAt).toLocaleString(
+                    "ru-RU"
+                  )}
+                />
+              )}
+              {generation.lastActivityAt && (
+                <DetailRow
+                  label="Посл. активность"
+                  value={new Date(generation.lastActivityAt).toLocaleString(
+                    "ru-RU"
+                  )}
+                />
+              )}
+              {duration !== null && (
+                <DetailRow label="Длительность" value={`${duration} сек`} />
+              )}
+              {generation.remixSource && (
+                <DetailRow
+                  label="Remix источник"
+                  mono
+                  value={generation.remixSource}
+                />
+              )}
+              {generation.imageReferences.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">
+                    Референсы ({generation.imageReferences.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {generation.imageReferences.map((url, idx) => (
+                      <a
+                        className="block h-12 w-12 overflow-hidden rounded border border-glass-border"
+                        href={url}
+                        key={url}
+                        rel="noopener"
+                        target="_blank"
+                        title={`Референс ${idx + 1}`}
+                      >
+                        <img
+                          alt={`Референс ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                          src={url}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {generation.enhancedPrompt && (
+                <div className="space-y-1">
+                  <p className="text-emerald-400">Улучшенный промпт:</p>
+                  <p className="break-all text-emerald-300 text-xs">
+                    {generation.enhancedPrompt}
+                  </p>
+                </div>
+              )}
+              {generation.videoUrl && (
+                <DetailRow label="Video URL" mono value={generation.videoUrl} />
+              )}
+              {generation.thumbnailUrl && (
+                <DetailRow
+                  label="Thumbnail URL"
+                  mono
+                  value={generation.thumbnailUrl}
+                />
+              )}
+              {generation.error && (
+                <div className="space-y-1">
+                  <p className="text-red-400">Ошибка:</p>
+                  <p className="break-all text-red-300">{generation.error}</p>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex gap-2">
+      <span className="shrink-0 text-muted-foreground">{label}:</span>
+      <span className={`break-all ${mono ? "font-mono" : ""}`}>{value}</span>
     </div>
   );
 }
