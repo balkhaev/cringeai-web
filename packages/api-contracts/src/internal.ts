@@ -1,7 +1,7 @@
 /**
  * Internal API Types
  * Admin/debug API contracts: Reels, Analysis, Templates, Pipeline
- * All fields use snake_case convention for REST API compatibility
+ * All fields use camelCase convention
  */
 
 import { z } from "zod";
@@ -31,7 +31,7 @@ export type ReelStatus = z.infer<typeof ReelStatusSchema>;
 export const ReelListQuerySchema = z.object({
   limit: z.number().int().min(1).max(500).default(100),
   offset: z.number().int().min(0).default(0),
-  min_likes: z.number().int().min(0).optional(),
+  minLikes: z.number().int().min(0).optional(),
   hashtag: z.string().optional(),
   status: ReelStatusSchema.optional(),
   search: z.string().optional(),
@@ -43,7 +43,7 @@ export type ReelListQuery = z.infer<typeof ReelListQuerySchema>;
 export const VideoAnalysisSchema = z.object({
   id: z.string(),
   duration: z.number().nullable(),
-  aspect_ratio: z.string(),
+  aspectRatio: z.string(),
   tags: z.array(z.string()),
   elements: z.array(DetectableElementSchema),
 });
@@ -52,7 +52,7 @@ export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
 export const AnalysisPreviewSchema = z.object({
   id: z.string(),
   tags: z.array(z.string()),
-  elements_count: z.number(),
+  elementsCount: z.number(),
 });
 export type AnalysisPreview = z.infer<typeof AnalysisPreviewSchema>;
 
@@ -60,22 +60,22 @@ export type AnalysisPreview = z.infer<typeof AnalysisPreviewSchema>;
 export const GenerationRefSchema = z.object({
   id: z.string(),
   status: z.string(),
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 
 export const VideoAnalysisDbSchema = z.object({
   id: z.string(),
-  source_type: z.string(),
-  source_id: z.string().nullable(),
-  file_name: z.string().nullable(),
+  sourceType: z.string(),
+  sourceId: z.string().nullable(),
+  fileName: z.string().nullable(),
   duration: z.number().nullable(),
-  aspect_ratio: z.string().nullable(),
+  aspectRatio: z.string().nullable(),
   elements: z.array(DetectableElementSchema),
   tags: z.array(z.string()).nullable(),
-  analysis_type: z.string().nullable(),
-  has_scenes: z.boolean().optional(),
-  scenes_count: z.number().nullable().optional(),
-  created_at: z.string(),
+  analysisType: z.string().nullable(),
+  hasScenes: z.boolean().optional(),
+  scenesCount: z.number().nullable().optional(),
+  createdAt: z.string(),
   generations: z.array(GenerationRefSchema).optional(),
 });
 export type VideoAnalysisDb = z.infer<typeof VideoAnalysisDbSchema>;
@@ -85,8 +85,8 @@ export type VideoAnalysisDb = z.infer<typeof VideoAnalysisDbSchema>;
 export const ReelPreviewSchema = z.object({
   id: z.string(),
   url: z.string(),
-  thumbnail_url: z.string().nullable(),
-  like_count: z.number().nullable(),
+  thumbnailUrl: z.string().nullable(),
+  likeCount: z.number().nullable(),
   author: z.string().nullable(),
   source: z.string(),
 });
@@ -97,10 +97,10 @@ export const TemplateSchema = z.object({
   title: z.string().nullable(),
   tags: z.array(z.string()),
   category: z.string().nullable(),
-  generation_count: z.number(),
-  is_published: z.boolean(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  generationCount: z.number(),
+  isPublished: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
   reel: ReelPreviewSchema.optional(),
   analysis: AnalysisPreviewSchema.optional(),
 });
@@ -110,28 +110,28 @@ export type Template = z.infer<typeof TemplateSchema>;
 
 export const VideoGenerationDbSchema = z.object({
   id: z.string(),
-  analysis_id: z.string(),
+  analysisId: z.string(),
   status: z.enum(["pending", "processing", "completed", "failed"]),
   progress: z.number(),
-  progress_stage: z.string().nullable(),
-  progress_message: z.string().nullable(),
-  kling_progress: z.number().nullable(),
-  kling_task_id: z.string().nullable(),
-  video_url: z.string().nullable(),
-  s3_key: z.string().nullable(),
+  progressStage: z.string().nullable(),
+  progressMessage: z.string().nullable(),
+  klingProgress: z.number().nullable(),
+  klingTaskId: z.string().nullable(),
+  videoUrl: z.string().nullable(),
+  s3Key: z.string().nullable(),
   duration: z.number().nullable(),
-  aspect_ratio: z.string().nullable(),
-  created_at: z.string(),
-  completed_at: z.string().nullable(),
+  aspectRatio: z.string().nullable(),
+  createdAt: z.string(),
+  completedAt: z.string().nullable(),
   error: z.string().nullable(),
-  last_activity_at: z.string().nullable(),
+  lastActivityAt: z.string().nullable(),
 });
 export type VideoGenerationDb = z.infer<typeof VideoGenerationDbSchema>;
 
 export const GenerateVideoRequestSchema = z.object({
-  analysis_id: z.string(),
+  analysisId: z.string(),
   prompt: z.string(),
-  source_video_url: z.string(),
+  sourceVideoUrl: z.string(),
   options: z
     .object({
       duration: z
@@ -140,8 +140,8 @@ export const GenerateVideoRequestSchema = z.object({
           z.number().min(5).max(10)
         )
         .optional(),
-      aspect_ratio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
-      keep_audio: z.boolean().optional(),
+      aspectRatio: z.enum(["16:9", "9:16", "1:1", "auto"]).optional(),
+      keepAudio: z.boolean().optional(),
     })
     .optional(),
 });
@@ -156,7 +156,7 @@ export type AnalyzeDownloadedRequest = z.infer<
 >;
 
 export const AnalyzeReelRequestSchema = z.object({
-  reel_id: z.string(),
+  reelId: z.string(),
   url: z.string(),
 });
 export type AnalyzeReelRequest = z.infer<typeof AnalyzeReelRequestSchema>;
@@ -164,14 +164,14 @@ export type AnalyzeReelRequest = z.infer<typeof AnalyzeReelRequestSchema>;
 export const AnalyzedVideoResponseSchema = z.object({
   success: z.boolean(),
   analysis: VideoAnalysisDbSchema,
-  analysis_id: z.string(),
+  analysisId: z.string(),
   mode: z.string().optional(),
 });
 export type AnalyzedVideoResponse = z.infer<typeof AnalyzedVideoResponseSchema>;
 
 export const UpdateAnalysisRequestSchema = z.object({
   duration: z.number().optional(),
-  aspect_ratio: z.string().optional(),
+  aspectRatio: z.string().optional(),
   tags: z.array(z.string()).optional(),
   elements: z.array(DetectableElementSchema).optional(),
 });
@@ -180,8 +180,8 @@ export type UpdateAnalysisRequest = z.infer<typeof UpdateAnalysisRequestSchema>;
 export const UploadReferenceResponseSchema = z.object({
   success: z.boolean(),
   url: z.string(),
-  s3_key: z.string(),
-  image_id: z.string(),
+  s3Key: z.string(),
+  imageId: z.string(),
 });
 export type UploadReferenceResponse = z.infer<
   typeof UploadReferenceResponseSchema
@@ -198,13 +198,13 @@ export const AddReelResponseSchema = z.object({
   success: z.boolean(),
   reel: ReelPreviewSchema,
   message: z.string(),
-  is_new: z.boolean(),
+  isNew: z.boolean(),
 });
 export type AddReelResponse = z.infer<typeof AddReelResponseSchema>;
 
 export const ReelStatsResponseSchema = z.object({
   total: z.number(),
-  by_status: z.object({
+  byStatus: z.object({
     scraped: z.number(),
     downloading: z.number(),
     downloaded: z.number(),
@@ -213,12 +213,12 @@ export const ReelStatsResponseSchema = z.object({
     failed: z.number(),
   }),
   templates: z.number(),
-  active_generations: z.number(),
+  activeGenerations: z.number(),
 });
 export type ReelStatsResponse = z.infer<typeof ReelStatsResponseSchema>;
 
 export const ProcessReelRequestSchema = z.object({
-  use_frames: z.boolean().optional().default(false),
+  useFrames: z.boolean().optional().default(false),
   force: z.boolean().optional().default(false),
 });
 export type ProcessReelRequest = z.infer<typeof ProcessReelRequestSchema>;
@@ -226,8 +226,8 @@ export type ProcessReelRequest = z.infer<typeof ProcessReelRequestSchema>;
 export const ProcessReelResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  job_id: z.string(),
-  reel_id: z.string(),
+  jobId: z.string(),
+  reelId: z.string(),
 });
 export type ProcessReelResponse = z.infer<typeof ProcessReelResponseSchema>;
 
@@ -244,13 +244,13 @@ export const ResizeReelResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   resized: z.boolean(),
-  original_width: z.number().optional(),
-  new_width: z.number().optional(),
+  originalWidth: z.number().optional(),
+  newWidth: z.number().optional(),
 });
 export type ResizeReelResponse = z.infer<typeof ResizeReelResponseSchema>;
 
 export const BatchRefreshDurationRequestSchema = z.object({
-  reel_ids: z.array(z.string()),
+  reelIds: z.array(z.string()),
 });
 export type BatchRefreshDurationRequest = z.infer<
   typeof BatchRefreshDurationRequestSchema
@@ -261,23 +261,23 @@ export type BatchRefreshDurationRequest = z.infer<
 export const ReelSchema = z.object({
   id: z.string(),
   url: z.string(),
-  video_url: z.string().nullable(),
-  thumbnail_url: z.string().nullable(),
-  like_count: z.number().nullable(),
+  videoUrl: z.string().nullable(),
+  thumbnailUrl: z.string().nullable(),
+  likeCount: z.number().nullable(),
   author: z.string().nullable(),
   caption: z.string().nullable(),
   hashtag: z.string().nullable(),
   duration: z.number().nullable(),
   status: ReelStatusSchema,
-  s3_key: z.string().nullable(),
-  local_path: z.string().nullable(),
+  s3Key: z.string().nullable(),
+  localPath: z.string().nullable(),
   source: z.string(),
   progress: z.number(),
-  progress_stage: z.string().nullable(),
-  progress_message: z.string().nullable(),
+  progressStage: z.string().nullable(),
+  progressMessage: z.string().nullable(),
   error: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 export type Reel = z.infer<typeof ReelSchema>;
 
@@ -294,12 +294,12 @@ export type LogLevel = z.infer<typeof LogLevelSchema>;
 
 export const ReelLogSchema = z.object({
   id: z.string(),
-  reel_id: z.string(),
+  reelId: z.string(),
   level: LogLevelSchema,
   stage: z.string(),
   message: z.string(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 export type ReelLog = z.infer<typeof ReelLogSchema>;
 
@@ -311,13 +311,13 @@ export const AILogSchema = z.object({
   provider: AIProviderSchema,
   model: z.string(),
   operation: z.string(),
-  input_tokens: z.number().nullable(),
-  output_tokens: z.number().nullable(),
-  duration_ms: z.number().nullable(),
+  inputTokens: z.number().nullable(),
+  outputTokens: z.number().nullable(),
+  durationMs: z.number().nullable(),
   success: z.boolean(),
   error: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
-  created_at: z.string(),
+  createdAt: z.string(),
 });
 export type AILog = z.infer<typeof AILogSchema>;
 
@@ -349,9 +349,9 @@ export const QueueJobSchema = z.object({
   progress: z.number(),
   state: JobStateSchema,
   timestamp: z.number().optional(),
-  processed_on: z.number().optional(),
-  finished_on: z.number().optional(),
-  failed_reason: z.string().optional(),
+  processedOn: z.number().optional(),
+  finishedOn: z.number().optional(),
+  failedReason: z.string().optional(),
 });
 export type QueueJob = z.infer<typeof QueueJobSchema>;
 
@@ -364,13 +364,13 @@ export const ScrapeRequestSchema = z.object({
   hashtag: z.string().optional(),
   limit: z.number().int().min(1).max(100).optional(),
   sort: SortModeSchema.optional(),
-  min_likes: z.number().int().min(0).optional(),
+  minLikes: z.number().int().min(0).optional(),
 });
 export type ScrapeRequest = z.infer<typeof ScrapeRequestSchema>;
 
 export const ScrapeResponseSchema = z.object({
   success: z.boolean(),
-  job_id: z.string(),
+  jobId: z.string(),
   message: z.string(),
 });
 export type ScrapeResponse = z.infer<typeof ScrapeResponseSchema>;
@@ -386,9 +386,9 @@ export type JobStatus = z.infer<typeof JobStatusSchema>;
 export const ScrapedReelSchema = z.object({
   code: z.string(),
   url: z.string(),
-  video_url: z.string(),
-  thumbnail_url: z.string().nullable(),
-  like_count: z.number(),
+  videoUrl: z.string(),
+  thumbnailUrl: z.string().nullable(),
+  likeCount: z.number(),
   author: z.string().nullable(),
   caption: z.string().nullable(),
 });
@@ -409,28 +409,28 @@ export const SpanStatusSchema = z.enum(["unset", "ok", "error"]);
 export type SpanStatus = z.infer<typeof SpanStatusSchema>;
 
 export const TraceSpanSchema = z.object({
-  span_id: z.string(),
+  spanId: z.string(),
   name: z.string(),
   kind: SpanKindSchema,
   service: z.string(),
-  started_at: z.string(),
-  ended_at: z.string().nullable(),
-  duration_ms: z.number().nullable(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
   status: SpanStatusSchema,
   attributes: z.record(z.string(), z.unknown()).nullable(),
   events: z.array(z.record(z.string(), z.unknown())).nullable(),
-  parent_span_id: z.string().nullable(),
+  parentSpanId: z.string().nullable(),
 });
 export type TraceSpan = z.infer<typeof TraceSpanSchema>;
 
 export const TraceSchema = z.object({
-  trace_id: z.string(),
-  root_span_id: z.string().nullable(),
+  traceId: z.string(),
+  rootSpanId: z.string().nullable(),
   service: z.string(),
   operation: z.string(),
-  started_at: z.string(),
-  ended_at: z.string().nullable(),
-  duration_ms: z.number().nullable(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
   status: SpanStatusSchema,
   metadata: z.record(z.string(), z.unknown()).nullable(),
   spans: z.array(TraceSpanSchema).optional(),

@@ -102,9 +102,47 @@ app.openapi(generateRoute, async (c) => {
       return c.json({ error: "Source video not found" }, 400);
     }
 
-    // 3. Валидация selections
+    // 3. Собираем все элементы из relation И JSON поля
+    type ElementType = {
+      id: string;
+      type: string;
+      label: string;
+      description: string | null;
+      remixOptions: Array<{ id: string; label: string; prompt: string }>;
+    };
+
+    const elementsFromRelation: ElementType[] = analysis.videoElements.map(
+      (el) => ({
+        id: el.id,
+        type: el.type,
+        label: el.label,
+        description: el.description,
+        remixOptions:
+          (el.remixOptions as Array<{
+            id: string;
+            label: string;
+            prompt: string;
+          }>) || [],
+      })
+    );
+
+    const elementsFromJson: ElementType[] = Array.isArray(analysis.elements)
+      ? (analysis.elements as ElementType[])
+      : [];
+
+    // Объединяем элементы, relation имеет приоритет
+    const elementMap = new Map<string, ElementType>();
+    for (const el of elementsFromJson) {
+      elementMap.set(el.id, el);
+    }
+    for (const el of elementsFromRelation) {
+      elementMap.set(el.id, el);
+    }
+    const elements = Array.from(elementMap.values());
+
+    // 4. Валидация selections
     if (selections && selections.length > 0) {
-      const elementIds = new Set(analysis.videoElements.map((e) => e.id));
+      const elementIds = new Set(elements.map((e) => e.id));
 
       for (const sel of selections) {
         if (!elementIds.has(sel.elementId)) {
@@ -112,11 +150,8 @@ app.openapi(generateRoute, async (c) => {
         }
 
         if (sel.optionId) {
-          const element = analysis.videoElements.find(
-            (e) => e.id === sel.elementId
-          );
-          const remixOptions =
-            (element?.remixOptions as Array<{ id: string }>) || [];
+          const element = elements.find((e) => e.id === sel.elementId);
+          const remixOptions = element?.remixOptions || [];
           if (!remixOptions.some((opt) => opt.id === sel.optionId)) {
             return c.json(
               {
@@ -129,25 +164,12 @@ app.openapi(generateRoute, async (c) => {
       }
     }
 
-    // 4. Параметры из анализа
+    // 5. Параметры из анализа
     const duration = (
       analysis.duration && analysis.duration <= 10 ? analysis.duration : 5
     ) as 5 | 10;
     const aspectRatio =
       (analysis.aspectRatio as "16:9" | "9:16" | "1:1" | "auto") || "auto";
-
-    // 5. Подготовка элементов для buildPromptFromSelections
-    const elements = analysis.videoElements.map((el) => ({
-      id: el.id,
-      type: el.type,
-      label: el.label,
-      description: el.description,
-      remixOptions: el.remixOptions as Array<{
-        id: string;
-        label: string;
-        prompt: string;
-      }>,
-    }));
 
     // Преобразуем selections в формат для buildPromptFromSelections
     const elementSelections = (selections || []).map((sel) => ({
@@ -169,26 +191,26 @@ app.openapi(generateRoute, async (c) => {
       // Composite generation - генерируем по сценам
       const scenes = analysis.videoScenes;
 
+      // Собираем appearances из relation для фильтрации по сценам
+      const elementAppearances = new Map<
+        string,
+        Array<{ sceneIndex: number }>
+      >();
+      for (const el of analysis.videoElements) {
+        const appearances = el.appearances as Array<{ sceneIndex: number }>;
+        if (appearances) {
+          elementAppearances.set(el.id, appearances);
+        }
+      }
+
       // Helper: получить элементы для конкретной сцены
       const getElementsForScene = (sceneIndex: number) =>
-        analysis.videoElements
-          .filter((el) => {
-            const appearances = el.appearances as Array<{
-              sceneIndex: number;
-            }>;
-            return appearances?.some((a) => a.sceneIndex === sceneIndex);
-          })
-          .map((el) => ({
-            id: el.id,
-            type: el.type,
-            label: el.label,
-            description: el.description,
-            remixOptions: el.remixOptions as Array<{
-              id: string;
-              label: string;
-              prompt: string;
-            }>,
-          }));
+        elements.filter((el) => {
+          const appearances = elementAppearances.get(el.id);
+          // Если нет appearances, элемент доступен во всех сценах
+          if (!appearances || appearances.length === 0) return true;
+          return appearances.some((a) => a.sceneIndex === sceneIndex);
+        });
 
       // Определяем какие сцены нужно генерировать
       const sceneConfigs: Array<{

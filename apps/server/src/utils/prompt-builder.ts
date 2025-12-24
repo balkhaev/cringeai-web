@@ -7,7 +7,7 @@ export type Element = {
   id: string;
   type: string;
   label: string;
-  description: string;
+  description: string | null;
   /** Позиция в кадре: "center-left foreground", "right side background" */
   position?: string;
   /** Уникальные черты для идентификации: "bright red color, low silhouette" */
