@@ -28,7 +28,6 @@ export type {
   BatchRefreshDurationRequest,
   // Bookmark
   BookmarkResponse,
-  CameraMovement,
   CompositeStatus,
   CompositeStatusResponse,
   ConfigureResponse,
@@ -52,7 +51,6 @@ export type {
   FeedTemplateItem,
   // Feed
   FeedType,
-  FullVideoAnalysis,
   GeneratedAsset,
   // Generate
   GenerateRequest,
@@ -101,7 +99,6 @@ export type {
   RefreshTokenRequest,
   RefreshTokenResponse,
   RemixOption as ApiRemixOption,
-  RemixSuggestion,
   ResizeReelResponse,
   SceneSelection,
   ScrapedReel as ApiScrapedReel,
@@ -130,22 +127,15 @@ export type {
   TagTrend,
   TagTrendsResponse,
   Template as ApiTemplate,
-  TextOverlay,
   Trace,
   TraceSpan,
   UnauthorizedResponse,
   UpdateAnalysisRequest,
   UploadReferenceResponse,
   VideoAnalysisDb,
-  VideoAudio,
-  VideoCharacter,
   VideoElementType as ApiVideoElementType,
   // Generation
   VideoGenerationDb,
-  VideoObject,
-  // Analysis
-  VideoScene as ApiVideoScene,
-  VideoTransition,
 } from "@trender/api-contracts";
 
 // ===== Local types (domain-specific, not API contracts) =====
@@ -195,6 +185,8 @@ export type {
 // Video types (extended domain types)
 export type {
   CompositeGeneration,
+  DetectableElement as VideoDetectableElement,
+  RemixOption as VideoRemixOption,
   SceneConfig,
   SceneGeneration,
   SceneGenerationStatus,
@@ -204,4 +196,3 @@ export type {
   VideoGenerationStatus,
   VideoProvider,
 } from "./video";
-export { formatFullVeo3Prompt } from "./video";

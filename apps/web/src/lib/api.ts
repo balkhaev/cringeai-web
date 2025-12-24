@@ -8,8 +8,6 @@ import type {
 } from "@trender/types";
 import { API_URL } from "./api-client";
 
-export { formatFullVeo3Prompt } from "@trender/types";
-
 // Re-export types for backwards compatibility
 export type {
   Reel,
