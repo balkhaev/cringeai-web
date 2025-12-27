@@ -161,42 +161,10 @@ app.openapi(uploadMediaRoute, async (c) => {
   try {
     const formData = await c.req.formData();
     
-    // Try to get file - support both correct and malformed Content-Disposition headers
-    let file = formData.get("file");
-    
-    // Workaround for malformed Content-Disposition without quotes on name value
-    // If "file" key doesn't exist, look for keys starting with "file"
-    if (!file) {
-      const entries = Array.from(formData.entries());
-      const fileEntry = entries.find(([key]) => key.startsWith("file"));
-      if (fileEntry) {
-        file = fileEntry[1];
-        console.log("Found file with malformed key:", fileEntry[0]);
-      }
-    }
+    const file = formData.get("file");
 
-    // Check if file exists and is either File or Blob
-    if (!file) {
+    if (!file || !(file instanceof Blob)) {
       return c.json({ error: "File is required" }, 400);
-    }
-
-    // Debug what type we actually received
-    const fileDebug = {
-      type: typeof file,
-      constructor: file?.constructor?.name,
-      isBlob: file instanceof Blob,
-      isFile: file instanceof File,
-      hasArrayBuffer: typeof (file as any)?.arrayBuffer === 'function',
-      size: (file as any)?.size,
-      type: (file as any)?.type,
-    };
-    console.log("File debug:", fileDebug);
-
-    if (!(file instanceof Blob)) {
-      return c.json({ 
-        error: "Invalid file type",
-        debug: fileDebug,
-      }, 400);
     }
 
     const mimeType = file.type;
@@ -228,7 +196,19 @@ app.openapi(uploadMediaRoute, async (c) => {
       return c.json({ error: "S3 storage not configured" }, 400);
     }
 
-    const s3Key = getS3Key("media", `${userId}/${mediaId}`);
+    // Get file extension from mime type
+    const extensionMap: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "video/mp4": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+    };
+    const extension = extensionMap[mimeType] || (isImage ? "jpg" : "mp4");
+
+    const s3Key = getS3Key("media", `${userId}/${mediaId}`, extension);
     await s3Service.uploadFile(s3Key, buffer, mimeType);
 
     const url = getMediaPublicUrl(s3Key);
