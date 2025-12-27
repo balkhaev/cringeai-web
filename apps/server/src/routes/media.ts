@@ -161,7 +161,19 @@ app.openapi(uploadMediaRoute, async (c) => {
   try {
     const formData = await c.req.formData();
     
-    const file = formData.get("file");
+    // Try to get file with exact key first
+    let file = formData.get("file");
+    
+    // Workaround: If not found, look for keys that start with "file" 
+    // (handles malformed Content-Disposition from some clients)
+    if (!file) {
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith("file") && value instanceof Blob) {
+          file = value;
+          break;
+        }
+      }
+    }
 
     if (!file || !(file instanceof Blob)) {
       return c.json({ error: "File is required" }, 400);
