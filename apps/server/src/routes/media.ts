@@ -162,7 +162,8 @@ app.openapi(uploadMediaRoute, async (c) => {
     const formData = await c.req.formData();
     const file = formData.get("file");
 
-    if (!(file && file instanceof File)) {
+    // Check if file exists and is either File or Blob
+    if (!file || !(file instanceof Blob)) {
       return c.json({ error: "File is required" }, 400);
     }
 
@@ -181,6 +182,9 @@ app.openapi(uploadMediaRoute, async (c) => {
         400
       );
     }
+
+    // Get filename - Blob doesn't have name property, but File does
+    const filename = file instanceof File && file.name ? file.name : 'upload';
 
     // TODO: Get userId from auth session
     const userId = "default-user";
@@ -208,7 +212,7 @@ app.openapi(uploadMediaRoute, async (c) => {
         id: mediaId,
         userId,
         type: isImage ? "image" : "video",
-        filename: file.name,
+        filename,
         s3Key,
         url,
         size: file.size,
