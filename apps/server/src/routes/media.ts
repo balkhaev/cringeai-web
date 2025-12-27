@@ -176,19 +176,26 @@ app.openapi(uploadMediaRoute, async (c) => {
     }
 
     // Check if file exists and is either File or Blob
-    if (!file || !(file instanceof Blob)) {
+    if (!file) {
+      return c.json({ error: "File is required" }, 400);
+    }
+
+    // Debug what type we actually received
+    const fileDebug = {
+      type: typeof file,
+      constructor: file?.constructor?.name,
+      isBlob: file instanceof Blob,
+      isFile: file instanceof File,
+      hasArrayBuffer: typeof (file as any)?.arrayBuffer === 'function',
+      size: (file as any)?.size,
+      type: (file as any)?.type,
+    };
+    console.log("File debug:", fileDebug);
+
+    if (!(file instanceof Blob)) {
       return c.json({ 
-        error: "File is required",
-        debug: {
-          fileExists: !!file,
-          fileType: typeof file,
-          constructor: file?.constructor?.name,
-          isBlob: file instanceof Blob,
-          isFile: file instanceof File,
-          hasArrayBuffer: typeof (file as any)?.arrayBuffer === 'function',
-          hasSize: 'size' in (file || {}),
-          hasType: 'type' in (file || {}),
-        }
+        error: "Invalid file type",
+        debug: fileDebug,
       }, 400);
     }
 
