@@ -238,14 +238,10 @@ const headReferenceRoute = createRoute({
 
 const streamMediaRoute = createRoute({
   method: "get",
-  path: "/media/{s3Key}",
+  path: "/media/*",
   summary: "Stream media file by S3 key",
   tags: ["Files"],
-  request: {
-    params: z.object({
-      s3Key: z.string().openapi({ param: { name: "s3Key", in: "path" } }),
-    }),
-  },
+  request: {},
   responses: {
     200: {
       description: "Media stream",
@@ -486,17 +482,23 @@ filesRouter.openapi(headReferenceRoute, async (c) => {
 });
 
 filesRouter.openapi(streamMediaRoute, async (c) => {
-  const { s3Key: encodedS3Key } = c.req.valid("param");
-  // Decode the URL-encoded S3 key (e.g., scene-thumbnails%2Fxxx -> scene-thumbnails/xxx)
-  const s3Key = decodeURIComponent(encodedS3Key);
+  // Extract s3Key from wildcard path: /api/files/media/* 
+  // e.g., /api/files/media/media/default-user/file.jpg -> media/default-user/file.jpg
+  const fullPath = c.req.path;
+  const s3Key = decodeURIComponent(fullPath.replace(/^\/api\/files\/media\//, ''));
+  
+  console.log(`[Files] Streaming media: ${s3Key}`);
 
   try {
     const result = await s3Service.getFileStream(s3Key);
 
     if (!result) {
+      console.log(`[Files] Media file not found in S3: ${s3Key}`);
       return c.json({ error: "Media file not found" }, 404);
     }
 
+    console.log(`[Files] Successfully streaming media: ${s3Key} (${result.metadata.contentLength} bytes)`);
+    
     return new Response(result.stream, {
       headers: {
         "Content-Type": result.metadata.contentType,
@@ -505,7 +507,7 @@ filesRouter.openapi(streamMediaRoute, async (c) => {
       },
     });
   } catch (error) {
-    console.error(`Error streaming media ${s3Key}:`, error);
+    console.error(`[Files] Error streaming media ${s3Key}:`, error);
     return c.json({ error: "Failed to stream media" }, 500);
   }
 });
