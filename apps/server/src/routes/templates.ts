@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import prisma from "@trender/db";
 import {
   BookmarkResponseSchema,
+  DetectableElementSchema,
   ErrorResponseSchema,
   FeedQuerySchema,
   FeedResponseSchema,
@@ -80,6 +81,14 @@ const listTemplatesRoute = createRoute({
   },
 });
 
+// Extended analysis schema with elements for getTemplate endpoint
+const AnalysisWithElementsSchema = z.object({
+  id: z.string(),
+  tags: z.array(z.string()),
+  elementsCount: z.number(),
+  elements: z.array(DetectableElementSchema),
+});
+
 const getTemplateRoute = createRoute({
   method: "get",
   path: "/{id}",
@@ -95,11 +104,13 @@ const getTemplateRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            template: TemplateSchema,
+            template: TemplateSchema.omit({ analysis: true }).extend({
+              analysis: AnalysisWithElementsSchema.optional(),
+            }),
           }),
         },
       },
-      description: "Detailed template information provided",
+      description: "Detailed template information with elements",
     },
     404: {
       content: {
@@ -627,6 +638,15 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
       analysis: {
         include: {
           generations: { orderBy: { createdAt: "desc" }, take: 10 },
+          videoElements: {
+            select: {
+              id: true,
+              type: true,
+              label: true,
+              description: true,
+              remixOptions: true,
+            },
+          },
           _count: {
             select: { videoElements: true },
           },
@@ -639,16 +659,46 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
     return c.json({ error: "Template not found" }, 404);
   }
 
-  // Transform to match schema
+  // Transform elements from videoElements relation
+  const elements =
+    template.analysis?.videoElements.map((el) => {
+      const rawOptions = el.remixOptions as Array<{
+        id: string;
+        label: string;
+        icon?: string;
+        prompt: string;
+      }>;
+      return {
+        id: el.id,
+        type: el.type as "character" | "object" | "background",
+        label: el.label,
+        description: el.description,
+        remixOptions: rawOptions.map((opt) => ({
+          id: opt.id,
+          label: opt.label,
+          icon: opt.icon ?? "✨",
+          prompt: opt.prompt,
+        })),
+      };
+    }) ?? [];
+
+  // Transform to match schema - explicitly list fields
   const transformed = {
-    ...template,
+    id: template.id,
+    title: template.title,
+    tags: template.tags,
+    category: template.category,
+    generationCount: template.generationCount,
+    isPublished: template.isPublished,
     createdAt: template.createdAt.toISOString(),
     updatedAt: template.updatedAt.toISOString(),
+    reel: template.reel,
     analysis: template.analysis
       ? {
           id: template.analysis.id,
           tags: template.analysis.tags,
           elementsCount: template.analysis._count.videoElements,
+          elements,
         }
       : undefined,
   };

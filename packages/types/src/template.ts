@@ -16,6 +16,7 @@ export type RemixOption = {
   label: string;
   icon: string;
   prompt: string;
+  imageUrl?: string;
 };
 
 export type ElementAppearance = {

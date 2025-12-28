@@ -9,6 +9,10 @@ import { services } from "../../config";
 import { type GeminiProgressCallback, getGeminiService } from "../gemini";
 import { getOpenAIService, isOpenAIConfigured } from "../openai";
 import { pipelineLogger } from "../pipeline-logger";
+import {
+  getRemixImageGenerator,
+  isRemixImageGeneratorConfigured,
+} from "../remix-image-generator";
 import { getS3Key, isS3Configured, s3Service } from "../s3";
 import { getMediaPublicUrl } from "../url-builder";
 import { loadVideoBuffer } from "../video/video-loader";
@@ -86,6 +90,7 @@ type RemixOption = {
   label: string;
   icon: string;
   prompt: string;
+  imageUrl?: string;
 };
 
 /**
@@ -898,11 +903,61 @@ export async function analyzeReelUnified(
       },
     });
 
+    // 7.5. Generate images for remix options using Gemini 2.5 Flash
+    let elementsWithImages: typeof elementsWithOptions = elementsWithOptions;
+    if (isRemixImageGeneratorConfigured()) {
+      try {
+        await onProgress(
+          "analyzing",
+          78,
+          "Генерация изображений для вариантов..."
+        );
+        const imageGenerator = getRemixImageGenerator();
+        const generatedElements =
+          await imageGenerator.generateImagesForAllElements(
+            elementsWithOptions.map((el) => ({
+              id: el.id,
+              type: el.type,
+              label: el.label,
+              description: el.description,
+              remixOptions: el.remixOptions,
+            })),
+            savedAnalysis.id,
+            async (current, total, message) => {
+              const imageProgress = 78 + Math.floor((current / total) * 2);
+              await onProgress("analyzing", imageProgress, message);
+            }
+          );
+
+        // Merge back appearances and update remixOptions
+        elementsWithImages = elementsWithOptions.map((original, idx) => ({
+          ...original,
+          remixOptions:
+            generatedElements[idx]?.remixOptions || original.remixOptions,
+        }));
+
+        console.log(
+          `[analyzeReelUnified] Generated images for ${elementsWithImages.length} elements`
+        );
+      } catch (imageError) {
+        console.error(
+          "[analyzeReelUnified] Failed to generate remix images:",
+          imageError
+        );
+        await pipelineLogger.warn({
+          reelId,
+          stage: "analyze",
+          message: `Image generation error: ${imageError instanceof Error ? imageError.message : String(imageError)}`,
+        });
+        // Continue with original elements without images
+      }
+    }
+
     // 8. Create VideoElement records
     await onProgress("analyzing", 80, "Сохранение элементов...");
     const elementIdMap = new Map<string, string>(); // oldId -> dbId
 
-    for (const element of elementsWithOptions) {
+    for (const element of elementsWithImages) {
       // Add sceneId to appearances
       const appearancesWithSceneId = element.appearances.map((app) => {
         return {
@@ -944,7 +999,7 @@ export async function analyzeReelUnified(
       );
 
       // Find elements that appear in this scene
-      const sceneElementIds = elementsWithOptions
+      const sceneElementIds = elementsWithImages
         .filter((el) =>
           el.appearances.some((a) => a.sceneIndex === scene.index)
         )
@@ -1004,7 +1059,7 @@ export async function analyzeReelUnified(
     }
 
     // 10. Update VideoElement appearances with sceneId
-    for (const element of elementsWithOptions) {
+    for (const element of elementsWithImages) {
       const dbElementId = elementIdMap.get(element.id);
       if (!dbElementId) continue;
 

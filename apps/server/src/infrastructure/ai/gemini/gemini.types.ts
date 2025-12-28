@@ -60,6 +60,7 @@ export type RemixOption = {
   label: string; // "Cyberpunk Robot"
   icon: string; // emoji
   prompt: string; // "Transform the [subject] into a futuristic cyberpunk robot with neon details"
+  imageUrl?: string; // URL изображения сгенерированного через Gemini
 };
 
 // Detectable element in the video

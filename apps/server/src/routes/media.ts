@@ -160,11 +160,11 @@ const uploadMediaRoute = createRoute({
 app.openapi(uploadMediaRoute, async (c) => {
   try {
     const formData = await c.req.formData();
-    
+
     // Try to get file with exact key first
     let file = formData.get("file");
-    
-    // Workaround: If not found, look for keys that start with "file" 
+
+    // Workaround: If not found, look for keys that start with "file"
     // (handles malformed Content-Disposition from some clients)
     if (!file) {
       for (const [key, value] of formData.entries()) {
@@ -175,7 +175,7 @@ app.openapi(uploadMediaRoute, async (c) => {
       }
     }
 
-    if (!file || !(file instanceof Blob)) {
+    if (!(file && file instanceof Blob)) {
       return c.json({ error: "File is required" }, 400);
     }
 
@@ -196,7 +196,7 @@ app.openapi(uploadMediaRoute, async (c) => {
     }
 
     // Get filename - Blob doesn't have name property, but File does
-    const filename = file instanceof File && file.name ? file.name : 'upload';
+    const filename = file instanceof File && file.name ? file.name : "upload";
 
     // TODO: Get userId from auth session
     const userId = "default-user";

@@ -607,7 +607,7 @@ app.openapi(statusRoute, async (c) => {
       startedAt: composite.updatedAt?.toISOString() ?? undefined,
       completedAt:
         composite.status === "completed"
-          ? composite.updatedAt?.toISOString() ?? undefined
+          ? (composite.updatedAt?.toISOString() ?? undefined)
           : undefined,
     },
     200

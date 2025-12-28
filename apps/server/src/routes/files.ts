@@ -482,10 +482,12 @@ filesRouter.openapi(headReferenceRoute, async (c) => {
 });
 
 filesRouter.openapi(streamMediaRoute, async (c) => {
-  // Extract s3Key from wildcard path: /api/files/media/* 
+  // Extract s3Key from wildcard path: /api/files/media/*
   // e.g., /api/files/media/media/default-user/file.jpg -> media/default-user/file.jpg
   const fullPath = c.req.path;
-  const s3Key = decodeURIComponent(fullPath.replace(/^\/api\/files\/media\//, ''));
+  const s3Key = decodeURIComponent(
+    fullPath.replace(/^\/api\/files\/media\//, "")
+  );
 
   try {
     const result = await s3Service.getFileStream(s3Key);
@@ -493,7 +495,7 @@ filesRouter.openapi(streamMediaRoute, async (c) => {
     if (!result) {
       return c.json({ error: "Media file not found" }, 404);
     }
-    
+
     return new Response(result.stream, {
       headers: {
         "Content-Type": result.metadata.contentType,
