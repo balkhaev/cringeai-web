@@ -325,7 +325,7 @@ app.openapi(generateRoute, async (c) => {
         {
           generationId: compositeId,
           status: "queued" as const,
-          statusUrl: `/api/generate/${compositeId}/composite-status`,
+          statusUrl: `/api/generate/${compositeId}/status`,
           type: "composite" as const,
         },
         202
@@ -401,28 +401,137 @@ const statusRoute = createRoute({
 app.openapi(statusRoute, async (c) => {
   const { generationId } = c.req.valid("param");
 
+  // Try to find a regular VideoGeneration first
   const generation = await prisma.videoGeneration.findUnique({
     where: { id: generationId },
   });
 
-  if (!generation) {
+  if (generation) {
+    // Single video generation - return standard status
+    const statusMap: Record<
+      string,
+      "queued" | "processing" | "completed" | "failed"
+    > = {
+      pending: "queued",
+      processing: "processing",
+      completed: "completed",
+      failed: "failed",
+    };
+
+    const status = statusMap[generation.status] ?? "queued";
+
+    // Map progress stage to valid enum value
+    const validStages = [
+      "analyzing",
+      "generating_character",
+      "setting_up_lighting",
+      "applying_style",
+      "rendering",
+      "finalizing",
+    ] as const;
+    type ValidStage = (typeof validStages)[number];
+    const stage: ValidStage = validStages.includes(
+      generation.progressStage as ValidStage
+    )
+      ? (generation.progressStage as ValidStage)
+      : "analyzing";
+
+    return c.json(
+      {
+        generationId: generation.id,
+        status,
+        progress: generation.progress,
+        stage,
+        message: generation.progressMessage ?? "",
+        providerProgress: generation.klingProgress ?? undefined,
+        ...(generation.status === "completed" &&
+          generation.videoUrl && {
+            result: {
+              videoUrl: getGenerationVideoPublicUrl(generation.id),
+              thumbnailUrl: generation.thumbnailUrl,
+              duration: generation.durationSec,
+            },
+          }),
+        error: generation.error ?? undefined,
+        createdAt: generation.createdAt.toISOString(),
+        startedAt: generation.lastActivityAt?.toISOString() ?? undefined,
+        completedAt: generation.completedAt?.toISOString() ?? undefined,
+      },
+      200
+    );
+  }
+
+  // If not found, try to find a CompositeGeneration
+  const composite = await prisma.compositeGeneration.findUnique({
+    where: { id: generationId },
+    include: {
+      analysis: true,
+    },
+  });
+
+  if (!composite) {
     return c.json({ error: "Generation not found" }, 404);
   }
 
-  // Map status
-  const statusMap: Record<
+  // Get scene configs to fetch all scene generations
+  const sceneConfig =
+    (composite.sceneConfig as Array<{
+      sceneId: string;
+      generationId?: string;
+      useOriginal: boolean;
+      startTime: number;
+      endTime: number;
+    }>) || [];
+
+  // Fetch all scene generations
+  const sceneGenerationIds = sceneConfig
+    .filter((s) => !s.useOriginal && s.generationId)
+    .map((s) => s.generationId as string);
+
+  const sceneGenerations =
+    sceneGenerationIds.length > 0
+      ? await prisma.sceneGeneration.findMany({
+          where: { id: { in: sceneGenerationIds } },
+        })
+      : [];
+
+  // Build scene statuses
+  const sceneStatuses = sceneConfig.map((config) => {
+    if (config.useOriginal) {
+      return {
+        sceneId: config.sceneId,
+        status: "completed",
+        progress: 100,
+      };
+    }
+
+    const sceneGen = sceneGenerations.find(
+      (sg) => sg.id === config.generationId
+    );
+    return {
+      sceneId: config.sceneId,
+      status: sceneGen?.status ?? "pending",
+      progress: sceneGen?.progress ?? 0,
+      ...(sceneGen?.videoUrl && { videoUrl: sceneGen.videoUrl }),
+    };
+  });
+
+  // Map composite status to standard status enum
+  const compositeStatusMap: Record<
     string,
     "queued" | "processing" | "completed" | "failed"
   > = {
     pending: "queued",
-    processing: "processing",
+    waiting: "processing",
+    concatenating: "processing",
+    uploading: "processing",
     completed: "completed",
     failed: "failed",
   };
 
-  const status = statusMap[generation.status] ?? "queued";
+  const status = compositeStatusMap[composite.status] ?? "queued";
 
-  // Map progress stage to valid enum value
+  // Determine stage based on composite status and progress
   const validStages = [
     "analyzing",
     "generating_character",
@@ -432,32 +541,57 @@ app.openapi(statusRoute, async (c) => {
     "finalizing",
   ] as const;
   type ValidStage = (typeof validStages)[number];
-  const stage: ValidStage = validStages.includes(
-    generation.progressStage as ValidStage
-  )
-    ? (generation.progressStage as ValidStage)
-    : "analyzing";
+
+  let stage: ValidStage = "rendering";
+  if (composite.status === "pending" || composite.status === "waiting") {
+    stage = "rendering"; // Scenes are being generated
+  } else if (composite.status === "concatenating") {
+    stage = "finalizing";
+  } else if (composite.status === "uploading") {
+    stage = "finalizing";
+  } else if (composite.status === "completed") {
+    stage = "finalizing";
+  }
+
+  // Override with explicit progressStage if available
+  if (
+    composite.progressStage &&
+    validStages.includes(composite.progressStage as ValidStage)
+  ) {
+    stage = composite.progressStage as ValidStage;
+  }
 
   return c.json(
     {
-      generationId: generation.id,
+      generationId: composite.id,
       status,
-      progress: generation.progress,
+      progress: composite.progress,
       stage,
-      message: generation.progressMessage ?? "",
-      providerProgress: generation.klingProgress ?? undefined,
-      ...(generation.status === "completed" &&
-        generation.videoUrl && {
+      message:
+        composite.progressMessage ??
+        (composite.status === "waiting"
+          ? "Generating scenes..."
+          : composite.status === "concatenating"
+            ? "Combining scenes..."
+            : composite.status === "uploading"
+              ? "Uploading final video..."
+              : "Processing..."),
+      sceneStatuses,
+      ...(composite.status === "completed" &&
+        composite.videoUrl && {
           result: {
-            videoUrl: getGenerationVideoPublicUrl(generation.id),
-            thumbnailUrl: generation.thumbnailUrl,
-            duration: generation.durationSec,
+            videoUrl: composite.videoUrl,
+            thumbnailUrl: null,
+            duration: null,
           },
         }),
-      error: generation.error ?? undefined,
-      createdAt: generation.createdAt.toISOString(),
-      startedAt: generation.lastActivityAt?.toISOString() ?? undefined,
-      completedAt: generation.completedAt?.toISOString() ?? undefined,
+      error: composite.error ?? undefined,
+      createdAt: composite.createdAt.toISOString(),
+      startedAt: composite.updatedAt?.toISOString() ?? undefined,
+      completedAt:
+        composite.status === "completed"
+          ? composite.updatedAt?.toISOString() ?? undefined
+          : undefined,
     },
     200
   );
