@@ -516,6 +516,23 @@ app.openapi(statusRoute, async (c) => {
     };
   });
 
+  // Calculate overall progress: minimum of all scene progresses during generation
+  // Once concatenating/uploading, use composite progress for final stages
+  let overallProgress: number;
+  if (
+    composite.status === "concatenating" ||
+    composite.status === "uploading" ||
+    composite.status === "completed"
+  ) {
+    // Use composite progress for final stages (90-100)
+    overallProgress = composite.progress;
+  } else {
+    // During scene generation, use minimum scene progress
+    const sceneProgresses = sceneStatuses.map((s) => s.progress);
+    overallProgress =
+      sceneProgresses.length > 0 ? Math.min(...sceneProgresses) : 0;
+  }
+
   // Map composite status to standard status enum
   const compositeStatusMap: Record<
     string,
@@ -565,7 +582,7 @@ app.openapi(statusRoute, async (c) => {
     {
       generationId: composite.id,
       status,
-      progress: composite.progress,
+      progress: overallProgress,
       stage,
       message:
         composite.progressMessage ??
