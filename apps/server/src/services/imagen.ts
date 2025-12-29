@@ -1,7 +1,7 @@
 /**
- * Сервис генерации изображений через Google Gemini Imagen
+ * Сервис генерации изображений через Gemini 2.5 Flash Image
  */
-import { GoogleGenAI, PersonGeneration } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import prisma from "@trender/db";
 import { ai } from "../config";
 import { getS3Key, isS3Configured, s3Service } from "./s3";
@@ -72,31 +72,25 @@ export class ImagenService {
       `[Imagen] Generating ${category} asset: "${prompt.slice(0, 50)}..."`
     );
 
-    // Генерируем изображение через Imagen
-    const response = await this.genai.models.generateImages({
-      model: "imagen-3.0-generate-002",
-      prompt: fullPrompt,
+    // Генерируем изображение через Gemini 2.5 Flash Image
+    const response = await this.genai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: fullPrompt,
       config: {
-        numberOfImages: 1,
-        aspectRatio,
-        // Разрешаем персонажей для категории character
-        personGeneration:
-          category === "character"
-            ? PersonGeneration.ALLOW_ADULT
-            : PersonGeneration.DONT_ALLOW,
+        responseModalities: ["image", "text"],
       },
     });
 
-    if (!response.generatedImages?.[0]) {
+    // Ищем изображение в ответе
+    const imagePart = response.candidates?.[0]?.content?.parts?.find((part) =>
+      part.inlineData?.mimeType?.startsWith("image/")
+    );
+
+    if (!imagePart?.inlineData?.data) {
       throw new Error("No image generated");
     }
 
-    const imageData = response.generatedImages[0].image;
-    if (!imageData?.imageBytes) {
-      throw new Error("No image data in response");
-    }
-
-    const buffer = Buffer.from(imageData.imageBytes, "base64");
+    const buffer = Buffer.from(imagePart.inlineData.data, "base64");
 
     // Проверяем S3
     if (!isS3Configured()) {
