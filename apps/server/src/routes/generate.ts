@@ -116,7 +116,12 @@ app.openapi(generateRoute, async (c) => {
       type: string;
       label: string;
       description: string | null;
-      remixOptions: Array<{ id: string; label: string; prompt: string }>;
+      remixOptions: Array<{
+        id: string;
+        label: string;
+        prompt: string;
+        imageUrl?: string;
+      }>;
     };
 
     const elementsFromRelation: ElementType[] = analysis.videoElements.map(
@@ -130,6 +135,7 @@ app.openapi(generateRoute, async (c) => {
             id: string;
             label: string;
             prompt: string;
+            imageUrl?: string;
           }>) || [],
       })
     );

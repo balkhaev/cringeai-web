@@ -20,6 +20,7 @@ export const RemixOptionSchema = z.object({
   label: z.string(),
   icon: z.string(),
   prompt: z.string(),
+  imageUrl: z.string().optional(),
 });
 export type RemixOption = z.infer<typeof RemixOptionSchema>;
 

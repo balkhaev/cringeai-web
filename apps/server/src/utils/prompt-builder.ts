@@ -20,7 +20,12 @@ export type Element = {
   contactPoints?: string;
   /** Что скрывает объект: "front half hidden by pipe, Santa on top" */
   occlusionInfo?: string;
-  remixOptions: Array<{ id: string; label: string; prompt: string }>;
+  remixOptions: Array<{
+    id: string;
+    label: string;
+    prompt: string;
+    imageUrl?: string;
+  }>;
 };
 
 export type ElementSelection = {

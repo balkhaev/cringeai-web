@@ -335,6 +335,7 @@ app.openapi(statusRoute, async (c) => {
       label: string;
       icon: string;
       prompt: string;
+      imageUrl?: string;
     }>;
   };
 

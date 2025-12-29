@@ -667,6 +667,7 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
         label: string;
         icon?: string;
         prompt: string;
+        imageUrl?: string;
       }>;
       return {
         id: el.id,
@@ -678,6 +679,7 @@ templatesRouter.openapi(getTemplateRoute, async (c) => {
           label: opt.label,
           icon: opt.icon ?? "✨",
           prompt: opt.prompt,
+          imageUrl: opt.imageUrl,
         })),
       };
     }) ?? [];

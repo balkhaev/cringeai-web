@@ -25,6 +25,10 @@ export const RemixOptionSchema = z
       description: "Transformation prompt",
       example: "Transform the subject into...",
     }),
+    imageUrl: z.string().optional().openapi({
+      description: "Generated preview image URL",
+      example: "https://storage.example.com/remix-options/abc/opt-1.png",
+    }),
   })
   .openapi("RemixOption");
 
