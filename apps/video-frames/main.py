@@ -636,12 +636,25 @@ def concat_videos_ffmpeg(
             escaped_path = path.replace("'", "'\\''")
             f.write(f"file '{escaped_path}'\n")
 
+    # Re-encode for web compatibility with proper keyframes
+    # -g 30 = keyframe every 1 second (assuming 30fps)
+    # -profile:v high -level 4.1 = wide browser compatibility
+    # -pix_fmt yuv420p = maximum compatibility
+    # -preset medium = good balance of speed and quality
     cmd = [
         "ffmpeg",
         "-f", "concat",
         "-safe", "0",
         "-i", concat_file,
-        "-c", "copy",  # Stream copy for speed
+        "-c:v", "libx264",
+        "-profile:v", "high",
+        "-level", "4.1",
+        "-pix_fmt", "yuv420p",
+        "-preset", "medium",
+        "-crf", "23",
+        "-g", "30",  # Keyframe every 30 frames (~1 sec at 30fps)
+        "-c:a", "aac",
+        "-b:a", "128k",
         "-movflags", "+faststart",
         output_path,
         "-y"
