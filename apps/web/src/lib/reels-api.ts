@@ -229,6 +229,7 @@ export type SavedReelsParams = {
   minLikes?: number;
   status?: ReelStatus;
   search?: string;
+  featured?: boolean;
 };
 
 export type ReelStats = {
@@ -242,6 +243,7 @@ export type ReelStats = {
     failed: number;
   };
   templates: number;
+  featured: number;
   activeGenerations: number;
 };
 
@@ -275,6 +277,9 @@ export async function getSavedReels(
   }
   if (params.search) {
     searchParams.set("search", params.search);
+  }
+  if (params.featured) {
+    searchParams.set("featured", "true");
   }
 
   const response = await fetch(

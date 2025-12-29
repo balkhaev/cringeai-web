@@ -91,7 +91,7 @@ function saveSortConfig(config: SortConfig): void {
   }
 }
 
-type TabValue = "all" | ReelStatus;
+type TabValue = "all" | "featured" | ReelStatus;
 
 const TAB_CONFIG: {
   value: TabValue;
@@ -99,8 +99,10 @@ const TAB_CONFIG: {
   statusKey?: keyof NonNullable<
     ReturnType<typeof useReelStats>["data"]
   >["byStatus"];
+  isFeatured?: boolean;
 }[] = [
   { value: "all", label: "Все" },
+  { value: "featured", label: "В тренде", isFeatured: true },
   { value: "scraped", label: "Найдены", statusKey: "scraped" },
   { value: "downloaded", label: "Загружены", statusKey: "downloaded" },
   { value: "analyzed", label: "Готовы", statusKey: "analyzed" },
@@ -119,7 +121,12 @@ export function ReelsPipeline() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const { data: stats } = useReelStats();
-  const { data, isLoading } = useAllReels(200, debouncedSearch || undefined);
+  const isFeaturedTab = activeTab === "featured";
+  const { data, isLoading } = useAllReels(
+    200,
+    debouncedSearch || undefined,
+    isFeaturedTab || undefined
+  );
   const deleteAllMutation = useDeleteAllReels();
   const batchAnalyzeMutation = useBatchAnalyze();
 
@@ -165,8 +172,11 @@ export function ReelsPipeline() {
   );
 
   const filteredAndSortedReels = useMemo(() => {
+    // For "all" and "featured" tabs, data is already filtered by the backend
     const filtered =
-      activeTab === "all" ? reels : reels.filter((r) => r.status === activeTab);
+      activeTab === "all" || activeTab === "featured"
+        ? reels
+        : reels.filter((r) => r.status === activeTab);
 
     return [...filtered].sort((a, b) => {
       const aVal = a[sortConfig.field] ?? 0;
@@ -187,6 +197,9 @@ export function ReelsPipeline() {
   const getCount = (tab: TabValue): number => {
     if (tab === "all") {
       return stats?.total || 0;
+    }
+    if (tab === "featured") {
+      return stats?.featured || 0;
     }
     if (!stats) {
       return 0;

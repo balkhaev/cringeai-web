@@ -726,7 +726,7 @@ reelsRouter.openapi(downloadFileRoute, async (c) => {
 });
 
 reelsRouter.openapi(listSavedReelsRoute, async (c) => {
-  const { limit, offset, minLikes, hashtag, status, search } =
+  const { limit, offset, minLikes, hashtag, status, search, featured } =
     c.req.valid("query");
 
   const { listSavedReelsUseCase } = await import("../../application/reels");
@@ -737,6 +737,7 @@ reelsRouter.openapi(listSavedReelsRoute, async (c) => {
     hashtag,
     status,
     search,
+    featured,
   });
 
   return c.json(result, 200);
@@ -831,6 +832,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
       analyzed,
       failed,
       templates,
+      featured,
       activeGenerations,
     ] = await Promise.all([
       prisma.reel.count(),
@@ -841,6 +843,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
       prisma.reel.count({ where: { status: "analyzed" } }),
       prisma.reel.count({ where: { status: "failed" } }),
       prisma.template.count(),
+      prisma.template.count({ where: { isFeatured: true } }),
       prisma.videoGeneration.count({
         where: { status: { in: ["pending", "processing"] } },
       }),
@@ -858,6 +861,7 @@ reelsRouter.openapi(getReelStatsRoute, async (c) => {
           failed,
         },
         templates,
+        featured,
         activeGenerations,
       },
       200

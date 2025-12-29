@@ -101,6 +101,13 @@ export const ReelListQuerySchema = z.object({
       param: { name: "search", in: "query" },
       description: "Search in caption, author, hashtag",
     }),
+  featured: z.coerce
+    .boolean()
+    .optional()
+    .openapi({
+      param: { name: "featured", in: "query" },
+      description: "Filter reels with featured templates (isFeatured = true)",
+    }),
 });
 
 // ===== ANALYSIS DETAIL SCHEMAS =====
@@ -397,6 +404,7 @@ export const ReelStatsResponseSchema = z
       failed: z.number(),
     }),
     templates: z.number(),
+    featured: z.number(),
     activeGenerations: z.number(),
   })
   .openapi("ReelStatsResponse");

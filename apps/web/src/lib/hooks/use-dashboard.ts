@@ -46,10 +46,10 @@ export function useReelsByStatus(status?: ReelStatus, limit = 50) {
   });
 }
 
-export function useAllReels(limit = 100, search?: string) {
+export function useAllReels(limit = 100, search?: string, featured?: boolean) {
   return useQuery<SavedReelsResponse>({
-    queryKey: ["reels", "all", limit, search],
-    queryFn: () => getSavedReels({ limit, search }),
+    queryKey: ["reels", "all", limit, search, featured],
+    queryFn: () => getSavedReels({ limit, search, featured }),
     refetchInterval: 5000,
   });
 }

@@ -590,7 +590,58 @@ export async function analyzeReelWithScenes(
         elementMap.set(key, { ...el });
       }
     }
-    const aggregatedElements = Array.from(elementMap.values());
+    let aggregatedElements: ElementWithOptions[] = Array.from(
+      elementMap.values()
+    );
+
+    // 5.5. Generate images for remix options using Gemini 2.5 Flash
+    if (isRemixImageGeneratorConfigured()) {
+      try {
+        await onProgress(
+          "analyzing",
+          88,
+          "Генерация изображений для вариантов..."
+        );
+        const imageGenerator = getRemixImageGenerator();
+        const generatedElements =
+          await imageGenerator.generateImagesForAllElements(
+            aggregatedElements.map((el) => ({
+              id: el.id,
+              type: el.type,
+              label: el.label,
+              description: el.description,
+              remixOptions: el.remixOptions,
+            })),
+            savedAnalysis.id,
+            async (current, total, message) => {
+              const imageProgress = 88 + Math.floor((current / total) * 5);
+              await onProgress("analyzing", imageProgress, message);
+            }
+          );
+
+        // Update aggregatedElements with imageUrls
+        aggregatedElements = aggregatedElements.map((original, idx) => ({
+          ...original,
+          remixOptions:
+            generatedElements[idx]?.remixOptions || original.remixOptions,
+        }));
+
+        console.log(
+          `[analyzeReelWithScenes] Generated images for ${aggregatedElements.length} elements`
+        );
+      } catch (imageError) {
+        console.error(
+          "[analyzeReelWithScenes] Failed to generate remix images:",
+          imageError
+        );
+        await pipelineLogger.warn({
+          reelId,
+          stage: "analyze",
+          message: `Image generation error: ${imageError instanceof Error ? imageError.message : String(imageError)}`,
+        });
+        // Continue without images
+      }
+    }
 
     await prisma.videoAnalysis.update({
       where: { id: savedAnalysis.id },

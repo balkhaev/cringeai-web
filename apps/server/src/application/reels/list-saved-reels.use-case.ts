@@ -7,6 +7,7 @@ type ListSavedReelsParams = {
   hashtag?: string;
   status?: string;
   search?: string;
+  featured?: boolean;
 };
 
 type ReelWithAnalysis = Awaited<ReturnType<typeof prisma.reel.findMany>>[0] & {
@@ -21,10 +22,20 @@ export async function listSavedReelsUseCase(
   limit: number;
   offset: number;
 }> {
-  const { limit, offset, minLikes, hashtag, status, search } = params;
+  const { limit, offset, minLikes, hashtag, status, search, featured } = params;
 
   // biome-ignore lint/suspicious/noExplicitAny: complex prisma where
   const where: any = {};
+
+  // Filter by featured templates (isFeatured = true)
+  if (featured) {
+    const featuredTemplates = await prisma.template.findMany({
+      where: { isFeatured: true },
+      select: { reelId: true },
+    });
+    const featuredReelIds = featuredTemplates.map((t) => t.reelId);
+    where.id = { in: featuredReelIds };
+  }
 
   if (minLikes && minLikes > 0) {
     where.likeCount = { gte: minLikes };
