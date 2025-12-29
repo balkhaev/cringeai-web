@@ -1013,3 +1013,64 @@ export async function deleteCompositeGeneration(
 
   return response.json();
 }
+
+// ===== Generations List API =====
+
+/**
+ * Элемент списка генераций
+ */
+export type GenerationListItem = {
+  id: string;
+  status: string;
+  progress: number;
+  prompt: string;
+  thumbnailUrl: string | null;
+  videoUrl: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  source: {
+    type: "template" | "upload" | "url";
+    templateId?: string;
+    templateTitle?: string;
+  };
+};
+
+/**
+ * Ответ от GET /api/generate
+ */
+export type GenerationsListResponse = {
+  generations: GenerationListItem[];
+  total: number;
+};
+
+/**
+ * Параметры запроса списка генераций
+ */
+export type GenerationsListParams = {
+  limit?: number;
+  offset?: number;
+  status?: string;
+};
+
+/**
+ * Получить список всех генераций
+ */
+export async function getGenerations(
+  params: GenerationsListParams = {}
+): Promise<GenerationsListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.limit) searchParams.set("limit", params.limit.toString());
+  if (params.offset) searchParams.set("offset", params.offset.toString());
+  if (params.status) searchParams.set("status", params.status);
+
+  const response = await fetch(
+    `${API_URL}/api/generate?${searchParams.toString()}`,
+    { credentials: "include" }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to get generations");
+  }
+
+  return response.json();
+}

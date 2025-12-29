@@ -379,6 +379,7 @@ export function useDeleteGeneration() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reel-debug"] });
       queryClient.invalidateQueries({ queryKey: ["template-generations"] });
+      queryClient.invalidateQueries({ queryKey: ["generations"] });
     },
   });
 }
@@ -394,6 +395,27 @@ export function useDeleteCompositeGeneration() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reel-debug"] });
       queryClient.invalidateQueries({ queryKey: ["template-generations"] });
+      queryClient.invalidateQueries({ queryKey: ["generations"] });
+    },
+  });
+}
+
+// ===== Generations List Hooks =====
+
+export function useGenerations(
+  params: { limit?: number; offset?: number; status?: string } = {}
+) {
+  return useQuery({
+    queryKey: ["generations", params],
+    queryFn: () =>
+      import("../templates-api").then((m) => m.getGenerations(params)),
+    refetchInterval: (query) => {
+      // Poll if there are pending/processing generations
+      const data = query.state.data;
+      const hasPending = data?.generations?.some(
+        (g) => g.status === "pending" || g.status === "processing"
+      );
+      return hasPending ? 5000 : false;
     },
   });
 }
