@@ -187,9 +187,9 @@ function ElementCard({
           <div className="grid grid-cols-2 gap-2">
             {element.remixOptions.map((option) => (
               <button
-                className={`flex items-center gap-2 rounded-lg border p-2 text-left transition-all hover:bg-accent ${
+                className={`group relative flex flex-col overflow-hidden rounded-lg border transition-all hover:bg-accent ${
                   selectedOptionId === option.id
-                    ? "border-primary bg-primary/10 ring-1 ring-primary"
+                    ? "border-primary ring-2 ring-primary"
                     : "border-border"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                 disabled={disabled}
@@ -199,10 +199,29 @@ function ElementCard({
                 }
                 type="button"
               >
-                <span className="text-xl">{option.icon}</span>
-                <span className="truncate font-medium text-sm">
-                  {option.label}
-                </span>
+                {option.imageUrl ? (
+                  <div className="relative aspect-square w-full">
+                    <Image
+                      alt={option.label}
+                      className="object-cover transition-transform group-hover:scale-105"
+                      fill
+                      src={option.imageUrl}
+                      unoptimized
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                      <span className="truncate font-medium text-white text-xs">
+                        {option.label}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 text-left">
+                    <span className="text-xl">{option.icon}</span>
+                    <span className="truncate font-medium text-sm">
+                      {option.label}
+                    </span>
+                  </div>
+                )}
               </button>
             ))}
           </div>

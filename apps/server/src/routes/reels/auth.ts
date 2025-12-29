@@ -63,9 +63,33 @@ authRouter.post("/cookies", async (c) => {
     // Сохраняем cookies в базу данных
     await saveCookies(body);
 
+    // Отправляем куки в scrapper сервис для применения
+    let scrapperResult: { success: boolean; error?: string } = {
+      success: false,
+    };
+    try {
+      const { services } = await import("../../config");
+      const response = await fetch(`${services.scrapper}/cookies/reset`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        scrapperResult = await response.json();
+        console.log("Scrapper cookies reset:", scrapperResult);
+      } else {
+        scrapperResult.error = `Scrapper returned ${response.status}`;
+        console.error("Failed to reset scrapper cookies:", response.status);
+      }
+    } catch (scrapperError) {
+      scrapperResult.error = String(scrapperError);
+      console.error("Failed to notify scrapper:", scrapperError);
+    }
+
     return c.json({
       success: true,
       message: `Saved ${body.length} cookies to database`,
+      scrapperReset: scrapperResult.success,
+      scrapperError: scrapperResult.error,
     });
   } catch (error) {
     console.error("Failed to save cookies:", error);

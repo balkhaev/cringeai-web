@@ -35,6 +35,7 @@ export type RemixOption = {
   label: string;
   icon: string;
   prompt: string;
+  imageUrl?: string;
 };
 
 // Element appearance in a scene

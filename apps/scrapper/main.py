@@ -33,16 +33,22 @@ def apply_cookies_to_loader(l: instaloader.Instaloader, cookies: List[Dict[str, 
     """Apply Playwright-format cookies to instaloader session"""
     if not cookies:
         return False
-    
+
     session = l.context._session
     applied = 0
-    
+
+    # Clear existing cookies first
+    session.cookies.clear()
+
     for cookie in cookies:
         name = cookie.get("name")
         value = cookie.get("value")
+        # Always use .instagram.com domain for proper cookie matching
         domain = cookie.get("domain", ".instagram.com")
+        if not domain or domain == "":
+            domain = ".instagram.com"
         path = cookie.get("path", "/")
-        
+
         if name and value:
             session.cookies.set(
                 name,
@@ -51,7 +57,8 @@ def apply_cookies_to_loader(l: instaloader.Instaloader, cookies: List[Dict[str, 
                 path=path,
             )
             applied += 1
-    
+            print(f"  Cookie: {name} -> {domain}")
+
     print(f"Applied {applied} cookies to instaloader session")
     return applied > 0
 
@@ -236,12 +243,94 @@ async def refresh_cookies():
     """Refresh cookies from server database"""
     global loader
     l = get_loader()
-    
+
     cookies = fetch_cookies_from_server()
     if cookies and apply_cookies_to_loader(l, cookies):
         return {"success": True, "message": f"Refreshed {len(cookies)} cookies from server"}
     else:
         raise HTTPException(status_code=400, detail="No cookies found or failed to apply")
+
+
+@app.post("/cookies/reset")
+async def reset_and_apply_cookies():
+    """Full reset: destroy loader, clear session file, apply fresh cookies"""
+    global loader
+
+    # Clear session file
+    session_path = Path(SESSION_FILE)
+    if session_path.exists():
+        try:
+            session_path.unlink()
+            print(f"Deleted session file: {session_path}")
+        except Exception as e:
+            print(f"Failed to delete session file: {e}")
+
+    # Reset loader
+    loader = None
+
+    # Create fresh loader without session file
+    loader = instaloader.Instaloader(
+        download_videos=True,
+        download_video_thumbnails=False,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+        post_metadata_txt_pattern="",
+        filename_pattern="{shortcode}",
+    )
+
+    # Apply fresh cookies from server
+    cookies = fetch_cookies_from_server()
+    if not cookies:
+        raise HTTPException(status_code=400, detail="No cookies found in database")
+
+    if not apply_cookies_to_loader(loader, cookies):
+        raise HTTPException(status_code=400, detail="Failed to apply cookies")
+
+    # Check which critical cookies we have
+    session = loader.context._session
+    cookie_names = [c.name for c in session.cookies]
+    has_sessionid = "sessionid" in cookie_names
+    has_csrftoken = "csrftoken" in cookie_names
+
+    return {
+        "success": True,
+        "message": f"Reset complete. Applied {len(cookies)} cookies",
+        "cookieNames": cookie_names,
+        "hasSessionId": has_sessionid,
+        "hasCsrfToken": has_csrftoken,
+    }
+
+
+@app.get("/cookies/debug")
+async def debug_cookies():
+    """Debug endpoint to check current cookies state"""
+    global loader
+
+    if loader is None:
+        return {"error": "Loader not initialized", "loader": None}
+
+    session = loader.context._session
+    cookies_info = []
+
+    for cookie in session.cookies:
+        cookies_info.append({
+            "name": cookie.name,
+            "domain": cookie.domain,
+            "path": cookie.path,
+            "expires": cookie.expires,
+            "secure": cookie.secure,
+        })
+
+    return {
+        "loaderInitialized": True,
+        "isLoggedIn": loader.context.is_logged_in,
+        "username": loader.context.username if loader.context.is_logged_in else None,
+        "cookieCount": len(cookies_info),
+        "cookies": cookies_info,
+        "sessionFileExists": Path(SESSION_FILE).exists(),
+    }
 
 
 @app.post("/metadata", response_model=MetadataResponse)
