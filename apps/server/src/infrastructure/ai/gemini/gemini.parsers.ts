@@ -8,7 +8,43 @@ import type {
 export const JSON_REGEX = /\{[\s\S]*\}/;
 
 /**
- * Извлекает JSON объект из текста с балансировкой скобок
+ * Пытается исправить типичные ошибки JSON от LLM
+ * Например: }] вместо }}, или }} вместо }]
+ */
+function tryFixCommonJsonErrors(jsonStr: string): string {
+  // Попробуем распарсить как есть
+  try {
+    JSON.parse(jsonStr);
+    return jsonStr;
+  } catch {
+    // Продолжаем с исправлениями
+  }
+
+  let fixed = jsonStr;
+
+  // Паттерн: }} где первая } закрывает объект, а вторая должна быть ]
+  // Это происходит когда LLM путает закрытие массива
+  // Ищем паттерн: }\s*}\s*} или }\s*}\s*, где средняя } должна быть ]
+  fixed = fixed.replace(/\}\s*\}\s*\}/g, (match) =>
+    match.replace(/\}\s*\}/, "}]")
+  );
+
+  // Паттерн: объект в массиве заканчивается на }} вместо }]
+  // "appearances": [...{...}}
+  fixed = fixed.replace(/(\}\s*)\}(\s*[,}\]])/g, "$1]$2");
+
+  try {
+    JSON.parse(fixed);
+    console.log("[JSON Fix] Successfully fixed JSON errors");
+    return fixed;
+  } catch {
+    // Не удалось исправить, возвращаем оригинал
+    return jsonStr;
+  }
+}
+
+/**
+ * Извлекает JSON объект или массив из текста с балансировкой скобок
  * Более надёжный метод чем простой regex
  */
 export function extractJsonFromText(text: string): string | null {
@@ -16,22 +52,52 @@ export function extractJsonFromText(text: string): string | null {
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) {
     const content = codeBlockMatch[1]?.trim();
-    if (content?.startsWith("{")) {
+    if (content?.startsWith("{") || content?.startsWith("[")) {
+      // Попробуем исправить и распарсить
+      const fixed = tryFixCommonJsonErrors(content);
       try {
-        JSON.parse(content);
-        return content;
+        JSON.parse(fixed);
+        return fixed;
       } catch {
         // Продолжаем искать
       }
     }
   }
 
-  // Найдём первую открывающую скобку
-  const startIndex = text.indexOf("{");
-  if (startIndex === -1) return null;
+  // Найдём первую открывающую скобку (объект или массив)
+  const objStart = text.indexOf("{");
+  const arrStart = text.indexOf("[");
+
+  let startIndex: number;
+  let openBracket: string;
+  let closeBracket: string;
+
+  if (objStart === -1 && arrStart === -1) return null;
+
+  if (objStart === -1) {
+    startIndex = arrStart;
+    openBracket = "[";
+    closeBracket = "]";
+  } else if (arrStart === -1) {
+    startIndex = objStart;
+    openBracket = "{";
+    closeBracket = "}";
+  } else {
+    // Берём то что раньше
+    if (objStart < arrStart) {
+      startIndex = objStart;
+      openBracket = "{";
+      closeBracket = "}";
+    } else {
+      startIndex = arrStart;
+      openBracket = "[";
+      closeBracket = "]";
+    }
+  }
 
   // Балансируем скобки для нахождения конца JSON
-  let depth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
   let inString = false;
   let escapeNext = false;
 
@@ -56,18 +122,31 @@ export function extractJsonFromText(text: string): string | null {
     if (inString) continue;
 
     if (char === "{") {
-      depth++;
+      braceDepth++;
     } else if (char === "}") {
-      depth--;
-      if (depth === 0) {
-        const jsonStr = text.substring(startIndex, i + 1);
-        try {
-          JSON.parse(jsonStr);
-          return jsonStr;
-        } catch {
-          // Невалидный JSON, продолжаем
-          return null;
-        }
+      braceDepth--;
+    } else if (char === "[") {
+      bracketDepth++;
+    } else if (char === "]") {
+      bracketDepth--;
+    }
+
+    // Проверяем завершение
+    const isBalanced = braceDepth === 0 && bracketDepth === 0;
+    const isClosing =
+      (openBracket === "{" && char === "}") ||
+      (openBracket === "[" && char === "]");
+
+    if (isBalanced && isClosing) {
+      const jsonStr = text.substring(startIndex, i + 1);
+      // Пробуем исправить и распарсить
+      const fixed = tryFixCommonJsonErrors(jsonStr);
+      try {
+        JSON.parse(fixed);
+        return fixed;
+      } catch {
+        // Невалидный JSON, продолжаем
+        return null;
       }
     }
   }
