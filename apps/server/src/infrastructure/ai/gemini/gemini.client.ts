@@ -427,17 +427,35 @@ export class GeminiService {
       const response = result.response;
       const text = extractTextFromResponse(response);
 
+      console.log(
+        "[GEMINI] analyzeVideoUnified raw text:",
+        text.substring(0, 500)
+      );
+
       const jsonMatch = text.match(JSON_REGEX);
       if (!jsonMatch) {
+        console.error(
+          "[GEMINI] analyzeVideoUnified: No JSON found in response:",
+          text
+        );
         throw new Error("Failed to parse unified analysis response");
       }
 
-      const raw = JSON.parse(jsonMatch[0]) as {
+      let raw: {
         duration?: number | string | null;
         aspectRatio?: string;
         tags?: string[];
         elements?: ElementWithAppearances[];
       };
+      try {
+        raw = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error(
+          "[GEMINI] analyzeVideoUnified: JSON Parse error, matched text:",
+          jsonMatch[0].substring(0, 500)
+        );
+        throw parseError;
+      }
 
       const duration = parseDuration(raw.duration);
 
