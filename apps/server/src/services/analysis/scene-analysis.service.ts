@@ -614,7 +614,8 @@ export async function analyzeReelWithScenes(
             })),
             savedAnalysis.id,
             async (current, total, message) => {
-              const imageProgress = 88 + Math.floor((current / total) * 5);
+              const imageProgress =
+                total > 0 ? 88 + Math.floor((current / total) * 5) : 93;
               await onProgress("analyzing", imageProgress, message);
             }
           );
@@ -975,7 +976,8 @@ export async function analyzeReelUnified(
             })),
             savedAnalysis.id,
             async (current, total, message) => {
-              const imageProgress = 78 + Math.floor((current / total) * 2);
+              const imageProgress =
+                total > 0 ? 78 + Math.floor((current / total) * 2) : 80;
               await onProgress("analyzing", imageProgress, message);
             }
           );
