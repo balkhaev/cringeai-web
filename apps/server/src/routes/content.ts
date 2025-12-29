@@ -297,7 +297,6 @@ app.openapi(statusRoute, async (c) => {
           analysis: {
             include: {
               videoScenes: true,
-              videoElements: true,
             },
           },
         },
@@ -348,29 +347,20 @@ app.openapi(statusRoute, async (c) => {
     remixOptions: el.remixOptions,
   });
 
-  const elements = analysis?.videoElements
-    ? analysis.videoElements.map((el) =>
-        transformElement(el as unknown as StoredElement)
-      )
+  const elements = analysis?.elements
+    ? (analysis.elements as StoredElement[]).map(transformElement)
     : [];
 
-  // Map scenes with their elements (via elementIds)
-  const scenes = analysis?.videoScenes?.map((scene) => {
-    const sceneElementIds = (scene.elementIds as string[]) ?? [];
-    const sceneElements = analysis.videoElements
-      .filter((el) => sceneElementIds.includes(el.id))
-      .map((el) => transformElement(el as unknown as StoredElement));
-
-    return {
-      id: scene.id,
-      index: scene.index,
-      startTime: scene.startTime,
-      endTime: scene.endTime,
-      duration: scene.duration,
-      thumbnailUrl: scene.thumbnailUrl,
-      elements: sceneElements,
-    };
-  });
+  // Map scenes
+  const scenes = analysis?.videoScenes?.map((scene) => ({
+    id: scene.id,
+    index: scene.index,
+    startTime: scene.startTime,
+    endTime: scene.endTime,
+    duration: scene.duration,
+    thumbnailUrl: scene.thumbnailUrl,
+    elements: (scene.elements as StoredElement[]).map(transformElement),
+  }));
 
   return c.json(
     {
