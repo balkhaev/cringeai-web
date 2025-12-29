@@ -612,12 +612,80 @@ def extend_video_with_black(
     return True
 
 
+def normalize_video_for_concat(
+    video_path: str,
+    output_path: str
+) -> bool:
+    """
+    Normalize video for concatenation: ensure consistent format and add silent audio if missing.
+
+    Args:
+        video_path: Path to input video file
+        output_path: Path for output normalized video
+
+    Returns:
+        True if successful
+    """
+    has_audio = has_audio_stream(video_path)
+
+    if has_audio:
+        # Re-encode with consistent format
+        cmd = [
+            "ffmpeg",
+            "-i", video_path,
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.1",
+            "-pix_fmt", "yuv420p",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ar", "44100",
+            "-ac", "2",
+            output_path,
+            "-y"
+        ]
+    else:
+        # Add silent audio track
+        cmd = [
+            "ffmpeg",
+            "-i", video_path,
+            "-f", "lavfi",
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.1",
+            "-pix_fmt", "yuv420p",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-shortest",
+            output_path,
+            "-y"
+        ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=300
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg normalize failed: {result.stderr}")
+
+    return True
+
+
 def concat_videos_ffmpeg(
     video_paths: list[str],
     output_path: str
 ) -> bool:
     """
-    Concatenate multiple videos using FFmpeg concat demuxer
+    Concatenate multiple videos using FFmpeg concat demuxer.
+    All videos are first normalized to ensure consistent format.
 
     Args:
         video_paths: List of video file paths in order
@@ -626,21 +694,26 @@ def concat_videos_ffmpeg(
     Returns:
         True if successful
     """
-    # Create concat list file
     concat_dir = os.path.dirname(output_path)
+
+    # Step 1: Normalize all videos to consistent format
+    normalized_paths = []
+    for i, path in enumerate(video_paths):
+        normalized_path = os.path.join(concat_dir, f"normalized_{i:03d}.mp4")
+        print(f"[concat] Normalizing video {i+1}/{len(video_paths)}: {path}")
+        normalize_video_for_concat(path, normalized_path)
+        normalized_paths.append(normalized_path)
+
+    # Step 2: Create concat list file
     concat_file = os.path.join(concat_dir, "concat_list.txt")
 
     with open(concat_file, "w") as f:
-        for path in video_paths:
-            # Escape single quotes in path
+        for path in normalized_paths:
             escaped_path = path.replace("'", "'\\''")
             f.write(f"file '{escaped_path}'\n")
 
-    # Re-encode for web compatibility with proper keyframes
-    # -g 30 = keyframe every 1 second (assuming 30fps)
-    # -profile:v high -level 4.1 = wide browser compatibility
-    # -pix_fmt yuv420p = maximum compatibility
-    # -preset medium = good balance of speed and quality
+    # Step 3: Concatenate with stream copy (since all are now normalized)
+    # Add keyframes for smooth web playback
     cmd = [
         "ffmpeg",
         "-f", "concat",
@@ -667,9 +740,12 @@ def concat_videos_ffmpeg(
         timeout=600  # 10 minute timeout
     )
 
-    # Clean up concat file
+    # Clean up temporary files
     if os.path.exists(concat_file):
         os.remove(concat_file)
+    for path in normalized_paths:
+        if os.path.exists(path):
+            os.remove(path)
 
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg concat failed: {result.stderr}")
