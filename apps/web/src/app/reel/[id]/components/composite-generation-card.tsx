@@ -214,9 +214,10 @@ export function CompositeGenerationCard({
         {generation.videoUrl && (
           <div className="mb-3 flex h-80 gap-3">
             <video
-              className="h-full rounded-lg"
+              className="h-full rounded-lg object-contain"
               controls
               muted
+              playsInline
               src={generation.videoUrl}
             />
           </div>
@@ -730,9 +731,10 @@ function ScenePreviewCard({
       <div className="relative aspect-video bg-surface-2">
         {sceneVideoUrl ? (
           <video
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             controls
             muted
+            playsInline
             src={sceneVideoUrl}
           />
         ) : thumbnailUrl ? (

@@ -181,10 +181,10 @@ function GenerationCard({
   return (
     <div className="group overflow-hidden rounded-xl border border-glass-border bg-card shadow-(--shadow-glass) backdrop-blur-xl transition-all hover:border-glass-border/80">
       {/* Video Preview */}
-      <div className="relative aspect-video bg-surface-2">
+      <div className="relative h-80 bg-surface-2">
         {generation.videoUrl ? (
           <video
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             controls
             muted
             playsInline
@@ -195,7 +195,7 @@ function GenerationCard({
         ) : generation.thumbnailUrl ? (
           <img
             alt="Превью"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             src={generation.thumbnailUrl}
           />
         ) : (
@@ -279,7 +279,7 @@ function GenerationCard({
             <CollapsibleContent>
               <div className="mt-2 overflow-hidden rounded-lg border border-glass-border bg-surface-1">
                 <video
-                  className="aspect-video w-full"
+                  className="h-64 w-full object-contain"
                   controls
                   muted
                   playsInline

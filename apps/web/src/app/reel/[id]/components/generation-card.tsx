@@ -47,6 +47,7 @@ export function GenerationCard({
 }: GenerationCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [originalOpen, setOriginalOpen] = useState(false);
   const isActive =
     generation.status === "pending" || generation.status === "processing";
   const isCompleted = generation.status === "completed";
@@ -156,14 +157,70 @@ export function GenerationCard({
             ) : null}
             {generation.videoUrl !== null ? (
               <video
-                className="h-full rounded-lg"
+                className="h-full rounded-lg object-contain"
                 controls
                 muted
+                playsInline
                 src={generation.videoUrl ?? undefined}
               />
             ) : null}
           </div>
         ) : null}
+
+        {/* Original Video Collapsible */}
+        {generation.sourceVideoUrl && (
+          <Collapsible
+            className="mb-3"
+            onOpenChange={setOriginalOpen}
+            open={originalOpen}
+          >
+            <CollapsibleTrigger asChild>
+              <Button
+                className="w-full justify-between"
+                size="sm"
+                variant="ghost"
+              >
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <rect
+                      height="20"
+                      rx="2.18"
+                      ry="2.18"
+                      width="20"
+                      x="2"
+                      y="2"
+                    />
+                    <path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5" />
+                  </svg>
+                  Оригинал
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${originalOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 overflow-hidden rounded-lg border border-glass-border bg-surface-1">
+                <video
+                  className="h-64 w-full object-contain"
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                  src={generation.sourceVideoUrl}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Error */}
         <GenerationError error={generation.error} show={isFailed} />
