@@ -297,6 +297,7 @@ app.openapi(statusRoute, async (c) => {
           analysis: {
             include: {
               videoScenes: true,
+              videoElements: true,
             },
           },
         },
@@ -324,43 +325,54 @@ app.openapi(statusRoute, async (c) => {
   const status = statusMap[reel.status] ?? "pending";
   const analysis = reel.template?.analysis;
 
-  // Parse and transform elements to camelCase
-  type StoredElement = {
+  // Transform elements from videoElements relation
+  type RemixOption = {
     id: string;
-    type: "character" | "object" | "background";
     label: string;
-    description: string;
-    remixOptions: Array<{
-      id: string;
-      label: string;
-      icon: string;
-      prompt: string;
-      imageUrl?: string;
-    }>;
+    icon: string;
+    prompt: string;
+    imageUrl?: string;
   };
 
-  const transformElement = (el: StoredElement) => ({
+  type ElementType = "character" | "object" | "background";
+
+  const transformElement = (el: {
+    id: string;
+    type: string;
+    label: string;
+    description: string;
+    remixOptions: unknown;
+  }) => ({
     id: el.id,
-    type: el.type,
+    type: el.type as ElementType,
     label: el.label,
     description: el.description,
-    remixOptions: el.remixOptions,
+    remixOptions: el.remixOptions as RemixOption[],
   });
 
-  const elements = analysis?.elements
-    ? (analysis.elements as StoredElement[]).map(transformElement)
-    : [];
+  // Create elements map for quick lookup by ID
+  const videoElements = analysis?.videoElements ?? [];
+  const elementsMap = new Map(videoElements.map((el) => [el.id, el]));
 
-  // Map scenes
-  const scenes = analysis?.videoScenes?.map((scene) => ({
-    id: scene.id,
-    index: scene.index,
-    startTime: scene.startTime,
-    endTime: scene.endTime,
-    duration: scene.duration,
-    thumbnailUrl: scene.thumbnailUrl,
-    elements: (scene.elements as StoredElement[]).map(transformElement),
-  }));
+  const elements = videoElements.map(transformElement);
+
+  // Map scenes with elements from elementIds
+  const scenes = analysis?.videoScenes?.map((scene) => {
+    const sceneElements = scene.elementIds
+      .map((id) => elementsMap.get(id))
+      .filter((el): el is NonNullable<typeof el> => el !== undefined)
+      .map(transformElement);
+
+    return {
+      id: scene.id,
+      index: scene.index,
+      startTime: scene.startTime,
+      endTime: scene.endTime,
+      duration: scene.duration,
+      thumbnailUrl: scene.thumbnailUrl,
+      elements: sceneElements,
+    };
+  });
 
   return c.json(
     {
