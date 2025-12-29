@@ -458,7 +458,16 @@ export class GeminiService {
         elements?: ElementWithAppearances[];
       };
       try {
-        raw = JSON.parse(jsonString);
+        const parsed = JSON.parse(jsonString);
+        // Handle case when Gemini returns array directly instead of {elements: [...]}
+        if (Array.isArray(parsed)) {
+          console.log(
+            "[GEMINI] analyzeVideoUnified: Received array instead of object, wrapping..."
+          );
+          raw = { elements: parsed };
+        } else {
+          raw = parsed;
+        }
       } catch (parseError) {
         console.error(
           "[GEMINI] analyzeVideoUnified: JSON Parse error, matched text:",
@@ -473,6 +482,9 @@ export class GeminiService {
 
       // Limit to 6 elements
       let elements = raw.elements || [];
+      console.log(
+        `[GEMINI] analyzeVideoUnified: Parsed ${elements.length} elements`
+      );
       if (elements.length > 6) {
         elements = elements.slice(0, 6);
       }
