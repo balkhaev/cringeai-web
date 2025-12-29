@@ -9,8 +9,8 @@ import { timeouts } from "../../../config";
 import { aiLogger } from "../../../services/ai-logger";
 import { withTimeout } from "../../../services/utils";
 import {
+  extractJsonFromText,
   extractTextFromResponse,
-  JSON_REGEX,
   parseDuration,
   parseRawAnalysis,
   parseRawAnalysisWithoutOptions,
@@ -131,12 +131,19 @@ export class GeminiService {
       const response = result.response;
       const text = extractTextFromResponse(response);
 
-      const jsonMatch = text.match(JSON_REGEX);
-      if (!jsonMatch) {
-        throw new Error(`Failed to parse ${operation} response`);
+      // Используем умный парсер с балансировкой скобок
+      const jsonString = extractJsonFromText(text);
+      if (!jsonString) {
+        console.error(
+          `[GEMINI] ${operation}: No valid JSON found in response:`,
+          text
+        );
+        throw new Error(
+          `Failed to parse ${operation} response - no valid JSON found`
+        );
       }
 
-      const raw = JSON.parse(jsonMatch[0]) as AnyRawAnalysis;
+      const raw = JSON.parse(jsonString) as AnyRawAnalysis;
       const parsed = parseResult(raw);
 
       await onProgress?.("analyzing", 90, progressMessages.done);
@@ -432,13 +439,16 @@ export class GeminiService {
         text.substring(0, 500)
       );
 
-      const jsonMatch = text.match(JSON_REGEX);
-      if (!jsonMatch) {
+      // Используем умный парсер с балансировкой скобок
+      const jsonString = extractJsonFromText(text);
+      if (!jsonString) {
         console.error(
-          "[GEMINI] analyzeVideoUnified: No JSON found in response:",
+          "[GEMINI] analyzeVideoUnified: No valid JSON found in response:",
           text
         );
-        throw new Error("Failed to parse unified analysis response");
+        throw new Error(
+          "Failed to parse unified analysis response - no valid JSON found"
+        );
       }
 
       let raw: {
@@ -448,13 +458,15 @@ export class GeminiService {
         elements?: ElementWithAppearances[];
       };
       try {
-        raw = JSON.parse(jsonMatch[0]);
+        raw = JSON.parse(jsonString);
       } catch (parseError) {
         console.error(
           "[GEMINI] analyzeVideoUnified: JSON Parse error, matched text:",
-          jsonMatch[0].substring(0, 500)
+          jsonString.substring(0, 500)
         );
-        throw parseError;
+        throw new Error(
+          `JSON Parse error in unified analysis: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+        );
       }
 
       const duration = parseDuration(raw.duration);

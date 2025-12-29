@@ -8,6 +8,74 @@ import type {
 export const JSON_REGEX = /\{[\s\S]*\}/;
 
 /**
+ * Извлекает JSON объект из текста с балансировкой скобок
+ * Более надёжный метод чем простой regex
+ */
+export function extractJsonFromText(text: string): string | null {
+  // Сначала попробуем найти JSON в блоке ```json
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    const content = codeBlockMatch[1]?.trim();
+    if (content?.startsWith("{")) {
+      try {
+        JSON.parse(content);
+        return content;
+      } catch {
+        // Продолжаем искать
+      }
+    }
+  }
+
+  // Найдём первую открывающую скобку
+  const startIndex = text.indexOf("{");
+  if (startIndex === -1) return null;
+
+  // Балансируем скобки для нахождения конца JSON
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = startIndex; i < text.length; i++) {
+    const char = text[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === "{") {
+      depth++;
+    } else if (char === "}") {
+      depth--;
+      if (depth === 0) {
+        const jsonStr = text.substring(startIndex, i + 1);
+        try {
+          JSON.parse(jsonStr);
+          return jsonStr;
+        } catch {
+          // Невалидный JSON, продолжаем
+          return null;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Checks Gemini response for blocking and extracts text
  * @throws Error with clear message if response is blocked
  */
