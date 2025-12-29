@@ -1032,6 +1032,7 @@ export type GenerationListItem = {
     type: "template" | "upload" | "url";
     templateId?: string;
     templateTitle?: string;
+    sourceUrl?: string;
   };
 };
 

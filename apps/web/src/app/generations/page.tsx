@@ -2,9 +2,11 @@
 
 import {
   CheckCircle2,
+  ChevronDown,
   Clock,
   Download,
   ExternalLink,
+  Film,
   Filter,
   Loader2,
   Trash2,
@@ -27,6 +29,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -145,6 +152,7 @@ function GenerationCard({
   isDeleting: boolean;
 }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [originalOpen, setOriginalOpen] = useState(false);
 
   const isActive =
     generation.status === "pending" || generation.status === "processing";
@@ -168,6 +176,8 @@ function GenerationCard({
     setDeleteDialogOpen(false);
   };
 
+  const hasOriginal = !!generation.source.sourceUrl;
+
   return (
     <div className="group overflow-hidden rounded-xl border border-glass-border bg-card shadow-(--shadow-glass) backdrop-blur-xl transition-all hover:border-glass-border/80">
       {/* Video Preview */}
@@ -175,7 +185,9 @@ function GenerationCard({
         {generation.videoUrl ? (
           <video
             className="h-full w-full object-cover"
+            controls
             muted
+            playsInline
             poster={generation.thumbnailUrl || undefined}
             preload="metadata"
             src={generation.videoUrl}
@@ -245,6 +257,39 @@ function GenerationCard({
           <Clock className="h-3 w-3" />
           {new Date(generation.createdAt).toLocaleString("ru-RU")}
         </div>
+
+        {/* Original Video Collapsible */}
+        {hasOriginal && (
+          <Collapsible onOpenChange={setOriginalOpen} open={originalOpen}>
+            <CollapsibleTrigger asChild>
+              <Button
+                className="w-full justify-between"
+                size="sm"
+                variant="ghost"
+              >
+                <span className="flex items-center gap-1">
+                  <Film className="h-3 w-3" />
+                  Оригинал
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${originalOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 overflow-hidden rounded-lg border border-glass-border bg-surface-1">
+                <video
+                  className="aspect-video w-full"
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                  src={generation.source.sourceUrl}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2">

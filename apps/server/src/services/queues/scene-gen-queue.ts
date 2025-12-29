@@ -453,7 +453,11 @@ export const sceneGenWorker = new Worker<SceneGenJobData, SceneGenJobResult>(
   },
   {
     connection: redis,
-    concurrency: 3, // Up to 3 scenes in parallel
+    concurrency: 2, // Kling allows max 2 concurrent generations
+    limiter: {
+      max: 2, // Max 2 jobs
+      duration: 5000, // per 5 seconds - small delay between batches
+    },
   }
 );
 

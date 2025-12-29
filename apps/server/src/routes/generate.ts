@@ -661,7 +661,11 @@ app.openapi(listRoute, async (c) => {
       include: {
         analysis: {
           include: {
-            template: true,
+            template: {
+              include: {
+                reel: true,
+              },
+            },
           },
         },
       },
@@ -670,25 +674,32 @@ app.openapi(listRoute, async (c) => {
   ]);
 
   return c.json({
-    generations: generations.map((gen) => ({
-      id: gen.id,
-      status: gen.status,
-      progress: gen.progress,
-      prompt: gen.prompt,
-      thumbnailUrl: gen.thumbnailUrl,
-      videoUrl: gen.videoUrl ? getGenerationVideoPublicUrl(gen.id) : null,
-      createdAt: gen.createdAt.toISOString(),
-      completedAt: gen.completedAt?.toISOString() ?? null,
-      source: {
-        type: (gen.analysis.sourceType === "upload"
-          ? "upload"
-          : gen.analysis.template
-            ? "template"
-            : "url") as "template" | "upload" | "url",
-        templateId: gen.analysis.template?.id,
-        templateTitle: gen.analysis.template?.title ?? undefined,
-      },
-    })),
+    generations: generations.map((gen) => {
+      // Get source video URL
+      const reel = gen.analysis.template?.reel;
+      const sourceUrl = reel ? getExternalReelVideoUrl(reel) : null;
+
+      return {
+        id: gen.id,
+        status: gen.status,
+        progress: gen.progress,
+        prompt: gen.prompt,
+        thumbnailUrl: gen.thumbnailUrl,
+        videoUrl: gen.videoUrl ? getGenerationVideoPublicUrl(gen.id) : null,
+        createdAt: gen.createdAt.toISOString(),
+        completedAt: gen.completedAt?.toISOString() ?? null,
+        source: {
+          type: (gen.analysis.sourceType === "upload"
+            ? "upload"
+            : gen.analysis.template
+              ? "template"
+              : "url") as "template" | "upload" | "url",
+          templateId: gen.analysis.template?.id,
+          templateTitle: gen.analysis.template?.title ?? undefined,
+          sourceUrl: sourceUrl ?? undefined,
+        },
+      };
+    }),
     total,
   });
 });

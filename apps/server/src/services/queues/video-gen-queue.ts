@@ -278,7 +278,11 @@ export const videoGenWorker = new Worker<VideoGenJobData, VideoGenJobResult>(
   },
   {
     connection: redis,
-    concurrency: 5, // Process up to 5 generations in parallel
+    concurrency: 2, // Kling allows max 2 concurrent generations
+    limiter: {
+      max: 2, // Max 2 jobs
+      duration: 5000, // per 5 seconds - small delay between batches
+    },
   }
 );
 

@@ -16,6 +16,45 @@ import {
   sleep,
   TRAILING_SLASH_REGEX,
 } from "./kling.helpers";
+
+// Global semaphore for concurrent generation limiting
+// Kling allows max 2 concurrent generations across all queues
+const MAX_CONCURRENT_GENERATIONS = 2;
+const SEMAPHORE_RETRY_DELAY = 3000; // 3 seconds between retries
+let activeGenerations = 0;
+const generationQueue: Array<{
+  resolve: () => void;
+  reject: (err: Error) => void;
+}> = [];
+
+async function acquireSemaphore(): Promise<void> {
+  if (activeGenerations < MAX_CONCURRENT_GENERATIONS) {
+    activeGenerations++;
+    return;
+  }
+
+  // Wait in queue
+  return new Promise((resolve, reject) => {
+    generationQueue.push({ resolve, reject });
+  });
+}
+
+function releaseSemaphore(): void {
+  activeGenerations--;
+
+  // Release next in queue
+  if (
+    generationQueue.length > 0 &&
+    activeGenerations < MAX_CONCURRENT_GENERATIONS
+  ) {
+    const next = generationQueue.shift();
+    if (next) {
+      activeGenerations++;
+      next.resolve();
+    }
+  }
+}
+
 import type {
   KlingGenerationOptions,
   KlingGenerationResult,
@@ -230,6 +269,22 @@ export class KlingService {
       }
     );
 
+    // Acquire semaphore to limit concurrent API requests
+    this.log(
+      "debug",
+      `Ожидание слота (активных: ${activeGenerations}/${MAX_CONCURRENT_GENERATIONS})...`
+    );
+    await acquireSemaphore();
+    this.log("debug", "Слот получен, отправка запроса...");
+
+    let semaphoreReleased = false;
+    const safeReleaseSemaphore = () => {
+      if (!semaphoreReleased) {
+        semaphoreReleased = true;
+        releaseSemaphore();
+      }
+    };
+
     try {
       // Convert @Video1 syntax to <<<video_1>>> per Kling API spec
       let fullPrompt = prompt
@@ -296,6 +351,8 @@ export class KlingService {
             responseMessage: createResponse.message,
           },
         });
+        // Release semaphore on error
+        safeReleaseSemaphore();
         return {
           success: false,
           error: errorMsg,
@@ -304,6 +361,11 @@ export class KlingService {
 
       const taskId = createResponse.data.task_id;
       this.log("info", "Задача создана");
+
+      // Release semaphore after successful task creation with small delay
+      // This allows next batch to start while this task is processing
+      await sleep(SEMAPHORE_RETRY_DELAY);
+      safeReleaseSemaphore();
 
       // Poll for completion with optional progress callback
       const result = await this.pollForCompletion(taskId, options.onProgress);
@@ -354,6 +416,8 @@ export class KlingService {
       this.log("error", `Критическая ошибка (${totalTime})`);
       const err = error instanceof Error ? error : new Error(String(error));
       await logHandle.fail(err);
+      // Release semaphore on error (if not already released)
+      safeReleaseSemaphore();
       return this.parseError(err);
     }
   }
